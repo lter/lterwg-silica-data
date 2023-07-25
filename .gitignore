@@ -53,3 +53,7 @@ rsconnect/
 
 # Ignore Mac system file
 .DS_Store
+
+# Folders to ignore
+chem_ins/
+chem_outs/
