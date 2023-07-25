@@ -91,7 +91,7 @@ for(j in 1:length(raw_files)){
   focal_raw <- raw_files[j]
   
   # Message procesing start
-  message("Harmonizing '", focal_raw, "'")
+  message("Harmonizing '", focal_raw, "' (file ",  j, " of ", length(raw_files), ")")
   
   # Subset the key object a bit
   key_sub <- key %>%
@@ -229,9 +229,6 @@ for(j in 1:length(raw_files)){
   # Add to list
   df_list[[focal_raw]] <- raw_df
   
-  # Success message
-  message("Wrangling complete for '", focal_raw, "' (", length(raw_files) - j, " files remaining)") 
-  
 } # Close loop
 
 # Unlist the list we just generated
@@ -241,7 +238,7 @@ tidy_v0 <- df_list %>%
 # Check that out
 dplyr::glimpse(tidy_v0)
 
-# Clean up environment
+# Clean up environment (i.e., drop everything prior to this object)
 rm(list = setdiff(ls(), "tidy_v0"))
 
 
