@@ -57,5 +57,5 @@ rsconnect/
 # Folders to ignore
 keys/
 chem_raw/
-chem_tidy/
+tidy/
 
