@@ -55,5 +55,6 @@ rsconnect/
 .DS_Store
 
 # Folders to ignore
+keys/
 chem_ins/
 chem_outs/
