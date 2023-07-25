@@ -26,7 +26,7 @@ dir.create(path = file.path("keys"), showWarnings = F)
 
 # Create a folder for inputs & and outputs
 dir.create(path = file.path("chem_raw"), showWarnings = F)
-dir.create(path = file.path("chem_tidy"), showWarnings = F)
+dir.create(path = file.path("tidy"), showWarnings = F)
 
 ## -------------------------------------------- ##
               # Data Acquisition ----
@@ -241,9 +241,33 @@ dplyr::glimpse(tidy_v0)
 # Clean up environment (i.e., drop everything prior to this object)
 rm(list = setdiff(ls(), "tidy_v0"))
 
+## -------------------------------------------- ##
+# Unit Conversions ----
+## -------------------------------------------- ##
+
+# Need to do unit conversions to get each metric into a single, desired unit
+
+# Make all needed columns into numbers to be able to do math on them
+tidy_v1 <- tidy_v0 %>%
+  dplyr::mutate(dplyr::across(.cols = dplyr::ends_with("_uM"), .fns = as.numeric)) %>%
+  dplyr::mutate(dplyr::across(.cols = dplyr::ends_with("_cm"), .fns = as.numeric)) %>%
+  dplyr::mutate(dplyr::across(.cols = dplyr::ends_with("_cms"), .fns = as.numeric)) %>%
+  dplyr::mutate(dplyr::across(.cols = dplyr::ends_with("_L"), .fns = as.numeric)) %>%
+  dplyr::mutate(dplyr::across(.cols = dplyr::ends_with("_NTU"), .fns = as.numeric)) %>%
+  dplyr::mutate(dplyr::across(.cols = dplyr::ends_with("_SU"), .fns = as.numeric)) %>%
+  dplyr::mutate(dplyr::across(.cols = dplyr::ends_with("_ML_day"), .fns = as.numeric)) %>%
+  dplyr::mutate(dplyr::across(.cols = dplyr::ends_with("_C"), .fns = as.numeric)) %>%
+  dplyr::mutate(ph = as.numeric(ph))
+
+# Re-check structure
+dplyr::glimpse(tidy_v1)
+
+# Actually do unit conversions
+tidy_v2 <- tidy_v1
 
 
-
+# Re-check structure
+dplyr::glimpse(tidy_v2)
 
 
 # End ----
