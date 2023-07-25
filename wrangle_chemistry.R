@@ -140,7 +140,7 @@ for(j in 1:length(raw_files)){
     dplyr::mutate(Concentration_Units = ifelse(nchar(Concentration_Units) == 0,
                                                yes = NA, no = Concentration_Units)) %>%
     # Handle concentration units characters that can't be in column names
-    dplyr::mutate(conc_actual = gsub(pattern = "\\/", replacement = "_", 
+    dplyr::mutate(conc_actual = gsub(pattern = "\\/| |\\-", replacement = "_", 
                                      x = Concentration_Units)) %>%
     # Combine concentration units with column name (where conc units are provided)
     dplyr::mutate(names_actual = ifelse(!is.na(conc_actual),
@@ -172,7 +172,7 @@ for(j in 1:length(raw_files)){
       # Drop "unit" bit of column
       dplyr::mutate(solute = gsub(pattern = "_unit", replacement = "", x = solute)) %>%
       # Make all units ready to become column headers
-      dplyr::mutate(units = gsub(pattern = "\\/", replacement = "_", x = units))
+      dplyr::mutate(units = gsub(pattern = "\\/| |\\-", replacement = "_", x = units))
       
     # Needed wrangling
     raw_df_v4 <- raw_df_v3 %>%
