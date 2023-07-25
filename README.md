@@ -10,6 +10,10 @@
 
 Scripts in this repository are described below:
 
+- **`wrangle_chemistry.R`** - Ingest chemistry files (per river / stream
+  gage), do necessary harmonizing to meet desired format requirements,
+  and create a single, analysis-ready chemistry dataset
+
 ## Repository Content
 
 See below for a “tree” of this repository’s content:
@@ -18,11 +22,12 @@ See below for a “tree” of this repository’s content:
 supportR::github_tree(repo = "https://github.com/lter/lterwg-silica-data", exclude = "docs")
 ```
 
-    ##        levelName
-    ## 1 .             
-    ## 2  ¦--.gitignore
-    ## 3  ¦--README.Rmd
-    ## 4  °--README.md
+    ##                 levelName
+    ## 1 .                      
+    ## 2  ¦--.gitignore         
+    ## 3  ¦--README.Rmd         
+    ## 4  ¦--README.md          
+    ## 5  °--wrangle_chemistry.R
 
 ## Related Repositories
 

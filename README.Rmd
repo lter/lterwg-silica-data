@@ -12,6 +12,7 @@ output: github_document
 
 Scripts in this repository are described below:
 
+- **`wrangle_chemistry.R`** - Ingest chemistry files (per river / stream gage), do necessary harmonizing to meet desired format requirements, and create a single, analysis-ready chemistry dataset
 
 ## Repository Content
 
