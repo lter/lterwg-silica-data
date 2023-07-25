@@ -270,4 +270,24 @@ tidy_v2 <- tidy_v1
 dplyr::glimpse(tidy_v2)
 
 
+## -------------------------------------------- ##
+# Export ----
+## -------------------------------------------- ##
+
+# Create one final tidy object
+tidy_final <- tidy_v2
+
+# Check structure
+dplyr::glimpse(tidy_final)
+
+# Generate a date-stamped file name for this file
+( chem_filename <- paste0("tidy_chemistry_", Sys.Date(), ".csv") )
+
+# Export locally
+write.csv(x = tidy_final, file = file.path("tidy", chem_filename), na = '', row.names = F)
+
+# Export to Drive
+# googledrive::drive_upload(media = file.path("tidy", chem_filename), overwrite = T,
+#                           path = googledrive::as_id(""))
+
 # End ----
