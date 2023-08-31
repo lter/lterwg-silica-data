@@ -40,7 +40,10 @@ googledrive::drive_ls(path = googledrive::as_id("https://drive.google.com/drive/
 # Read in the key
 key_v1 <- readxl::read_excel(path = file.path("keys", "SiSyn_Data_Key.xlsx")) %>%
   # Subset to only chemistry data
-  dplyr::filter(Data_type == "chemistry")
+  dplyr::filter(Data_type == "chemistry") %>%
+  # Mangle raw column names as they will be by reading in the CSVs
+  dplyr::mutate(Raw_Column_Name = gsub(pattern = " |\\+|\\(|\\)|\\/", replacement = ".",
+                                       x = Raw_Column_Name))
 
 # Check structure
 dplyr::glimpse(key_v1)
