@@ -98,7 +98,7 @@ for(j in 1:length(raw_files)){
     # Only this file's section
     dplyr::filter(Raw_Filename == focal_raw) %>%
     # And only columns that have a synonymized equivalent
-    dplyr::filter(!is.na(Combined_Column_Name) & nchar(Combined_Column_Name) != 0)
+    dplyr::filter(!is.na(Standardized_Column_Name) & nchar(Standardized_Column_Name) != 0)
   
   # Load in that file
   raw_df_v1 <- read.csv(file = file.path("chem_raw", focal_raw))
@@ -135,17 +135,15 @@ for(j in 1:length(raw_files)){
     # Attach revised column names
     dplyr::left_join(key_sub, by = c("Raw_Filename", "Raw_Column_Name")) %>%
     # Drop any columns that don't have a synonymized equivalent
-    dplyr::filter(!is.na(Combined_Column_Name)) %>%
+    dplyr::filter(!is.na(Standardized_Column_Name)) %>%
     # Pick a standard 'not provided' entry for concentration units
-    dplyr::mutate(Concentration_Units = ifelse(nchar(Concentration_Units) == 0,
-                                               yes = NA, no = Concentration_Units)) %>%
+    dplyr::mutate(Units = ifelse(nchar(Units) == 0, yes = NA, no = Units)) %>%
     # Handle concentration units characters that can't be in column names
-    dplyr::mutate(conc_actual = gsub(pattern = "\\/| |\\-", replacement = "_", 
-                                     x = Concentration_Units)) %>%
+    dplyr::mutate(units_fix = gsub(pattern = "\\/| |\\-", replacement = "_", x = Units)) %>%
     # Combine concentration units with column name (where conc units are provided)
-    dplyr::mutate(names_actual = ifelse(!is.na(conc_actual),
-                                        yes = paste0(Combined_Column_Name, "_", conc_actual),
-                                        no = Combined_Column_Name)) %>%
+    dplyr::mutate(names_actual = ifelse(test = !is.na(units_fix),
+                                        yes = paste0(Standardized_Column_Name, "_", units_fix),
+                                        no = Standardized_Column_Name)) %>%
     # Pare down to only needed columns (implicitly removes unspecified columns)
     dplyr::select(row_num, Dataset, Raw_Filename, names_actual, values) %>%
     # Pivot back to wide format with revised column names
