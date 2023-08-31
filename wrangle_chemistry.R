@@ -234,7 +234,9 @@ for(j in 1:length(raw_files)){
 
 # Unlist the list we just generated
 tidy_v0 <- df_list %>%
-  purrr::list_rbind()
+  purrr::list_rbind(x = .) %>%
+  # Also drop any columns that don't include any values
+  dplyr::select(dplyr::where(~ !(all(is.na(.)) | all(. == ""))))
 
 # Check that out
 dplyr::glimpse(tidy_v0)
