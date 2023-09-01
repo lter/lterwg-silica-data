@@ -187,6 +187,8 @@ for(j in 1:length(raw_files)){
         Dataset == "Master_2022" & solute == "spec.cond" ~ "specific_conductivity",
         Dataset == "Master_2022" & solute == "temp.c" ~ "temp",
         Dataset == "Master_2022" & solute == "suspended.chl" ~ "suspended_chl",
+        ## Chem_HYBAM.csv
+        Dataset == "HYBAM" & solute == "si" ~ "dsi",
         # If no conditional provided, no mismatch found so keep regular solute column
         TRUE ~ solute)) %>%
       # Make the amount column truly numeric
@@ -235,6 +237,10 @@ for(j in 1:length(raw_files)){
 # Unlist the list we just generated
 tidy_v0 <- df_list %>%
   purrr::list_rbind(x = .) %>%
+  # Fill in missing stream name for one dataset
+  dplyr::mutate(Stream_Name = dplyr::case_when(
+    Raw_Filename == "NigerRiver.csv" & is.na(Stream_Name) ~ "Niger River",
+    T ~ Stream_Name)) %>%
   # Also drop any columns that don't include any values
   dplyr::select(dplyr::where(~ !(all(is.na(.)) | all(. == ""))))
 
@@ -242,7 +248,60 @@ tidy_v0 <- df_list %>%
 dplyr::glimpse(tidy_v0)
 
 # Clean up environment (i.e., drop everything prior to this object)
-rm(list = setdiff(ls(), "tidy_v0"))
+rm(list = setdiff(ls(), c("key", "tidy_v0")))
+
+## -------------------------------------------- ##
+               # Numeric Checks ----
+## -------------------------------------------- ##
+
+# Before we can do units conversions we need to do numeric checks (quality control)
+tidy_v1a <- tidy_v0 %>%
+  # Add a row number column
+  dplyr::mutate(row_num = 1:nrow(.), .before = dplyr::everything()) %>%
+  # Reshape the data to get all numeric columns into long format
+  tidyr::pivot_longer(cols = -row_num:-date,
+                      names_to = "solute",
+                      values_to = "measurement")
+
+# Check for any malformed numbers
+supportR::num_check(data = tidy_v1a, col = "measurement")
+
+# Check for unreasonable numbers too
+range(suppressWarnings(as.numeric(tidy_v1a$measurement)), na.rm = T)
+
+# Having identified any unreasonable / malformed numbers, we can now fix them
+tidy_v1b <- tidy_v1a %>%
+  dplyr::mutate(measurement = dplyr::case_when(
+    ## Malformed numbers / non-numbers
+    measurement %in% unique(key$NA_indicator) ~ NA,
+    measurement == "NaN" ~ NA,
+    measurement == "N/A" ~ NA,
+    measurement == "<LOD" ~ NA,
+    ## Unreasonable numbers
+    ### None yet!
+    # If not broken, leave alone!
+    T ~ measurement)) %>%
+  # Filter out all NAs (don't worry we'll get them back momentarily)
+  dplyr::filter(!is.na(measurement))
+
+# Re-check for malformed numbers / unreasonable numbers
+supportR::num_check(data = tidy_v1b, col = "measurement")
+range(suppressWarnings(as.numeric(tidy_v1b$measurement)), na.rm = T)
+
+# Now change class of measurements to numeric and re-claim wide format
+tidy_v1c <- tidy_v1b %>%
+  # Make measurement column numeric
+  dplyr::mutate(measure_actual = as.numeric(measurement)) %>%
+  dplyr::select(-measurement) %>%
+  # Sort solutes (likely to make unit conversions easier because like columns will group together)
+  dplyr::arrange(Dataset, Raw_Filename, LTER, Stream_Name, date, solute) %>%
+  # Re-claim original format
+  tidyr::pivot_wider(names_from = solute, values_from = measure_actual) %>%
+  # Then drop row number column
+  dplyr::select(-row_num)
+
+# Re-check structure
+dplyr::glimpse(tidy_v1c)
 
 ## -------------------------------------------- ##
 # Unit Conversions ----
