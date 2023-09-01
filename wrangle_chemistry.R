@@ -45,6 +45,20 @@ key_v1 <- readxl::read_excel(path = file.path("keys", "SiSyn_Data_Key.xlsx")) %>
 # Check structure
 dplyr::glimpse(key_v1)
 
+# Identify and download the **units key** as well
+googledrive::drive_ls(path = googledrive::as_id("https://drive.google.com/drive/folders/1hbkUsTdo4WAEUnlPReOUuXdeeXm92mg-")) %>%
+  dplyr::filter(name == "SiSyn_Chem_Units_Key") %>%
+  googledrive::drive_download(file = .$id, path = file.path("keys", .$name), 
+                              overwrite = T, type = "csv")
+
+# Read it in
+units_key_v1 <- read.csv(file = file.path("keys", paste0("SiSyn_Chem_Units_Key", ".csv"))) %>%
+  # Subset to only chemistry data
+  dplyr::filter(Data_type == "chemistry")
+
+# Check structure
+dplyr::glimpse(units_key_v1)
+
 # Identify the old master chemistry file
 old_primary <- googledrive::drive_ls(path = googledrive::as_id("https://drive.google.com/drive/folders/1dTENIB5W2ClgW0z-8NbjqARiaGO2_A7W")) %>%
   dplyr::filter(name == "20221030_masterdata_chem.csv")
@@ -80,6 +94,14 @@ key <- key_v1 %>%
 
 # Re-check structure
 dplyr::glimpse(key)
+
+# Do the same for the units key
+units_key <- units_key_v1 %>%
+  dplyr::select(-Data_type, -Notes) %>%
+  dplyr::mutate(Variable = tolower(Variable))
+
+# Re-check structure
+dplyr::glimpse(units_key)
 
 # Identify all downloaded files
 ( raw_files <- dir(path = file.path("chem_raw")) )
@@ -126,7 +148,7 @@ for(j in 1:length(raw_files)){
   
   # If any are found, print a warning for whoever is running this
   if(length(missing_cols) != 0){
-    message("Not all expected columns in '", focal_raw, "' are in data key!")
+    message("Not all expected columns in '", focal_raw, "' are in *data* key!")
     message("Check (and fix if needed) raw columns: ", 
             paste0("'", missing_cols, "'", collapse = " & ")) }
   
@@ -159,22 +181,16 @@ for(j in 1:length(raw_files)){
   # Do additional processing if the dataset is long format
   if(unique(key_sub$Dataset_orientation) == "long"){
     
-    # Grab just the unit information of the key sub object
-    units_key <- key_sub %>%
-      # Drop unwanted columns
-      dplyr::select(dplyr::ends_with("_unit")) %>%
-      # Flip to long format
-      tidyr::pivot_longer(cols = dplyr::everything(), 
-                          names_to = "solute", 
-                          values_to = "units") %>%
-      # Drop duplicate rows / rows without units
-      dplyr::filter(!is.na(units)) %>%
-      dplyr::distinct() %>%
-      # Drop "unit" bit of column
-      dplyr::mutate(solute = gsub(pattern = "_unit", replacement = "", x = solute)) %>%
+    # Get just the relevant bit of the units key
+    units_sub <- units_key %>%
+      # Filter to only this site
+      dplyr::filter(Raw_Filename == focal_raw) %>%
       # Make all units ready to become column headers
-      dplyr::mutate(units = gsub(pattern = "\\/| |\\-", replacement = "_", x = units))
-      
+      dplyr::mutate(Units = gsub(pattern = "\\/| |\\-", replacement = "_", x = Units)) %>%
+      # Rename variable column & tweak so it's ready to be a column name
+      dplyr::mutate(solute = gsub(pattern = "\\/| |\\-", replacement = "_", x = Variable)) %>%
+      dplyr::select(-Variable)
+    
     # Needed wrangling
     raw_df_v4 <- raw_df_v3 %>%
       # Make solute column lowercase to increase chances of pattern match
@@ -202,12 +218,12 @@ for(j in 1:length(raw_files)){
       dplyr::mutate(amount = as.character(amount))
     
     # Identify whether any units mismatch the data key units
-    mismatch_chem <- setdiff(x = unique(units_key$solute), 
+    mismatch_chem <- setdiff(x = unique(units_sub$solute), 
                              y = unique(raw_df_v4$solute))
     
     # If any mismatches are found, print a warning for whoever is running this
     if(length(mismatch_chem) != 0){
-      message("Solutes found in key that are absent from '", focal_raw, "'!")
+      message("Solutes found in *Units* key that are absent from '", focal_raw, "'!")
       message("Fix the following solutes: ", 
               paste0("'", mismatch_chem, "'", collapse = " & ")) }
     
@@ -219,11 +235,11 @@ for(j in 1:length(raw_files)){
       # Drop built-in units column if one exists
       dplyr::select(-dplyr::ends_with("solute_units")) %>%
       # Attach units from key
-      dplyr::left_join(y = units_key, by = c("solute")) %>%
+      dplyr::left_join(y = units_sub, by = c("Dataset", "Raw_Filename", "solute")) %>%
       # Attach solute and solute units into one column
-      dplyr::mutate(solute_actual = paste0(solute, "_", units)) %>%
+      dplyr::mutate(solute_actual = paste0(solute, "_", Units)) %>%
       # Drop unwanted columns
-      dplyr::select(-solute, -units) %>%
+      dplyr::select(-solute, -Units) %>%
       # Reshape wider
       tidyr::pivot_wider(names_from = solute_actual, values_from = amount, values_fill = NA)
     
@@ -308,6 +324,9 @@ dplyr::glimpse(tidy_v1c)
 ## -------------------------------------------- ##
 
 # Need to do unit conversions to get each metric into a single, desired unit
+
+# Check out
+
 
 # Make all needed columns into numbers to be able to do math on them
 tidy_v1 <- tidy_v0 %>%
