@@ -382,43 +382,30 @@ tidy_v2c <- tidy_v2b %>%
 dplyr::glimpse(tidy_v2c)
 
 ## -------------------------------------------- ##
-# Unit Conversions ----
+              # Unit Conversions ----
 ## -------------------------------------------- ##
+
+# Check what units are in the data
+tidy_v2c %>%
+  dplyr::select(-Dataset:-date) %>%
+  names()
 
 # Need to do unit conversions to get each metric into a single, desired unit
+tidy_v3 <- tidy_v2c
 
-# Check out
 
-
-# Make all needed columns into numbers to be able to do math on them
-tidy_v1 <- tidy_v0 %>%
-  dplyr::mutate(dplyr::across(.cols = dplyr::ends_with("_uM"), .fns = as.numeric)) %>%
-  dplyr::mutate(dplyr::across(.cols = dplyr::ends_with("_cm"), .fns = as.numeric)) %>%
-  dplyr::mutate(dplyr::across(.cols = dplyr::ends_with("_cms"), .fns = as.numeric)) %>%
-  dplyr::mutate(dplyr::across(.cols = dplyr::ends_with("_L"), .fns = as.numeric)) %>%
-  dplyr::mutate(dplyr::across(.cols = dplyr::ends_with("_NTU"), .fns = as.numeric)) %>%
-  dplyr::mutate(dplyr::across(.cols = dplyr::ends_with("_SU"), .fns = as.numeric)) %>%
-  dplyr::mutate(dplyr::across(.cols = dplyr::ends_with("_ML_day"), .fns = as.numeric)) %>%
-  dplyr::mutate(dplyr::across(.cols = dplyr::ends_with("_C"), .fns = as.numeric)) %>%
-  dplyr::mutate(ph = as.numeric(ph))
-
-# Re-check structure
-dplyr::glimpse(tidy_v1)
-
-# Actually do unit conversions
-tidy_v2 <- tidy_v1
+## UNDER CONSTRUCTION
 
 
 # Re-check structure
-dplyr::glimpse(tidy_v2)
-
+dplyr::glimpse(tidy_v3)
 
 ## -------------------------------------------- ##
-# Export ----
+                  # Export ----
 ## -------------------------------------------- ##
 
 # Create one final tidy object
-tidy_final <- tidy_v2
+tidy_final <- tidy_v3
 
 # Check structure
 dplyr::glimpse(tidy_final)
