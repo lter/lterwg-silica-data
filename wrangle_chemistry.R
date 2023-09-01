@@ -252,13 +252,7 @@ for(j in 1:length(raw_files)){
 
 # Unlist the list we just generated
 tidy_v0 <- df_list %>%
-  purrr::list_rbind(x = .) %>%
-  # Fill in missing stream name for one dataset
-  dplyr::mutate(Stream_Name = dplyr::case_when(
-    Raw_Filename == "NigerRiver.csv" & is.na(Stream_Name) ~ "Niger River",
-    T ~ Stream_Name)) %>%
-  # Also drop any columns that don't include any values
-  dplyr::select(dplyr::where(~ !(all(is.na(.)) | all(. == ""))))
+  purrr::list_rbind(x = .)
 
 # Check that out
 dplyr::glimpse(tidy_v0)
@@ -267,11 +261,79 @@ dplyr::glimpse(tidy_v0)
 rm(list = setdiff(ls(), c("key", "tidy_v0")))
 
 ## -------------------------------------------- ##
+              # Big-Picture Checks ----
+## -------------------------------------------- ##
+
+# Begin by taking a look at our 'version 0' data object's structure for macro issues
+dplyr::glimpse(tidy_v0)
+
+# Any unit-less columns?
+tidy_v0 %>%
+  dplyr::select(dplyr::ends_with("_NA")) %>%
+  names()
+
+# Any missing dataset-level info?
+tidy_v0 %>%
+  dplyr::filter(is.na(Dataset) | is.na(Raw_Filename) | is.na(LTER)) %>%
+  dplyr::select(Dataset, Raw_Filename, LTER) %>%
+  dplyr::distinct()
+
+# Any missing stream names?
+tidy_v0 %>%
+  dplyr::select(Dataset, Raw_Filename, Stream_Name) %>%
+  dplyr::distinct() %>%
+  dplyr::filter(is.na(Stream_Name))
+  
+# Do needed wrangling
+tidy_v1b <- tidy_v0 %>%
+  # Fix missing LTER information
+  dplyr::mutate(LTER = dplyr::case_when(
+    is.na(LTER) & !is.na(Dataset) ~ Dataset,
+    T ~ LTER)) %>%
+  # Fill in missing stream names
+  dplyr::mutate(Stream_Name = dplyr::case_when(
+    Raw_Filename == "NigerRiver.csv" & is.na(Stream_Name) ~ "Niger",
+    Raw_Filename == "MCM_Chem_clean.csv" ~ "McMurdo",
+    Raw_Filename == "ElbeRiverChem.csv" ~ "Elbe",
+    T ~ Stream_Name)) %>%
+  # Drop any unitless columns that we don't want to retain
+  dplyr::select(-dplyr::ends_with("_NA")) %>%
+  # Also drop 'dataset orientation' column
+  dplyr::select(-Dataset_orientation)
+  
+# Check what was lost/gained
+supportR::diff_check(old = names(tidy_v0), new = names(tidy_v1b))
+
+# Repeat earlier checks to make sure everything is fixed
+## Missing dataset-level info?
+tidy_v1b %>%
+  dplyr::filter(is.na(Dataset) | is.na(Raw_Filename) | is.na(LTER)) %>%
+  dplyr::select(Dataset, Raw_Filename, LTER) %>%
+  dplyr::distinct()
+
+## Missing stream names?
+tidy_v1b %>%
+  dplyr::select(Dataset, Raw_Filename, Stream_Name) %>%
+  dplyr::distinct() %>%
+  dplyr::filter(is.na(Stream_Name))
+
+# Finally, remove any columns that are entirely NA (possibly due to structure of data key)
+tidy_v1c <- tidy_v1b %>%
+  # Also drop any columns that don't include any values
+  dplyr::select(dplyr::where(~ !(all(is.na(.)) | all(. == ""))))
+
+# See if that actually removed anything
+supportR::diff_check(old = names(tidy_v1b), new = names(tidy_v1c))
+
+# Check the structure of the remaining data
+dplyr::glimpse(tidy_v1c)
+
+## -------------------------------------------- ##
                # Numeric Checks ----
 ## -------------------------------------------- ##
 
 # Before we can do units conversions we need to do numeric checks (quality control)
-tidy_v1a <- tidy_v0 %>%
+tidy_v2a <- tidy_v1c %>%
   # Add a row number column
   dplyr::mutate(row_num = 1:nrow(.), .before = dplyr::everything()) %>%
   # Reshape the data to get all numeric columns into long format
@@ -280,13 +342,13 @@ tidy_v1a <- tidy_v0 %>%
                       values_to = "measurement")
 
 # Check for any malformed numbers
-supportR::num_check(data = tidy_v1a, col = "measurement")
+supportR::num_check(data = tidy_v2a, col = "measurement")
 
 # Check for unreasonable numbers too
-range(suppressWarnings(as.numeric(tidy_v1a$measurement)), na.rm = T)
+range(suppressWarnings(as.numeric(tidy_v2a$measurement)), na.rm = T)
 
 # Having identified any unreasonable / malformed numbers, we can now fix them
-tidy_v1b <- tidy_v1a %>%
+tidy_v2b <- tidy_v2a %>%
   dplyr::mutate(measurement = dplyr::case_when(
     ## Malformed numbers / non-numbers
     measurement %in% unique(key$NA_indicator) ~ NA,
@@ -301,11 +363,11 @@ tidy_v1b <- tidy_v1a %>%
   dplyr::filter(!is.na(measurement))
 
 # Re-check for malformed numbers / unreasonable numbers
-supportR::num_check(data = tidy_v1b, col = "measurement")
-range(suppressWarnings(as.numeric(tidy_v1b$measurement)), na.rm = T)
+supportR::num_check(data = tidy_v2b, col = "measurement")
+range(suppressWarnings(as.numeric(tidy_v2b$measurement)), na.rm = T)
 
 # Now change class of measurements to numeric and re-claim wide format
-tidy_v1c <- tidy_v1b %>%
+tidy_v2c <- tidy_v2b %>%
   # Make measurement column numeric
   dplyr::mutate(measure_actual = as.numeric(measurement)) %>%
   dplyr::select(-measurement) %>%
@@ -317,7 +379,7 @@ tidy_v1c <- tidy_v1b %>%
   dplyr::select(-row_num)
 
 # Re-check structure
-dplyr::glimpse(tidy_v1c)
+dplyr::glimpse(tidy_v2c)
 
 ## -------------------------------------------- ##
 # Unit Conversions ----
