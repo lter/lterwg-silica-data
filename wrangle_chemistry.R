@@ -382,7 +382,7 @@ tidy_v2c <- tidy_v2b %>%
 dplyr::glimpse(tidy_v2c)
 
 ## -------------------------------------------- ##
-# Column Name Standardization ----
+        # Column Name Standardization ----
 ## -------------------------------------------- ##
 
 # Check current columns in data (not site info columns)
@@ -445,6 +445,29 @@ tidy_v3b %>%
 # Check what units are in the data
 tidy_v3b %>%
   dplyr::select(-Dataset:-date) %>%
+  names()
+
+# First, do any non-elemental unit conversions
+tidy_v4a <- tidy_v3b %>%
+  # Alkalinity (uM)
+  ## Pretty sure 1 uEq/L == 1 uM
+  dplyr::mutate(alkalinity_uM = dplyr::coalesce(alkalinity_uM, alkalinity_ueq_L)) %>%
+  dplyr::select(-alkalinity_ueq_L) %>%
+  # Conductivity (uS/cm)
+  dplyr::mutate(conductivity_uS_cm = ifelse(test = (is.na(conductivity_uS_cm) == T),
+                                            yes = (conductivity_mS_m * 10^3 * 0.01),
+                                            no = conductivity_uS_cm)) %>%
+  dplyr::select(-conductivity_mS_m) %>%
+  # Relocate all of these columns to the left of the elemental columns
+  dplyr::relocate(temp_C, alkalinity_uM, color_hazen, conductivity_uS_cm, 
+                  specific_conductivity_uS_cm, suspended_chl_ug_L, turbidity_NTU,
+                  .after = pH) %>%
+  # Also moving discharge columns to left
+  dplyr::relocate(dplyr::contains("_q"), .before = pH)
+  
+# Re-check remaining columns
+tidy_v4a %>%
+  dplyr::select(-Dataset:-turbidity_NTU) %>%
   names()
 
 # Define any needed molecular weights here
