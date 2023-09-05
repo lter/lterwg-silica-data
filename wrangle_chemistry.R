@@ -372,7 +372,7 @@ tidy_v2c <- tidy_v2b %>%
   dplyr::mutate(measure_actual = as.numeric(measurement)) %>%
   dplyr::select(-measurement) %>%
   # Sort solutes (likely to make unit conversions easier because like columns will group together)
-  dplyr::arrange(Dataset, Raw_Filename, LTER, Stream_Name, date, solute) %>%
+  dplyr::arrange(solute) %>%
   # Re-claim original format
   tidyr::pivot_wider(names_from = solute, values_from = measure_actual) %>%
   # Then drop row number column
@@ -382,23 +382,108 @@ tidy_v2c <- tidy_v2b %>%
 dplyr::glimpse(tidy_v2c)
 
 ## -------------------------------------------- ##
-              # Unit Conversions ----
+# Column Name Standardization ----
 ## -------------------------------------------- ##
 
-# Check what units are in the data
+# Check current columns in data (not site info columns)
 tidy_v2c %>%
   dplyr::select(-Dataset:-date) %>%
   names()
 
+# Check structure of pH column variants
+tidy_v2c %>%
+  dplyr::select(dplyr::contains("pH")) %>%
+  summary()
+
+# With partially-tided columns, we can now fix any name standardization issues
+tidy_v3a <- tidy_v2c %>%
+  # Many variants on pH column naming
+  ## Combine into one
+  dplyr::mutate(ph_actual = dplyr::coalesce(pH, ph, pH_pH, ph_SU), .after = date) %>%
+  ## Delete old columns
+  dplyr::select(-pH, -pH_pH, -ph, -ph_SU) %>%
+  ## Rename new one simply
+  dplyr::rename(pH = ph_actual)
+
+# Did that fix the pH issues?
+summary(tidy_v3a$pH) ## Yes! Many fewer NAs
+
+# Fix some of the element columns too
+tidy_v3b <- tidy_v3a %>%
+  # Alkalinity (uEq/L)
+  dplyr::mutate(alka_actual = dplyr::coalesce(alkalinity_uEq_l, alkalinity_ueq_L),
+                .after = alkalinity_ueq_L) %>%
+  dplyr::select(-alkalinity_uEq_l, -alkalinity_ueq_L) %>%
+  dplyr::rename(alkalinity_ueq_L = alka_actual) %>%
+  # Conductivity (uS/cm)
+  dplyr::mutate(cond_actual = dplyr::coalesce(cond_uS_cm, conductivity_uS_cm), 
+                .after = cond_uS_cm) %>%
+  dplyr::select(-cond_uS_cm, -conductivity_uS_cm) %>%
+  dplyr::rename(conductivity_uS_cm = cond_actual) %>%
+  # Na (mg/L)
+  dplyr::mutate(na_actual = dplyr::coalesce(na_mg_L, Na_mg_L), .after = na_mg_L) %>%
+  dplyr::select(-na_mg_L, -Na_mg_L) %>%
+  dplyr::rename(na_mg_L = na_actual) %>%
+  # TSS (mg/L)
+  dplyr::mutate(tss_actual = dplyr::coalesce(tss_mg_L, TSS_mg_L), .after = tss_mg_L) %>%
+  dplyr::select(-tss_mg_L, -TSS_mg_L) %>%
+  dplyr::rename(tss_mg_L = tss_actual) %>%
+  # VSS (mg/L)
+  dplyr::mutate(vss_actual = dplyr::coalesce(vss_mg_L, VSS_mg_L), .after = vss_mg_L) %>%
+  dplyr::select(-vss_mg_L, -VSS_mg_L) %>%
+  dplyr::rename(vss_mg_L = vss_actual)
+  
+# Re-check remaining columns
+tidy_v3b %>%
+  dplyr::select(-Dataset:-date) %>%
+  names()
+
+## -------------------------------------------- ##
+              # Unit Conversions ----
+## -------------------------------------------- ##
+
+# Check what units are in the data
+tidy_v3b %>%
+  dplyr::select(-Dataset:-date) %>%
+  names()
+
+# Define any needed molecular weights here
+Al_mw <- 26.981539
+Br_mw <- 79.904
+Ca_mw <- 40.078
+Cl_mw <- 35.453
+
 # Need to do unit conversions to get each metric into a single, desired unit
-tidy_v3 <- tidy_v2c
+tidy_v4 <- tidy_v3b %>%
+  # Aluminum
+  dplyr::mutate(al_uM = al_mg_L * Al_mw, .after = al_mg_L) %>%
+  dplyr::select(-al_mg_L) %>%
+  # Bromine
+  dplyr::mutate(br_uM = br_mg_L * Br_mw, .after = br_mg_L) %>%
+  dplyr::select(-br_mg_L) %>%
+  # Calcium
+  dplyr::mutate(ca_uM = ifelse(test = (is.na(ca_uM) == T),
+                               yes = (ca_mg_L * Ca_mw),
+                               no = ca_uM), .after = ca_mg_L) %>%
+  dplyr::select(-ca_mg_L) %>%
+  # Chlorine
+  dplyr::mutate(cl_uM = ifelse(test = (is.na(cl_uM) == T),
+                               yes = (cl_mg_L * Cl_mw),
+                               no = cl_uM), .after = cl_mg_L) %>%
+  dplyr::select(-cl_mg_L)
+  
 
 
-## UNDER CONSTRUCTION
 
 
-# Re-check structure
-dplyr::glimpse(tidy_v3)
+# Re-check names and structure
+## Names
+tidy_v4 %>%
+  dplyr::select(-Dataset:-date) %>%
+  names()
+
+## Structure
+dplyr::glimpse(tidy_v4)
 
 ## -------------------------------------------- ##
                   # Export ----
