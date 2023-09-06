@@ -620,15 +620,19 @@ tidy_v4b <- tidy_v4a %>%
   # ... (SR)
   
   # Soluble Reactive Phosphorus (SRP)
-  # dplyr::mutate()
+  dplyr::mutate(srp_uM = dplyr::case_when(
+    !is.na(srp_uM) ~ srp_uM,
+    is.na(srp_uM) & !is.na(srp_mg_P_L) ~ srp_mg_P_L * P_mw,
+    is.na(srp_uM) & !is.na(srp_ug_L) ~ (srp_ug_L / 10^3) * P_mw,
+    T ~ NA)) %>%
+  dplyr::select(-srp_mg_P_L, -srp_ug_L) %>%
   # ... (SSC)
   
-  # ... (TDN)
-  
-  # ... (TDS)
-  
-  # ... (TKN)
-
+  # Total Dissolved Nitrogen (TDN)
+  ## Only one column and already in uM
+  # total Kjeldahl nitrogen (TKN)
+  dplyr::mutate(tkn_uM = tkn_mg_N_L * N_mw, .after = tkn_mg_N_L) %>%
+  dplyr::select(-tkn_mg_N_L) %>%
   # Total Nitrogen (TN)
   dplyr::mutate(tn_uM = ifelse(test = is.na(tn_uM) == T,
                                yes = tn_mg_L * N_mw,
@@ -646,13 +650,10 @@ tidy_v4b <- tidy_v4a %>%
                              yes = tp_mg_P_L * P_mw,
                              no = tp_uM)) %>%
   dplyr::select(-tp_mg_P_L)
-  # ... (TSS)
-  
-  # ... (VSS)
 
 # Re-check names
 tidy_v4b %>%
-  dplyr::select(-Dataset:-turbidity_NTU) %>%
+  dplyr::select(-Dataset:-vss_mg_L) %>%
   names()
 
 # Examine full structure too
