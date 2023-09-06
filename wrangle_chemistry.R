@@ -619,7 +619,8 @@ tidy_v4b <- tidy_v4a %>%
   # ... (SPM)
   
   # Strontium (Sr)
-  
+  dplyr::mutate(sr_uM = sr_mg_L * Sr_mw, .before = sr_mg_L) %>%
+  dplyr::select(-sr_mg_L) %>%
   # Soluble Reactive Phosphorus (SRP)
   dplyr::mutate(srp_uM = dplyr::case_when(
     !is.na(srp_uM) ~ srp_uM,
