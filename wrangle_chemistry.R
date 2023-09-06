@@ -461,13 +461,14 @@ tidy_v4a <- tidy_v3b %>%
   # Relocate all of these columns to the left of the elemental columns
   dplyr::relocate(temp_C, alkalinity_uM, color_hazen, chla_ug_L, conductivity_uS_cm, 
                   specific_conductivity_uS_cm, suspended_chl_ug_L, turbidity_NTU,
+                  tds_mg_L, dplyr::starts_with("tss_"), dplyr::starts_with("vss_"),
                   .after = pH) %>%
   # Also moving discharge columns to left
   dplyr::relocate(dplyr::contains("_q"), .before = pH)
   
 # Re-check remaining columns
 tidy_v4a %>%
-  dplyr::select(-Dataset:-turbidity_NTU) %>%
+  dplyr::select(-Dataset:-vss_mg_L) %>%
   names()
 
 # Define any needed molecular weights here
@@ -616,8 +617,10 @@ tidy_v4b <- tidy_v4a %>%
   dplyr::select(-so4_mg_L, -so4_mg_SO4_L) %>%
   # ... (SPM)
   
-  # ... (SR / SRP)
+  # ... (SR)
   
+  # Soluble Reactive Phosphorus (SRP)
+  # dplyr::mutate()
   # ... (SSC)
   
   # ... (TDN)
