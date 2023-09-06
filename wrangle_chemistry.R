@@ -490,6 +490,7 @@ O_mw <- 15.999
 P_mw <- 30.973762
 S_mw <- 32.065
 Si_mw <- 28.0855
+Sr_mw <- 87.62
 
 # Calculate any needed molecules' molecular weights here
 HCO3_mw <- H_mw + C_mw + (O_mw * 3)
@@ -617,7 +618,7 @@ tidy_v4b <- tidy_v4a %>%
   dplyr::select(-so4_mg_L, -so4_mg_SO4_L) %>%
   # ... (SPM)
   
-  # ... (SR)
+  # Strontium (Sr)
   
   # Soluble Reactive Phosphorus (SRP)
   dplyr::mutate(srp_uM = dplyr::case_when(
