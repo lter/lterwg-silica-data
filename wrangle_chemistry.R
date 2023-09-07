@@ -615,9 +615,7 @@ tidy_v4b <- tidy_v4a %>%
     is.na(so4_uM) & !is.na(so4_mg_L) ~ so4_mg_L * SO4_mw,
     is.na(so4_uM) & !is.na(so4_mg_SO4_L) ~ so4_mg_SO4_L * SO4_mw,
     T ~ NA)) %>%
-  dplyr::select(-so4_mg_L, -so4_mg_SO4_L) %>%
-  # ... (SPM)
-  
+  dplyr::select(-so4_um, -so4_mg_L, -so4_mg_SO4_L) %>%
   # Strontium (Sr)
   dplyr::mutate(sr_uM = sr_mg_L * Sr_mw, .before = sr_mg_L) %>%
   dplyr::select(-sr_mg_L) %>%
@@ -628,8 +626,6 @@ tidy_v4b <- tidy_v4a %>%
     is.na(srp_uM) & !is.na(srp_ug_L) ~ (srp_ug_L / 10^3) * P_mw,
     T ~ NA)) %>%
   dplyr::select(-srp_mg_P_L, -srp_ug_L) %>%
-  # ... (SSC)
-  
   # Total Dissolved Nitrogen (TDN)
   ## Only one column and already in uM
   # total Kjeldahl nitrogen (TKN)
@@ -662,11 +658,63 @@ tidy_v4b %>%
 dplyr::glimpse(tidy_v4b)
 
 ## -------------------------------------------- ##
+            # Clarification Tweaks ----
+## -------------------------------------------- ##
+
+# Some of these column names are heavily abbreviated
+# Can expand them to make them a little more intuitive
+tidy_v5 <- tidy_v4b %>%
+  # And consensus was that TSS & SPM are equivalent
+  dplyr::mutate(spm_actual = dplyr::coalesce(spm_mg_L, tss_mg_L)) %>%
+  dplyr::select(-spm_mg_L, -tss_mg_L) %>%
+  # Expand column names to be more descriptive
+  dplyr::rename(
+    # DO
+    dissolved_o_uM = do_uM,
+    # DOC/DIC
+    dissolved_org_c_uM = doc_uM,
+    dissolved_inorg_c_uM = dic_uM,
+    # DON/DIN
+    dissolved_org_n_uM = don_uM,
+    dissolved_inorg_n_uM = din_uM,
+    # SRP
+    soluble_reactive_p_uM = srp_uM,
+    # SPM / TSS
+    susp_partic_matter_mg_L = spm_actual,
+    susp_partic_matter_uM = spm_uM,
+    susp_partic_matter_units = tss_units,
+    # SSC
+    susp_sediment_conc_mg_L = ssc_mg_L,
+    # Suspended chlorophyll
+    susp_chl_ug_L = suspended_chl_ug_L,
+    # TDS
+    tot_dissolved_solids_mg_L = tds_mg_L,
+    # TDN
+    tot_dissolved_n_uM = tdn_uM,
+    # TN
+    tot_n_uM = tn_uM,
+    # TKN
+    tot_kjeldahl_n_uM = tkn_uM,
+    # TOC
+    tot_org_c_uM = toc_uM,
+    # TP
+    tot_p_uM = tp_uM,
+    # VSS
+    volatile_susp_solids_mg_L = vss_mg_L) %>%
+  # Reorder these slightly
+  dplyr::relocate(dplyr::starts_with("susp_"), dplyr::starts_with("tot_"),
+                  dplyr::starts_with("dissolved_"), soluble_reactive_p_uM, 
+                  .after = volatile_susp_solids_mg_L)
+  
+# Re-check structure
+dplyr::glimpse(tidy_v5)
+
+## -------------------------------------------- ##
                   # Export ----
 ## -------------------------------------------- ##
 
 # Create one final tidy object
-tidy_final <- tidy_v4b
+tidy_final <- tidy_v5
 
 # Check structure
 dplyr::glimpse(tidy_final)
