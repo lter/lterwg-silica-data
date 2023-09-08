@@ -719,14 +719,17 @@ tidy_final <- tidy_v5
 # Check structure
 dplyr::glimpse(tidy_final)
 
+# Grab today's date
+date <- gsub(pattern = "-", replacement = "", x = Sys.Date())
+
 # Generate a date-stamped file name for this file
-( chem_filename <- paste0("tidy_chemistry_", Sys.Date(), ".csv") )
+( chem_filename <- paste0(date, "_masterdata_chem.csv") )
 
 # Export locally
 write.csv(x = tidy_final, file = file.path("tidy", chem_filename), na = '', row.names = F)
 
 # Export to Drive
-# googledrive::drive_upload(media = file.path("tidy", chem_filename), overwrite = T,
-#                           path = googledrive::as_id(""))
+googledrive::drive_upload(media = file.path("tidy", chem_filename), overwrite = T,
+                          path = googledrive::as_id("https://drive.google.com/drive/u/0/folders/1dTENIB5W2ClgW0z-8NbjqARiaGO2_A7W"))
 
 # End ----
