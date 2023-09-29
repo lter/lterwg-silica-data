@@ -532,155 +532,166 @@ SO4_mw <- S_mw + (O_mw * 4)
 # Need to do unit conversions to get each metric into a single, desired unit
 tidy_v4b <- tidy_v4a %>%
   # Aluminum
-  dplyr::mutate(al_uM = al_mg_L * Al_mw, .after = al_mg_L) %>%
+  dplyr::mutate(al_uM = (al_mg_L / Al_mw) * 10^3, 
+                .after = al_mg_L) %>%
   dplyr::select(-al_mg_L) %>%
   # Bromine
-  dplyr::mutate(br_uM = br_mg_L * Br_mw, .after = br_mg_L) %>%
+  dplyr::mutate(br_uM = (br_mg_L / Br_mw) * 10^3, 
+                .after = br_mg_L) %>%
   dplyr::select(-br_mg_L) %>%
   # Calcium
   dplyr::mutate(ca_uM = ifelse(test = (is.na(ca_uM) == T),
-                               yes = (ca_mg_L * Ca_mw),
+                               yes = ((ca_mg_L / Ca_mw) * 10^3),
                                no = ca_uM), .after = ca_mg_L) %>%
   dplyr::select(-ca_mg_L) %>%
   # Chlorine
   dplyr::mutate(cl_uM = ifelse(test = (is.na(cl_uM) == T),
-                               yes = (cl_mg_L * Cl_mw),
+                               yes = ((cl_mg_L / Cl_mw) * 10^3),
                                no = cl_uM), .after = cl_mg_L) %>%
   dplyr::select(-cl_mg_L) %>%
   # Dissolved Organic Carbon
   dplyr::mutate(doc_uM = dplyr::case_when(
     !is.na(doc_uM) ~ doc_uM,
-    is.na(doc_uM) & !is.na(doc_mg_C_L) ~ doc_mg_C_L * C_mw,
-    is.na(doc_uM) & !is.na(doc_mg_L) ~ doc_mg_L * C_mw,
+    is.na(doc_uM) & !is.na(doc_mg_C_L) ~ (doc_mg_C_L / C_mw) * 10^3,
+    is.na(doc_uM) & !is.na(doc_mg_L) ~ (doc_mg_L / C_mw) * 10^3,
     T ~ NA)) %>%
   dplyr::select(-doc_mg_C_L, -doc_mg_L) %>%
   # Dissolved Oxygen
-  ## I think it's molec. weight x 2 because its dissolved O2
-  dplyr::mutate(do_uM = (do_mg_O2_L * (O_mw * 2)), .after = do_mg_O2_L) %>%
+  dplyr::mutate(do_uM = (do_mg_O2_L / (O_mw * 2)) * 10^3, 
+                .after = do_mg_O2_L) %>%
   dplyr::select(-do_mg_O2_L) %>%
   # Silica (!)
   dplyr::mutate(dsi_uM = dplyr::case_when(
     !is.na(dsi_uM) ~ dsi_uM,
     !is.na(dsi_uM_SiO2) ~ dsi_uM_SiO2,
-    is.na(dsi_uM) & !is.na(dsi_mg_L) ~ dsi_mg_L * Si_mw,
-    is.na(dsi_uM) & !is.na(dsi_mg_SiO2_L) ~ dsi_mg_SiO2_L * Si_mw,
-    is.na(dsi_uM) & !is.na(dsi_mg_Si_L) ~ dsi_mg_Si_L * Si_mw,
+    is.na(dsi_uM) & !is.na(dsi_mg_L) ~ (dsi_mg_L / Si_mw) * 10^3,
+    is.na(dsi_uM) & !is.na(dsi_mg_SiO2_L) ~ (dsi_mg_SiO2_L / (Si_mw + (O_mw * 2))) * 10^3,
+    is.na(dsi_uM) & !is.na(dsi_mg_Si_L) ~ (dsi_mg_Si_L / Si_mw) * 10^3,
     T ~ NA)) %>%
   dplyr::select(-dsi_uM_SiO2, -dsi_mg_L, -dsi_mg_SiO2_L, -dsi_mg_Si_L) %>%
   # Fluorine
   dplyr::mutate(f_uM = ifelse(test = (is.na(f_uM) == T),
-                              yes = f_mg_L * F_mw,
+                              yes = (f_mg_L / F_mw) * 10^3,
                               no = f_uM)) %>%
   dplyr::select(-f_mg_L) %>%
   # Iron
-  dplyr::mutate(fe_uM = fe_mg_L * Fe_mw, .after = fe_mg_L) %>%
+  dplyr::mutate(fe_uM = (fe_mg_L / Fe_mw) * 10^3, .after = fe_mg_L) %>%
   dplyr::select(-fe_mg_L) %>%
   # Bicarbonate (HCO3)
   dplyr::mutate(hco3_uM = ifelse(test = (is.na(hco3_uM) == T),
-                                 yes = hco3_mg_L * HCO3_mw,
+                                 yes = (hco3_mg_L / HCO3_mw) * 10^3,
                                  no = hco3_uM)) %>%
   dplyr::select(-hco3_mg_L) %>%
   # Potassium
   dplyr::mutate(k_uM = ifelse(test = (is.na(k_uM) == T),
-                              yes = k_mg_L * K_mw,
+                              yes = (k_mg_L / K_mw) * 10^3,
                               no = k_uM)) %>%
   dplyr::select(-k_mg_L) %>%
   # Lithium
-  dplyr::mutate(li_uM = li_mg_L * Li_mw, .after = li_mg_L) %>%
+  dplyr::mutate(li_uM = (li_mg_L / Li_mw) * 10^3, .after = li_mg_L) %>%
   dplyr::select(-li_mg_L) %>%
   # Magensium
   dplyr::mutate(mg_uM = ifelse(test = (is.na(mg_uM) == T),
-                               yes = mg_mg_L * Mg_mw,
+                               yes = (mg_mg_L / Mg_mw) * 10^3,
                                no = mg_uM)) %>%
   dplyr::select(-mg_mg_L) %>%
   # Manganese
-  dplyr::mutate(mn_uM = ((mn_ug_L / 10^3) * Mn_mw), .after = mn_ug_L) %>%
+  ## DOUBLE CHECK (vVv)
+  dplyr::mutate(mn_uM = (mn_ug_L / Mn_mw), .after = mn_ug_L) %>%
   dplyr::select(-mn_ug_L) %>%
   # Sodium
   dplyr::mutate(na_uM = ifelse(test = (is.na(na_uM) == T),
-                              yes = na_mg_L * Na_mw,
+                              yes = (na_mg_L / Na_mw) * 10^3,
                               no = na_uM)) %>%
   dplyr::select(-na_mg_L) %>%
   # Ammonia (NH3)
-  dplyr::mutate(nh3_uM = nh3_mg_NH4_N_L * NH3_mw, .after = nh3_mg_NH4_N_L) %>%
+  dplyr::mutate(nh3_uM = (nh3_mg_NH4_N_L / NH3_mw) * 10^3, .after = nh3_mg_NH4_N_L) %>%
   dplyr::select(-nh3_mg_NH4_N_L) %>%
   # Ammonium (NH4)
   dplyr::mutate(nh4_uM = dplyr::case_when(
     !is.na(nh4_uM) ~ nh4_uM,
-    is.na(nh4_uM) & !is.na(nh4_mg_NH4_N_L) ~ nh4_mg_NH4_N_L * NH4_mw,
-    is.na(nh4_uM) & !is.na(nh4_ug_L) ~ (nh4_ug_L / 10^3) * NH4_mw,
+    is.na(nh4_uM) & !is.na(nh4_mg_NH4_N_L) ~ (nh4_mg_NH4_N_L / NH4_mw) * 10^3,
+    is.na(nh4_uM) & !is.na(nh4_ug_L) ~ nh4_ug_L / NH4_mw,
     T ~ NA)) %>%
   dplyr::select(-nh4_mg_NH4_N_L, -nh4_ug_L) %>%
   # Ammoni__ (NHx)
-  dplyr::mutate(nhx_uM = nhx_mg_NH4_N_L * NH4_mw, .after = nhx_mg_NH4_N_L) %>%
+  dplyr::mutate(nhx_uM = (nhx_mg_NH4_N_L / NH4_mw) * 10^3, 
+                .after = nhx_mg_NH4_N_L) %>%
   dplyr::select(-nhx_mg_NH4_N_L) %>%
   # Nitrate (NO3)
   dplyr::mutate(no3_uM = dplyr::case_when( 
     !is.na(no3_uM) ~ no3_uM,
-    is.na(no3_uM) & !is.na(no3_mg_L) ~ no3_mg_L * NO3_mw,
-    is.na(no3_uM) & !is.na(no3_ug_L) ~ (no3_ug_L / 10^3) * NO3_mw,
+    is.na(no3_uM) & !is.na(no3_mg_L) ~ (no3_mg_L / NO3_mw) * 10^3,
+    is.na(no3_uM) & !is.na(no3_ug_L) ~ (no3_ug_L / NO3_mw),
     T ~ NA)) %>%
   dplyr::select(-no3_mg_L, -no3_ug_L) %>%
   # Nitr__ (NOx)
   dplyr::mutate(nox_uM = dplyr::case_when(
     !is.na(nox_uM) ~ nox_uM,
-    is.na(nox_uM) & !is.na(nox_mg_NO3_N_L) ~ nox_mg_NO3_N_L * NO3_mw,
-    is.na(nox_uM) & !is.na(nox_ug_L) ~ (nox_ug_L / 10^3) * NO3_mw,
+    is.na(nox_uM) & !is.na(nox_mg_NO3_N_L) ~ (nox_mg_NO3_N_L / NO3_mw) * 10^3,
+    is.na(nox_uM) & !is.na(nox_ug_L) ~ nox_ug_L / NO3_mw,
     T ~ NA)) %>%
   dplyr::select(-nox_mg_NO3_N_L, -nox_ug_L) %>%
   # Phosphate (PO4)
   dplyr::mutate(po4_uM = dplyr::case_when(
     !is.na(po4_uM) ~ po4_uM,
-    is.na(po4_uM) & !is.na(po4_mg_L) ~ po4_mg_L * PO4_mw,
-    is.na(po4_uM) & !is.na(po4_mg_PO4_P_L) ~ po4_mg_PO4_P_L * PO4_mw,
-    is.na(po4_uM) & !is.na(po4_ug_L) ~ (po4_ug_L / 10^3) * PO4_mw,
+    is.na(po4_uM) & !is.na(po4_mg_L) ~ (po4_mg_L / PO4_mw) * 10^3,
+    is.na(po4_uM) & !is.na(po4_mg_PO4_P_L) ~ (po4_mg_PO4_P_L / PO4_mw) * 10^3,
+    is.na(po4_uM) & !is.na(po4_ug_L) ~ (po4_ug_L / PO4_mw),
     T ~ NA)) %>%
   dplyr::select(-po4_mg_L, -po4_mg_PO4_P_L, -po4_ug_L) %>%
   # Sulfate (SO4)
   dplyr::mutate(so4_uM = dplyr::case_when(
     !is.na(so4_uM) ~ so4_uM,
     !is.na(so4_um) ~ so4_um,
-    is.na(so4_uM) & !is.na(so4_mg_L) ~ so4_mg_L * SO4_mw,
-    is.na(so4_uM) & !is.na(so4_mg_SO4_L) ~ so4_mg_SO4_L * SO4_mw,
+    is.na(so4_uM) & !is.na(so4_mg_L) ~ (so4_mg_L / SO4_mw) * 10^3,
+    is.na(so4_uM) & !is.na(so4_mg_SO4_L) ~ (so4_mg_SO4_L / SO4_mw) * 10^3,
     T ~ NA)) %>%
   dplyr::select(-so4_um, -so4_mg_L, -so4_mg_SO4_L) %>%
   # Strontium (Sr)
-  dplyr::mutate(sr_uM = sr_mg_L * Sr_mw, .before = sr_mg_L) %>%
+  dplyr::mutate(sr_uM = (sr_mg_L / Sr_mw) * 10^3,
+                .before = sr_mg_L) %>%
   dplyr::select(-sr_mg_L) %>%
   # Soluble Reactive Phosphorus (SRP)
   dplyr::mutate(srp_uM = dplyr::case_when(
     !is.na(srp_uM) ~ srp_uM,
-    is.na(srp_uM) & !is.na(srp_mg_P_L) ~ srp_mg_P_L * P_mw,
-    is.na(srp_uM) & !is.na(srp_ug_L) ~ (srp_ug_L / 10^3) * P_mw,
+    is.na(srp_uM) & !is.na(srp_mg_P_L) ~ (srp_mg_P_L / P_mw) * 10^3,
+    is.na(srp_uM) & !is.na(srp_ug_L) ~ (srp_ug_L / P_mw),
     T ~ NA)) %>%
   dplyr::select(-srp_mg_P_L, -srp_ug_L) %>%
   # Total Dissolved Nitrogen (TDN)
-  ## Only one column and already in uM
+  dplyr::mutate(tdn_uM = dplyr::case_when(
+    !is.na(tdn_uM) ~ tdn_uM,
+    is.na(tdn_uM) & !is.na(tdn_mg_L) ~ (tdn_mg_L / N_mw) * 10^3,
+    T ~ NA)) %>%
+  dplyr::select(-tdn_mg_L) %>%
   # total Kjeldahl nitrogen (TKN)
-  dplyr::mutate(tkn_uM = tkn_mg_N_L * N_mw, .after = tkn_mg_N_L) %>%
+  dplyr::mutate(tkn_uM = (tkn_mg_N_L / N_mw) * 10^3, 
+                .after = tkn_mg_N_L) %>%
   dplyr::select(-tkn_mg_N_L) %>%
   # Total Nitrogen (TN)
   dplyr::mutate(tn_uM = ifelse(test = is.na(tn_uM) == T,
-                               yes = tn_mg_L * N_mw,
+                               yes = (tn_mg_L / N_mw) * 10^3,
                                no = tn_uM)) %>%
   dplyr::select(-tn_mg_L) %>%
   # Total Organic Carbon (TOC)
   dplyr::mutate(toc_uM = dplyr::case_when(
     !is.na(toc_uM) ~ toc_uM,
-    is.na(toc_uM) & !is.na(toc_mg_C_L) ~ toc_mg_C_L * C_mw,
-    is.na(toc_uM) & !is.na(toc_mg_L) ~ toc_mg_L * C_mw,
+    is.na(toc_uM) & !is.na(toc_mg_C_L) ~ (toc_mg_C_L / C_mw) * 10^3,
+    is.na(toc_uM) & !is.na(toc_mg_L) ~ (toc_mg_L / C_mw) * 10^3,
     T ~ NA)) %>%
   dplyr::select(-toc_mg_C_L, -toc_mg_L) %>%
   # Total Phosphorus (TP)
   dplyr::mutate(tp_uM = ifelse(test = is.na(tp_uM) == T,
-                             yes = tp_mg_P_L * P_mw,
+                             yes = (tp_mg_P_L / P_mw) * 10^3,
                              no = tp_uM)) %>%
   dplyr::select(-tp_mg_P_L)
 
 # Re-check names
 tidy_v4b %>%
   dplyr::select(-Dataset:-vss_mg_L) %>%
-  names()
+  names() %>% 
+  sort()
 
 # Examine full structure too
 dplyr::glimpse(tidy_v4b)
