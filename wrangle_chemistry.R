@@ -197,6 +197,8 @@ for(j in 1:length(raw_files)){
       dplyr::mutate(solute = tolower(solute)) %>%
       # Make some other specific changes (conditionally)
       dplyr::mutate(solute = dplyr::case_when(
+        ## Canada_WQ_dat.csv
+        Dataset == "Canada" ~ gsub(pattern = " ", replacement = "_", x = solute),
         ## 20221030_masterdata_chem.csv
         Dataset == "Master_2022" & solute == "daily.avg.q.(discharge)" ~ "daily_q",
         Dataset == "Master_2022" & solute == "instantaneous.q.(discharge)" ~ "instant_q",
