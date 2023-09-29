@@ -438,19 +438,45 @@ tidy_v3b <- tidy_v3a %>%
 # Re-check remaining columns
 tidy_v3b %>%
   dplyr::select(-Dataset:-date) %>%
-  names()
+  names() %>%
+  sort()
+
+# Now handle the Canadian solutes (they use un-abbreviated names)
+tidy_v3c <- tidy_v3b %>%
+  ## DOC
+  dplyr::mutate(doc_actual = dplyr::coalesce(doc_mg_L, carbon_dissolved_organic_mg_L)) %>%
+  dplyr::select(-doc_mg_L, -carbon_dissolved_organic_mg_L) %>%
+  dplyr::rename(doc_mg_L = doc_actual) %>%
+  ## TDN
+  dplyr::rename(tdn_mg_L = nitrogen_total_dissolved_mg_L) %>%
+  ## TN
+  dplyr::mutate(tn_actual = dplyr::coalesce(tn_mg_L, nitrogen_total_mg_L)) %>%
+  dplyr::select(-tn_mg_L, -nitrogen_total_mg_L) %>%
+  dplyr::rename(tn_mg_L = tn_actual) %>%
+  ## TP
+  dplyr::rename(tp_mg_L = phosphorus_total_mg_L) %>%
+  ## DSi
+  dplyr::mutate(dsi_actual = dplyr::coalesce(dsi_mg_L, silicon_extractable_mg_L)) %>%
+  dplyr::select(-dsi_mg_L, -silicon_extractable_mg_L) %>%
+  dplyr::rename(dsi_mg_L = dsi_actual)
+
+# Check again
+tidy_v3c %>%
+  dplyr::select(-Dataset:-date) %>%
+  names() %>%
+  sort()
 
 ## -------------------------------------------- ##
               # Unit Conversions ----
 ## -------------------------------------------- ##
 
 # Check what units are in the data
-tidy_v3b %>%
+tidy_v3c %>%
   dplyr::select(-Dataset:-date) %>%
   names()
 
 # First, do any non-elemental unit conversions
-tidy_v4a <- tidy_v3b %>%
+tidy_v4a <- tidy_v3c %>%
   # Alkalinity (uM)
   ## Pretty sure 1 uEq/L == 1 uM
   dplyr::mutate(alkalinity_uM = dplyr::coalesce(alkalinity_uM, alkalinity_ueq_L)) %>%
