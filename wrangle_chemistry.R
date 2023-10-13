@@ -677,10 +677,12 @@ tidy_v4b <- tidy_v4a %>%
     T ~ NA)) %>%
   dplyr::select(-toc_mg_C_L, -toc_mg_L) %>%
   # Total Phosphorus (TP)
-  dplyr::mutate(tp_uM = ifelse(test = is.na(tp_uM) == T,
-                             yes = (tp_mg_P_L / P_mw) * 10^3,
-                             no = tp_uM)) %>%
-  dplyr::select(-tp_mg_P_L)
+  dplyr::mutate(tp_uM = dplyr::case_when(
+    !is.na(tp_uM) ~ tp_uM,
+    is.na(tp_uM) & !is.na(tp_mg_P_L) ~ tp_mg_P_L,
+    is.na(tp_uM) & !is.na(tp_mg_L) ~ tp_mg_L,
+    T ~ NA)) %>%
+  dplyr::select(-tp_mg_P_L, -tp_mg_L)
 
 # Re-check names
 tidy_v4b %>%
@@ -704,7 +706,7 @@ tidy_v5 <- tidy_v4b %>%
   # Expand column names to be more descriptive
   dplyr::rename(
     # DO
-    dissolved_o_uM = do_uM,
+    dissolved_oxygen_uM = do_uM,
     # DOC/DIC
     dissolved_org_c_uM = doc_uM,
     dissolved_inorg_c_uM = dic_uM,
@@ -714,8 +716,7 @@ tidy_v5 <- tidy_v4b %>%
     # SRP
     soluble_reactive_p_uM = srp_uM,
     # SPM / TSS
-    susp_partic_matter_mg_L = spm_actual,
-    susp_partic_matter_uM = spm_uM,
+    susp_partic_matter_uM = spm_actual,
     # SSC
     susp_sediment_conc_mg_L = ssc_mg_L,
     # Suspended chlorophyll
