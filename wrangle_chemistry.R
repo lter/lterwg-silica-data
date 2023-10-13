@@ -811,11 +811,45 @@ sort(unique(tidy_v6$units))
 dplyr::glimpse(tidy_v6)
 
 ## -------------------------------------------- ##
+              # Handle Outliers ----
+## -------------------------------------------- ##
+
+# Now we need to identify / handle outlier values
+tidy_v7a <- tidy_v6 %>%
+  # Group by everything except value and date
+  dplyr::group_by(Dataset, Raw_Filename, LTER, Stream_Name, variable, units) %>%
+  # Calculate some needed metrics
+  dplyr::mutate(mean_value = mean(value, na.rm = T),
+                sd_value = sd(value, na.rm = T),
+                outlier_thresh = (abs(mean_value) + abs(sd_value * 2)) ) %>%
+  # Identify outliers
+  dplyr::mutate(is_outlier = ifelse(test = abs(value) > outlier_thresh,
+                                    yes = TRUE, no = FALSE)) %>%
+  # Ungroup
+  dplyr::ungroup()
+  
+# Identify percent outliers
+(nrow(dplyr::filter(tidy_v7a, is_outlier == T)) / nrow(tidy_v6)) * 100
+
+# Handle outliers
+tidy_v7b <- tidy_v7a %>%
+  # Currently handling outliers by removing them
+  dplyr::filter(is_outlier == FALSE | is.na(is_outlier)) %>%
+  # Then drop the columns we needed for this filtering step
+  dplyr::select(-mean_value, -sd_value, -outlier_thresh, -is_outlier)
+
+# Did that work? Should lose some rows
+nrow(tidy_v7a) - nrow(tidy_v7b)
+
+# Glimpse it
+dplyr::glimpse(tidy_v7b)
+
+## -------------------------------------------- ##
                   # Export ----
 ## -------------------------------------------- ##
 
 # Create one final tidy object
-tidy_final <- tidy_v6
+tidy_final <- tidy_v7b
 
 # Check structure
 dplyr::glimpse(tidy_final)
