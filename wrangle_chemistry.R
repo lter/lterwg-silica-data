@@ -744,11 +744,78 @@ tidy_v5 <- tidy_v4b %>%
 dplyr::glimpse(tidy_v5)
 
 ## -------------------------------------------- ##
+            # Change Data Shape ----
+## -------------------------------------------- ##
+
+# Data need to be in long format so we'll do that here
+tidy_v6 <- tidy_v5 %>%
+  # Drop discharge columns
+  dplyr::select(-dplyr::contains("_q_")) %>%
+  # Flip variables into long format
+  tidyr::pivot_longer(cols = -Dataset:-date,
+                      names_to = "vars_raw", values_to = "value") %>%
+  # Filter out all the NAs that introduces
+  dplyr::filter(!is.na(value)) %>%
+  # Create a standard character between variable name and units
+  dplyr::mutate(vars_std = gsub(pattern = "_uM", replacement = "--uM", x = vars_raw)) %>%
+  dplyr::mutate(vars_std = gsub(pattern = "_uS", replacement = "--uS", x = vars_std)) %>%
+  dplyr::mutate(vars_std = gsub(pattern = "_ug", replacement = "--ug", x = vars_std)) %>%
+  dplyr::mutate(vars_std = gsub(pattern = "_mg", replacement = "--mg", x = vars_std)) %>%
+  dplyr::mutate(vars_std = gsub(pattern = "_C", replacement = "--C", x = vars_std)) %>%
+  dplyr::mutate(vars_std = gsub(pattern = "_NTU", replacement = "--NTU", x = vars_std)) %>%
+  # Separate solute/units into different columns
+  tidyr::separate_wider_delim(cols = vars_std, delim = "--", too_few = "align_start",
+                              names = c("vars_only", "units_only")) %>%
+  # Process the units formatting slightly
+  dplyr::mutate(units = gsub(pattern = "_", replacement = "/", x = units_only)) %>%
+  # Now wrangle the variable names
+  dplyr::mutate(variable = dplyr::case_when(
+    ## Fix pH
+    vars_only == "ph" ~ "pH",
+    ## Fix Silica!
+    vars_only == "dsi" ~ "DSi",
+    ## If one or two letters (i.e., is an element), make the first capital
+    nchar(vars_only) == 1 ~ toupper(vars_only),
+    nchar(vars_only) == 2 ~ stringr::str_to_title(vars_only),
+    ## If there's an X or a number (i.e., is a molecule), make the whole thing uppercase
+    nchar(vars_only) < 4 & 
+      stringr::str_detect(string = vars_only, pattern = "x") ~ toupper(vars_only),
+    stringr::str_detect(string = vars_only, pattern = "[[:digit:]]") ~ toupper(vars_only),
+    ## Handle idiosyncratic fixes
+    vars_only == "chla" ~ "chlorophyll a",
+    vars_only == "dissolved_inorg_c" ~ "dissolved inorg C",
+    vars_only == "dissolved_inorg_n" ~ "dissolved inorg N",
+    vars_only == "dissolved_org_c" ~ "dissolved org C",
+    vars_only == "dissolved_org_n" ~ "dissolved org N",
+    vars_only == "soluble_reactive_p" ~ "soluble reactive P",
+    vars_only == "tot_dissolved_n" ~ "tot dissolved N",
+    vars_only == "tot_kjeldahl_n" ~ "tot kjeldahl N",
+    vars_only == "tot_n" ~ "tot N",
+    vars_only == "tot_org_c" ~ "tot org C",
+    vars_only == "tot_p" ~ "tot P",
+    ## Otherwise just swap underscores for spaces
+    T ~ gsub(pattern = "_", replacement = " ", x = vars_only)),
+    .before = units) %>%
+  # Fix a pernicious issue with pH casing
+  dplyr::mutate(variable = gsub(pattern = "Ph", replacement = "pH", x = variable)) %>% 
+  # Drop columns we made to get here
+  dplyr::select(-vars_raw, -dplyr::ends_with("_only")) %>%
+  # Move value to the end
+  dplyr::relocate(value, .after = dplyr::everything())
+
+# Happy with resulting variables/units?
+sort(unique(tidy_v6$variable))
+sort(unique(tidy_v6$units))
+
+# Check structure
+dplyr::glimpse(tidy_v6)
+
+## -------------------------------------------- ##
                   # Export ----
 ## -------------------------------------------- ##
 
 # Create one final tidy object
-tidy_final <- tidy_v5
+tidy_final <- tidy_v6
 
 # Check structure
 dplyr::glimpse(tidy_final)
