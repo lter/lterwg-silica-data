@@ -790,14 +790,15 @@ tidy_v6 <- tidy_v5 %>%
     vars_only == "soluble_reactive_p" ~ "soluble reactive P",
     vars_only == "tot_dissolved_n" ~ "tot dissolved N",
     vars_only == "tot_kjeldahl_n" ~ "tot kjeldahl N",
-    vars_only == "tot_n" ~ "tot N",
+    vars_only == "tot_n" ~ "TN",
     vars_only == "tot_org_c" ~ "tot org C",
-    vars_only == "tot_p" ~ "tot P",
+    vars_only == "tot_p" ~ "TP",
     ## Otherwise just swap underscores for spaces
     T ~ gsub(pattern = "_", replacement = " ", x = vars_only)),
     .before = units) %>%
-  # Fix a pernicious issue with pH casing
-  dplyr::mutate(variable = gsub(pattern = "Ph", replacement = "pH", x = variable)) %>% 
+  # Fix pernicious issues with a few oddballs
+  dplyr::mutate(variable = gsub(pattern = "Ph", replacement = "pH", x = variable),
+                variable = gsub(pattern = "NOX", replacement = "NOx", x = variable)) %>% 
   # Drop columns we made to get here
   dplyr::select(-vars_raw, -dplyr::ends_with("_only")) %>%
   # Move value to the end
