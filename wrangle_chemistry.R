@@ -787,7 +787,7 @@ tidy_v6 <- tidy_v5 %>%
     vars_only == "dissolved_inorg_n" ~ "dissolved inorg N",
     vars_only == "dissolved_org_c" ~ "dissolved org C",
     vars_only == "dissolved_org_n" ~ "dissolved org N",
-    vars_only == "soluble_reactive_p" ~ "soluble reactive P",
+    vars_only == "soluble_reactive_p" ~ "SRP",
     vars_only == "tot_dissolved_n" ~ "tot dissolved N",
     vars_only == "tot_kjeldahl_n" ~ "tot kjeldahl N",
     vars_only == "tot_n" ~ "TN",
