@@ -244,12 +244,9 @@ for(j in 1:length(raw_files)){
       dplyr::mutate(solute_actual = paste0(solute, "_", Units)) %>%
       # Drop unwanted columns
       dplyr::select(-solute, -Units) %>%
-      # Average across remaining columns (in case too many samples)
-      dplyr::group_by(dplyr::across(c(-amount))) %>%
-      dplyr::summarize(amount = mean(amount, na.rm = T)) %>% 
-      dplyr::ungroup() %>% 
-      # Reshape wider
-      tidyr::pivot_wider(names_from = solute_actual, values_from = amount, values_fill = NA)
+      # Reshape wider averaging within groups if duplicate values are found
+      tidyr::pivot_wider(names_from = solute_actual, values_from = amount, 
+                         values_fill = NA, values_fn = ~ mean(x = .x, na.rm = T))
     
     } else { raw_df <- raw_df_v3 }
   
