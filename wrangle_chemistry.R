@@ -801,6 +801,7 @@ tidy_v6 <- tidy_v5 %>%
     .before = units) %>%
   # Fix pernicious issues with a few oddballs
   dplyr::mutate(variable = gsub(pattern = "Ph", replacement = "pH", x = variable),
+                variable = gsub(pattern = "Ec", replacement = "EC", x = variable),
                 variable = gsub(pattern = "NOX", replacement = "NOx", x = variable)) %>% 
   # Drop columns we made to get here
   dplyr::select(-vars_raw, -dplyr::ends_with("_only")) %>%
