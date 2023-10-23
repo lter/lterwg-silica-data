@@ -245,8 +245,8 @@ for(j in 1:length(raw_files)){
       # Drop unwanted columns
       dplyr::select(-solute, -Units) %>%
       # Reshape wider averaging within groups if duplicate values are found
-      tidyr::pivot_wider(names_from = solute_actual, values_from = amount, 
-                         values_fill = NA, values_fn = ~ mean(x = .x, na.rm = T))
+      tidyr::pivot_wider(names_from = solute_actual, values_from = amount, values_fill = NA, 
+                         values_fn = ~ as.character(mean(x = as.numeric(.x), na.rm = T)))
     
     } else { raw_df <- raw_df_v3 }
   
