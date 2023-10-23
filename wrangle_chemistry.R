@@ -199,6 +199,8 @@ for(j in 1:length(raw_files)){
       dplyr::mutate(solute = dplyr::case_when(
         ## Canada_WQ_dat.csv
         Dataset == "Canada" ~ gsub(pattern = " ", replacement = "_", x = solute),
+        ## NT_NSW_Chem_Cleaned.csv
+        Dataset == "Australia" ~ gsub(pattern = "\\/| |\\-", replacement = "_", x = solute),
         ## 20221030_masterdata_chem.csv
         Dataset == "Master_2022" & solute == "daily.avg.q.(discharge)" ~ "daily_q",
         Dataset == "Master_2022" & solute == "instantaneous.q.(discharge)" ~ "instant_q",
@@ -242,6 +244,10 @@ for(j in 1:length(raw_files)){
       dplyr::mutate(solute_actual = paste0(solute, "_", Units)) %>%
       # Drop unwanted columns
       dplyr::select(-solute, -Units) %>%
+      # Average across remaining columns (in case too many samples)
+      dplyr::group_by(dplyr::across(c(-amount))) %>%
+      dplyr::summarize(amount = mean(amount, na.rm = T)) %>% 
+      dplyr::ungroup() %>% 
       # Reshape wider
       tidyr::pivot_wider(names_from = solute_actual, values_from = amount, values_fill = NA)
     
