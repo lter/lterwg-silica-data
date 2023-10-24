@@ -850,7 +850,7 @@ nrow(tidy_v7a) - nrow(tidy_v7b)
 dplyr::glimpse(tidy_v7b)
 
 ## -------------------------------------------- ##
-# Wrangle Dates ----
+                # Wrangle Dates ----
 ## -------------------------------------------- ##
 
 # Check out current dates
@@ -860,20 +860,73 @@ sort(unique(tidy_v7b$date))
 tidy_v8a <- tidy_v7b %>%
   # Remove time stamps where present
   dplyr::mutate(date_v2 = gsub(pattern = " [[:digit:]]{1,2}\\:[[:digit:]]{1,2}",
-                               replacement = "", x = date)) %>%
+                               replacement = "", x = date),
+                .after = date) %>%
   # Standardize to only using slashes between numbers
-  dplyr::mutate(date_v3 = gsub(pattern = "\\_|\\-", replacement = "/", x = date_v2))
+  dplyr::mutate(date_v3 = gsub(pattern = "\\_|\\-", replacement = "/", x = date_v2),
+                .after = date_v2) %>%
+  # Remove bizarre trailing ":00" on some dates
+  dplyr::mutate(date_v4 = gsub(pattern = "\\:00", replacement = "", x = date_v3),
+                .after = date_v3) %>%
+  # Rename original date column
+  dplyr::rename(date_v1 = date)
 
 # Re-check
 sort(unique(tidy_v8a$date_v3))
 
 # Let's break apart the date information
 tidy_v8b <- tidy_v8a %>%
-  tidyr::separate_wider_delim(cols = date_v3, delim = "/", names = c("date1", "date2", "date3"),
+  tidyr::separate_wider_delim(cols = date_v4, delim = "/", names = c("date1", "date2", "date3"),
                               too_few = "align_start", too_many = "merge", cols_remove = F)
 
+# Check what that leaves us with
+sort(unique(tidy_v8b$date1))
+sort(unique(tidy_v8b$date2))
+sort(unique(tidy_v8b$date3))
+
+# Try to identify year information
+tidy_v8c <- tidy_v8b %>%
+  # Check all three bits for year info
+  dplyr::mutate(year_temp = dplyr::case_when(
+    nchar(date1) == 4 | as.numeric(date1) > 31 | as.numeric(date1) == 0 ~ date1,
+    nchar(date2) == 4 | as.numeric(date2) > 31 | as.numeric(date2) == 0 ~ date2,
+    nchar(date3) == 4 | as.numeric(date3) > 31 | as.numeric(date3) == 0 ~ date3,
+    T ~ NA), .before = date1) %>%
+  # Then drop the piece of information used if it met those criteria
+  dplyr::mutate(date1 = ifelse(nchar(date1) == 4 | as.numeric(date1) > 31 | 
+                                 as.numeric(date1) == 0,
+                               yes = NA, no = date1),
+                date2 = ifelse(nchar(date2) == 4 | as.numeric(date2) > 31 | 
+                                 as.numeric(date2) == 0,
+                               yes = NA, no = date2),
+                date3 = ifelse(nchar(date3) == 4 | as.numeric(date3) > 31 | 
+                                 as.numeric(date3) == 0,
+                               yes = NA, no = date3))
+
+# Try to identify day in a similar manner
+tidy_v8d <- tidy_v8c %>%
+  # Check all three bits for day info
+  dplyr::mutate(day_temp = dplyr::case_when(
+    as.numeric(date1) > 12 ~ date1,
+    as.numeric(date2) > 12 ~ date2,
+    as.numeric(date3) > 12 ~ date3,
+    T ~ NA), .before = year_temp) %>%
+  # Then drop the piece of information used if it met those criteria
+  dplyr::mutate(date1 = ifelse(as.numeric(date1) > 12,
+                               yes = NA, no = date1),
+                date2 = ifelse(as.numeric(date2) > 12,
+                               yes = NA, no = date2),
+                date3 = ifelse(as.numeric(date3) > 12,
+                               yes = NA, no = date3))
+
+# What do we still have to deal with?
+sort(unique(tidy_v8d$date1))
+sort(unique(tidy_v8d$date2))
+sort(unique(tidy_v8d$date3))
+
+
 # Check format of this object
-dplyr::glimpse(tidy_v8b)
+dplyr::glimpse(tidy_v8d)
 
 ## -------------------------------------------- ##
                   # Export ----
