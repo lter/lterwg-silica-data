@@ -886,7 +886,7 @@ tidy_v8b <- tidy_v8a %>%
     Raw_Filename == "CAMREX_filled_template.csv" ~ "mdy",
     Raw_Filename == "Canada_WQ_dat.csv" ~ "ymd",
     Raw_Filename == "Chem_Cameroon.csv" ~ "mdy",
-    Raw_Filename == "Chem_HYBAM.csv" ~ "ymd",
+    Raw_Filename == "Chem_HYBAM.csv" ~ "mdy",
     Raw_Filename == "ElbeRiverChem.csv" ~ "mdy",
     Raw_Filename == "Krycklan_NP.csv" ~ "ymd",
     Raw_Filename == "MCM_Chem_clean.csv" ~ "mdy",
@@ -901,20 +901,86 @@ tidy_v8b <- tidy_v8a %>%
     # Raw_Filename == "" ~ "",
     T ~ "UNKNOWN"))
 
-# Cause an error for unknown date formats
-if("UNKNOWN" %in% tidy_v8b$date_format)
-  stop("Date format not manually specified for at least one raw file!")
+# Check remaining date formats
+tidy_v8b %>%
+  dplyr::group_by(date_format) %>%
+  dplyr::summarize(files = paste(unique(Raw_Filename), collapse = "; "))
 
-
-# Let's break apart the date information
-tidy_v8b <- tidy_v8a %>%
+# Let's do the last (hopefully) little bit of date wrangling
+tidy_v8c <- tidy_v8b %>%
+  # Break apart the date information
   tidyr::separate_wider_delim(cols = date_v4, delim = "/", names = c("date1", "date2", "date3"),
-                              too_few = "align_start", too_many = "merge", cols_remove = F)
+                              too_few = "align_start", too_many = "merge", cols_remove = F) %>%
+  # If year is two-digits, fill up to 4
+  dplyr::mutate(date3 = dplyr::case_when(
+    # Anything after '24 is definitely "19__"
+    date_format == "mdy" & nchar(date3) == 2 & as.numeric(date3) >= 24 ~ paste0("19", date3),
+    # Less than '24 is likely early 2000s (rather than really early 1900s)
+    date_format == "mdy" & nchar(date3) == 2 & as.numeric(date3) < 24 ~ paste0("20", date3),
+    T ~ date3)) %>%
+  # Do the same fixes for the other date format
+  dplyr::mutate(date1 = dplyr::case_when(
+    date_format == "ymd" & nchar(date1) == 2 & as.numeric(date1) >= 24 ~ paste0("19", date1),
+    date_format == "ymd" & nchar(date1) == 2 & as.numeric(date1) < 24 ~ paste0("20", date1),
+    T ~ date1)) %>%
+  # Make the three components into numbers
+  dplyr::mutate(dplyr::across(.cols = date1:date3,
+                              .fns = as.numeric))
 
-# Check what that leaves us with
-sort(unique(tidy_v8b$date1))
-sort(unique(tidy_v8b$date2))
-sort(unique(tidy_v8b$date3))
+# Any non 4-digit years remaining?
+tidy_v8c %>%
+  dplyr::filter((date_format == "ymd" & nchar(date1) != 4) | 
+                  (date_format == "mdy" & nchar(date3) != 4)) %>%
+  dplyr::glimpse()
+
+
+# Use formats identified above to determine day, month, and year
+tidy_v8d <- tidy_v8c %>% 
+  dplyr::mutate(
+    ## Days
+    day = dplyr::case_when(
+      date_format == "ymd" ~ date3,
+      date_format == "mdy" ~ date2,
+      T ~ NA),
+    ## Months
+    month = dplyr::case_when(
+      date_format == "ymd" ~ date2,
+      date_format == "mdy" ~ date1,
+      T ~ NA),
+    ## Years
+    year = dplyr::case_when(
+      date_format == "ymd" ~ date1,
+      date_format == "mdy" ~ date3,
+      T ~ NA),
+    .after = date_v4)
+
+# How's that look?
+dplyr::glimpse(tidy_v8d)
+
+# Assemble back into a real date
+tidy_v8e <- tidy_v8d %>% 
+  dplyr::mutate(date_v5 = paste(day, month, year, sep = "-"),
+                .after = date_v4) %>%
+  # Make it truly a date
+  dplyr::mutate(date_actual = as.Date(x = date_v5, format = "%d-%m-%Y"),
+                .after = date_v5)
+
+# Glimpse it
+dplyr::glimpse(tidy_v8e)
+
+# Check date range quickly
+range(tidy_v8e$date_actual, na.rm = T)
+
+# Final (actually this time) date wrangling
+tidy_v8f <- tidy_v8e %>%
+  # Rename final date column
+  dplyr::rename(date = date_actual) %>%
+  # Drop all intermediary columns
+  dplyr::select(-date1, -date2, -date3, -day, -month, -year,
+                -dplyr::starts_with("date_"))
+
+# Check structure
+dplyr::glimpse(tidy_v8f)
 
 # Try to identify year information
 tidy_v8c <- tidy_v8b %>%
