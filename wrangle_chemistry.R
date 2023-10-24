@@ -982,56 +982,12 @@ tidy_v8f <- tidy_v8e %>%
 # Check structure
 dplyr::glimpse(tidy_v8f)
 
-# Try to identify year information
-tidy_v8c <- tidy_v8b %>%
-  # Check all three bits for year info
-  dplyr::mutate(year_temp = dplyr::case_when(
-    nchar(date1) == 4 | as.numeric(date1) > 31 | as.numeric(date1) == 0 ~ date1,
-    nchar(date2) == 4 | as.numeric(date2) > 31 | as.numeric(date2) == 0 ~ date2,
-    nchar(date3) == 4 | as.numeric(date3) > 31 | as.numeric(date3) == 0 ~ date3,
-    T ~ NA), .before = date1) %>%
-  # Then drop the piece of information used if it met those criteria
-  dplyr::mutate(date1 = ifelse(nchar(date1) == 4 | as.numeric(date1) > 31 | 
-                                 as.numeric(date1) == 0,
-                               yes = NA, no = date1),
-                date2 = ifelse(nchar(date2) == 4 | as.numeric(date2) > 31 | 
-                                 as.numeric(date2) == 0,
-                               yes = NA, no = date2),
-                date3 = ifelse(nchar(date3) == 4 | as.numeric(date3) > 31 | 
-                                 as.numeric(date3) == 0,
-                               yes = NA, no = date3))
-
-# Try to identify day in a similar manner
-tidy_v8d <- tidy_v8c %>%
-  # Check all three bits for day info
-  dplyr::mutate(day_temp = dplyr::case_when(
-    as.numeric(date1) > 12 ~ date1,
-    as.numeric(date2) > 12 ~ date2,
-    as.numeric(date3) > 12 ~ date3,
-    T ~ NA), .before = year_temp) %>%
-  # Then drop the piece of information used if it met those criteria
-  dplyr::mutate(date1 = ifelse(as.numeric(date1) > 12,
-                               yes = NA, no = date1),
-                date2 = ifelse(as.numeric(date2) > 12,
-                               yes = NA, no = date2),
-                date3 = ifelse(as.numeric(date3) > 12,
-                               yes = NA, no = date3))
-
-# What do we still have to deal with?
-sort(unique(tidy_v8d$date1))
-sort(unique(tidy_v8d$date2))
-sort(unique(tidy_v8d$date3))
-
-
-# Check format of this object
-dplyr::glimpse(tidy_v8d)
-
 ## -------------------------------------------- ##
                   # Export ----
 ## -------------------------------------------- ##
 
 # Create one final tidy object
-tidy_final <- tidy_v7b
+tidy_final <- tidy_v8f
 
 # Check structure
 dplyr::glimpse(tidy_final)
