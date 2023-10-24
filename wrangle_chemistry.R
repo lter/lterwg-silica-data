@@ -850,6 +850,32 @@ nrow(tidy_v7a) - nrow(tidy_v7b)
 dplyr::glimpse(tidy_v7b)
 
 ## -------------------------------------------- ##
+# Wrangle Dates ----
+## -------------------------------------------- ##
+
+# Check out current dates
+sort(unique(tidy_v7b$date))
+
+# Try to standardize date formatting a bit
+tidy_v8a <- tidy_v7b %>%
+  # Remove time stamps where present
+  dplyr::mutate(date_v2 = gsub(pattern = " [[:digit:]]{1,2}\\:[[:digit:]]{1,2}",
+                               replacement = "", x = date)) %>%
+  # Standardize to only using slashes between numbers
+  dplyr::mutate(date_v3 = gsub(pattern = "\\_|\\-", replacement = "/", x = date_v2))
+
+# Re-check
+sort(unique(tidy_v8a$date_v3))
+
+# Let's break apart the date information
+tidy_v8b <- tidy_v8a %>%
+  tidyr::separate_wider_delim(cols = date_v3, delim = "/", names = c("date1", "date2", "date3"),
+                              too_few = "align_start", too_many = "merge", cols_remove = F)
+
+# Check format of this object
+dplyr::glimpse(tidy_v8b)
+
+## -------------------------------------------- ##
                   # Export ----
 ## -------------------------------------------- ##
 
@@ -873,3 +899,18 @@ googledrive::drive_upload(media = file.path("tidy", chem_filename), overwrite = 
                           path = googledrive::as_id("https://drive.google.com/drive/u/0/folders/1dTENIB5W2ClgW0z-8NbjqARiaGO2_A7W"))
 
 # End ----
+
+
+%>%
+  # Make date actually a date
+  dplyr::mutate(date_raw = ifelse(nchar(date) >= 7,
+                                  yes = as.Date(date),
+                                  no = NA)) %>%
+  # dplyr::mutate(date_raw = as.Date(gsub(pattern = "NA", replacement = NA,
+  #                                       x = date))) %>%
+  # And standardize date format
+  dplyr::mutate(date_actual = lubridate::ymd(date_raw),
+                .after = Stream_Name) %>%
+  # Drop intermediary columns
+  dplyr::select(-date, -date_raw) %>%
+  dplyr::rename(date = date_actual)
