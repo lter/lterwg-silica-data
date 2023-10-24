@@ -871,8 +871,40 @@ tidy_v8a <- tidy_v7b %>%
   # Rename original date column
   dplyr::rename(date_v1 = date)
 
-# Re-check
-sort(unique(tidy_v8a$date_v3))
+# Look at general date format per LTER
+tidy_v8a %>%
+  dplyr::group_by(Raw_Filename) %>%
+  dplyr::summarize(dates = paste(unique(date_v4), collapse = "; ")) %>%
+  tidyr::pivot_wider(names_from = Raw_Filename, values_from = dates) %>%
+  dplyr::glimpse()
+
+# Identify format for each file name based on **human eye/judgement**
+tidy_v8b <- tidy_v8a %>%
+  dplyr::mutate(date_format = dplyr::case_when(
+    Raw_Filename == "20221030_masterdata_chem.csv" ~ "ymd",
+    Raw_Filename == "Australia_MurrayBasin_PJulian_071723.csv" ~ "ymd",
+    Raw_Filename == "CAMREX_filled_template.csv" ~ "mdy",
+    Raw_Filename == "Canada_WQ_dat.csv" ~ "ymd",
+    Raw_Filename == "Chem_Cameroon.csv" ~ "mdy",
+    Raw_Filename == "Chem_HYBAM.csv" ~ "ymd",
+    Raw_Filename == "ElbeRiverChem.csv" ~ "mdy",
+    Raw_Filename == "Krycklan_NP.csv" ~ "ymd",
+    Raw_Filename == "MCM_Chem_clean.csv" ~ "mdy",
+    Raw_Filename == "NIVA_Water_chemistry.csv" ~ "mdy",
+    Raw_Filename == "NT_NSW_Chem_Cleaned.csv" ~ "mdy",
+    Raw_Filename == "NigerRiver.csv" ~ "mdy",
+    Raw_Filename == "SiSyn_DataTemplate_Sweden_071423.csv" ~ "mdy",
+    Raw_Filename == "UK_Si.csv" ~ "mdy",
+    Raw_Filename == "UMR_si_new_sites.csv" ~ "mdy",
+    Raw_Filename == "UMR_si_update_existing_sites.csv" ~ "mdy",
+    Raw_Filename == "USGS_NWQA_Chemistry_MissRiverSites.csv" ~ "ymd",
+    # Raw_Filename == "" ~ "",
+    T ~ "UNKNOWN"))
+
+# Cause an error for unknown date formats
+if("UNKNOWN" %in% tidy_v8b$date_format)
+  stop("Date format not manually specified for at least one raw file!")
+
 
 # Let's break apart the date information
 tidy_v8b <- tidy_v8a %>%
