@@ -481,8 +481,11 @@ tidy_v4a <- tidy_v3c %>%
                                             yes = (conductivity_mS_m * 10^3 * 0.01),
                                             no = conductivity_uS_cm)) %>%
   dplyr::select(-conductivity_mS_m) %>%
+  # Turbidity
+  dplyr::mutate(turbidity_NTU = dplyr::coalesce(turbidity_NTU, turb_NTU)) %>%
+  dplyr::select(-turb_NTU) %>% 
   # Relocate all of these columns to the left of the elemental columns
-  dplyr::relocate(temp_C, alkalinity_uM, color_hazen, chla_ug_L, conductivity_uS_cm, 
+  dplyr::relocate(temp_C, alkalinity_uM, conductivity_uS_cm, 
                   specific_conductivity_uS_cm, suspended_chl_ug_L, turbidity_NTU,
                   tds_mg_L, dplyr::starts_with("tss_"), dplyr::starts_with("vss_"),
                   .after = pH) %>%
