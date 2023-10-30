@@ -1000,18 +1000,3 @@ googledrive::drive_upload(media = file.path("tidy", chem_filename), overwrite = 
                           path = googledrive::as_id("https://drive.google.com/drive/u/0/folders/1dTENIB5W2ClgW0z-8NbjqARiaGO2_A7W"))
 
 # End ----
-
-
-%>%
-  # Make date actually a date
-  dplyr::mutate(date_raw = ifelse(nchar(date) >= 7,
-                                  yes = as.Date(date),
-                                  no = NA)) %>%
-  # dplyr::mutate(date_raw = as.Date(gsub(pattern = "NA", replacement = NA,
-  #                                       x = date))) %>%
-  # And standardize date format
-  dplyr::mutate(date_actual = lubridate::ymd(date_raw),
-                .after = Stream_Name) %>%
-  # Drop intermediary columns
-  dplyr::select(-date, -date_raw) %>%
-  dplyr::rename(date = date_actual)
