@@ -234,6 +234,8 @@ for(j in 1:length(raw_files)){
       dplyr::select(-dplyr::ends_with("solute_units")) %>%
       # Attach units from key
       dplyr::left_join(y = units_sub, by = c("Raw_Filename", "solute")) %>%
+      # Filter to only solutes included specifically in units key
+      dplyr::filter(solute %in% unique(units_sub$solute)) %>% 
       # Attach solute and solute units into one column
       dplyr::mutate(solute_actual = paste0(solute, "_", Units)) %>%
       # Drop unwanted columns
