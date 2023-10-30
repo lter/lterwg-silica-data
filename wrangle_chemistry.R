@@ -183,7 +183,9 @@ for(j in 1:length(raw_files)){
       dplyr::mutate(Units = gsub(pattern = "\\/| |\\-", replacement = "_", x = Units)) %>%
       # Rename variable column & tweak so it's ready to be a column name
       dplyr::mutate(solute = gsub(pattern = "\\/| |\\-", replacement = "_", x = Variable)) %>%
-      dplyr::select(-Variable)
+      dplyr::select(-Variable) %>%
+      # Also drop Dataset column
+      dplyr::select(-Dataset)
     
     # Needed wrangling
     raw_df_v4 <- raw_df_v3 %>%
@@ -291,6 +293,10 @@ tidy_v1b <- tidy_v0 %>%
   dplyr::mutate(LTER = dplyr::case_when(
     is.na(LTER) & !is.na(Dataset) ~ Dataset,
     T ~ LTER)) %>%
+  # Fix missing dataset info using the reverse operation
+  dplyr::mutate(Dataset = dplyr::case_when(
+    is.na(Dataset) & !is.na(LTER) ~ LTER,
+    T ~ Dataset)) %>%
   # Fill in missing stream names
   dplyr::mutate(Stream_Name = dplyr::case_when(
     Raw_Filename == "NigerRiver.csv" & is.na(Stream_Name) ~ "Niger",
@@ -400,9 +406,9 @@ tidy_v2c %>%
 tidy_v3a <- tidy_v2c %>%
   # Many variants on pH column naming
   ## Combine into one
-  dplyr::mutate(ph_actual = dplyr::coalesce(pH, ph, pH_pH, ph_SU), .after = date) %>%
+  dplyr::mutate(ph_actual = dplyr::coalesce(pH, ph, pH_pH, ph_SU, ph_), .after = date) %>%
   ## Delete old columns
-  dplyr::select(-pH, -pH_pH, -ph, -ph_SU) %>%
+  dplyr::select(-pH, -pH_pH, -ph, -ph_SU, -ph_) %>%
   ## Rename new one simply
   dplyr::rename(pH = ph_actual)
 
@@ -603,7 +609,9 @@ tidy_v4b <- tidy_v4a %>%
                               no = na_uM)) %>%
   dplyr::select(-na_mg_L) %>%
   # Ammonia (NH3)
-  dplyr::mutate(nh3_uM = (nh3_mg_NH3_N_L / NH3_mw) * 10^3, .after = nh3_mg_NH3_N_L) %>%
+  dplyr::mutate(nh3_uM = dplyr::case_when(
+    !is.na(nh3_mg_NH3_N_L) ~ (nh3_mg_NH3_N_L / NH3_mw) * 10^3,
+    T ~ NA), .after = nh3_mg_NH3_N_L) %>%
   dplyr::select(-nh3_mg_NH3_N_L) %>%
   # Ammonium (NH4)
   dplyr::mutate(nh4_uM = dplyr::case_when(
@@ -889,6 +897,7 @@ tidy_v8b <- tidy_v8a %>%
     Raw_Filename == "ElbeRiverChem.csv" ~ "mdy",
     Raw_Filename == "Krycklan_NP.csv" ~ "ymd",
     Raw_Filename == "MCM_Chem_clean.csv" ~ "mdy",
+    Raw_Filename == "MurrayDarlingChem_Merged.csv" ~ "ymd",
     Raw_Filename == "NIVA_Water_chemistry.csv" ~ "mdy",
     Raw_Filename == "NT_NSW_Chem_Cleaned.csv" ~ "mdy",
     Raw_Filename == "NigerRiver.csv" ~ "mdy",
