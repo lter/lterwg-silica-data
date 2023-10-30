@@ -59,14 +59,8 @@ units_key_v1 <- read.csv(file = file.path("keys", paste0("SiSyn_Chem_Units_Key",
 # Check structure
 dplyr::glimpse(units_key_v1)
 
-# Identify the old master chemistry file
-old_primary <- googledrive::drive_ls(path = googledrive::as_id("https://drive.google.com/drive/folders/1dTENIB5W2ClgW0z-8NbjqARiaGO2_A7W")) %>%
-  dplyr::filter(name == "20221030_masterdata_chem.csv")
-
 # Identify all raw chemistry files
-chem_drive <- googledrive::drive_ls(path = googledrive::as_id("https://drive.google.com/drive/u/0/folders/1da8AkSvforPehp-gPJsmA7-pPAJ913mz")) %>%
-  # Attach the old master chem file
-  dplyr::bind_rows(old_primary)
+chem_drive <- googledrive::drive_ls(path = googledrive::as_id("https://drive.google.com/drive/u/0/folders/1da8AkSvforPehp-gPJsmA7-pPAJ913mz"))
   
 # Check which files are in the data key but not the Drive and vice versa
 supportR::diff_check(old = unique(key_v1$Raw_Filename), new = unique(chem_drive$name))
