@@ -890,7 +890,7 @@ tidy_v8b <- tidy_v8a %>%
     Raw_Filename == "NIVA_Water_chemistry.csv" ~ "mdy",
     Raw_Filename == "NT_NSW_Chem_Cleaned.csv" ~ "mdy",
     Raw_Filename == "NigerRiver.csv" ~ "mdy",
-    Raw_Filename == "SiSyn_DataTemplate_Sweden_071423.csv" ~ "mdy",
+    Raw_Filename == "SiSyn_DataTemplate_Sweden_102423.csv" ~ "mdy",
     Raw_Filename == "UK_Si.csv" ~ "mdy",
     Raw_Filename == "UMR_si_new_sites.csv" ~ "mdy",
     Raw_Filename == "UMR_si_update_existing_sites.csv" ~ "mdy",
