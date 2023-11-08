@@ -190,13 +190,14 @@ for(j in 1:length(raw_files)){
     # Needed wrangling
     raw_df_v4 <- raw_df_v3 %>%
       # Make solute column lowercase to increase chances of pattern match
-      dplyr::mutate(solute = tolower(solute)) %>%
+      dplyr::mutate(solute = tolower(gsub(pattern = "\\/| |\\-", 
+                                          replacement = "_", x = solute))) %>%
       # Make some other specific changes (conditionally)
       dplyr::mutate(solute = dplyr::case_when(
         ## Canada_WQ_dat.csv
-        Dataset == "Canada" ~ gsub(pattern = " ", replacement = "_", x = solute),
+        # Dataset == "Canada" ~ gsub(pattern = " ", replacement = "_", x = solute),
         ## NT_NSW_Chem_Cleaned.csv
-        Dataset == "Australia" ~ gsub(pattern = "\\/| |\\-", replacement = "_", x = solute),
+        # Dataset == "Australia" ~ gsub(pattern = "\\/| |\\-", replacement = "_", x = solute),
         ## 20221030_masterdata_chem.csv
         Dataset == "Master_2022" & solute == "daily.avg.q.(discharge)" ~ "daily_q",
         Dataset == "Master_2022" & solute == "instantaneous.q.(discharge)" ~ "instant_q",
