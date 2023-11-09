@@ -1,8 +1,6 @@
 # install.packages("googledrive")
-# install.packages("tidyverse")
-# install.packages("gtools")
-# install.packages("rtools")
-#install.packages("plyr")
+
+# load libraries
 require(tidyverse)
 require(googledrive)
 require(stringr)
@@ -17,26 +15,24 @@ require(dataRetrieval)
 library(readxl)
 library(supportR)
 
-## functions
-# need to import multiple files and skip the leading rows without data
-# this is specific to the Australia datasets
-read_csv_skip <- function(x) {
-  read_csv(x,skip=9)
-}
+# file for raw discharge data files
+setwd("C:/Users/kjankowski/OneDrive - DOI/Documents/Projects/SilicaSynthesis/Data/Discharge")
+dir.create(path = file.path("discharge_raw"), showWarnings = F)
+dir.create(path = file.path("discharge_tidy"), showWarnings = F)
 
-# read in multiple files and add column with filename information
-# from this post: https://stackoverflow.com/questions/11433432/how-to-import-multiple-csv-files-at-once
-read_plus <- function(flnm) {
-  read_csv_skip(flnm) %>%
-    mutate(filename = flnm)
-}
+#read in reference table - you might need to change this link
+ref_table_link<-"https://docs.google.com/spreadsheets/d/11t9YYTzN_T12VAQhHuY5TpVjGS50ymNmKznJK4rKTIU/edit?usp=sharing"
 
-### Data download
-## Set up connection to Google Drive
+ref_table_folder = drive_get(as_id(ref_table_link))
+
+ref_table<-drive_download(ref_table_folder$drive_resource, overwrite = T)
+
+QLog<-read_xlsx(ref_table$local_path)
+
+
+### Create list of files to download and data download
 #get folder URL from google drive with discharge data - "Discharge_files"
 #only use files ending in "_Q_WRTDS.csv"
-#folder_url = "https://drive.google.com/drive/folders/19lemMC09T1kajzryEx5RUoOs3KDSbeAX"
-
 folder_url = "https://drive.google.com/drive/u/1/folders/1mw0rYbqpMO4VIXfTH5Ry9USzlR4tbvfb"
 
 #get ID of folder
@@ -45,36 +41,199 @@ folder = drive_get(as_id(folder_url))
 #get list of csv files from folder
 csv_files = drive_ls(folder, type="csv")
 
-## OLD
-#get just site names from csv file name
-#keeps text (site name) from WRTDS Q prep files
-#csv_files$site = str_extract(csv_files$name, pattern="(?<=).*(?=_Q_WRTDS.csv)") 
+# list of files to not include in the download - duplicates or not using
+csv_files_remove <- c( "andrsn_h1_Q.csv",                                      
+                       "canada_f1_Q.csv" ,                                     
+                       "common_c1_Q.csv"  ,                                    
+                       "Congo_Q.csv",                                          
+                       "crescent_f8_Q.csv",                                    
+                       "delta_f10_Q.csv",                                       
+                       "Francisco_Q.csv",                                      
+                       "green_f9_Q.csv",                                       
+                       "harnish_f7_Q.csv",                                     
+                       "lawson_b3_Q.csv",                                      
+                       "MCM_Andersen Creek at H1_fill_Q_update.csv",           
+                       "MCM_Lawson Creek at B3_fill_Q_update.csv",             
+                       "MCM_Onyx River at Lake Vanda Weir_fill_Q_update.csv",  
+                       "MCM_Onyx River at Lower Wright Weir_fill_Q_update.csv",
+                       "NigerRiver_Q.csv",                                     
+                       "onyx_lwright_Q.csv",                                   
+                       "onyx_vnda_Q.csv",                                      
+                       "priscu_b1_Q.csv",                                      
+                       "vguerard_f6_Q.csv")
 
-#extract only WRTDS prep discharge files
-#WRTDS_discharge = csv_files[csv_files$name %like% "Q_WRTDS.csv",]
-## 
+csv_files_download <- csv_files %>% 
+  filter(!name %in% csv_files_remove)
 
-#### Download files from Google Drive tp store locally
+#######################################################################################
+#### Download files from Google Drive to store locally
 # check working directory where files will be stored locally; separate folder within project folder
-# setwd("/Users/keirajohnson/Box Sync/Keira_Johnson/SiSyn/All_Q")
-#"L:/GitHub/SiSyn/Merge Site Discharge"
-setwd("C:/Users/kjankowski/OneDrive - DOI/Documents/Projects/SilicaSynthesis/Data/Discharge/Discharge_forAnalysis")
+
+setwd("C:/Users/kjankowski/OneDrive - DOI/Documents/Projects/SilicaSynthesis/Data/Discharge/Discharge_Analysis")
 
 # download each file to the working directory; files are saved locally
-for (i in 1:length(csv_files$drive_resource)) {
-  drive_download(csv_files$drive_resource[i],  overwrite=T)
+for (i in 1:length(csv_files_download$drive_resource)) {
+  drive_download(csv_files_download$drive_resource[i],  overwrite=T)
 }
 
-#add column for site name
-#loop through each downloaded csv file and add appropriate site name
-discharge_files = list.files(path="C:/Users/kjankowski/OneDrive - DOI/Documents/Projects/SilicaSynthesis/Data/Discharge/Discharge_forAnalysis", pattern = ".csv")
 
-# remove all "Master Q" files
-discharge_files<-discharge_files[!(discharge_files %like% "UpdatedAll_Q_master")]
-remove_these<-setdiff(discharge_files, csv_files$name)
+###############################################################################################
+### Prep for loop to concatentate discharge files
+
+# get list of files downloaded
+discharge_files = list.files(path="discharge_raw", pattern = ".csv")
+
+# remove all "Master Q" or other unneeded files
+discharge_files<-discharge_files[!(discharge_files %like% "Discharge_master")]
+remove_these<-setdiff(csv_files$name,discharge_files)
 discharge_files<-discharge_files[!(discharge_files %in% remove_these)]
 
-### clean up Australia files to combine into larger dataset - 
+# set working directory where discharge files stored locally
+setwd("discharge_raw")
+
+#create list to store output from for loop
+data_list = list()
+
+# Create lists for discharge and dates
+# this is where you add different names for discharge and date columns
+#you will need to add more to incorporate new data
+
+DischargeList<-c("MEAN_Q", "Discharge", "InstantQ", "Q_m3sec", "discharge", "Q", 
+                 "Q_cms","Flow","var", "Value", "valeur",
+                 "AVG_DISCHARGE")
+DateList<-c("Date", "dateTime", "dates", "date", "datetime", "DATE_TIME",
+            "Sampling Date", "Dates")
+
+i=i
+
+#loop through each discharge file
+#rename columns, convert units, keep only important columns
+
+for (i in 1:length(discharge_files)) {
+  file_name_nocsv<-substr(discharge_files[i],start=1,stop=nchar(discharge_files[i])-4)
+  file_name = discharge_files[i]
+  d = fread(file_name, sep=",", tz="")
+  names(d)[which(colnames(d) %in% DischargeList)]<-"Q"
+  names(d)[which(colnames(d) %in% DateList)]<-"Date"
+  d<-d[,c("Q", "Date")]
+  d$Discharge_File_Name<-file_name_nocsv
+  ref_site<-subset(QLog, QLog$Discharge_File_Name==file_name_nocsv)
+  ref_site<-ref_site[1,]
+  d$Units<-ref_site$Units
+  #d$LTER = LTER_name
+  
+  #convert all Q file units to CMS
+  d$Qcms<-ifelse(d$Units=="cms", d$Q, 
+                 ifelse(d$Units=="cfs", d$Q*0.0283,
+                        ifelse(d$Units=="Ls", d$Q*0.001,
+                               ifelse(d$Units=="cmd", d$Q*1.15741e-5, ""))))
+  
+  d<-d[,c("Qcms", "Date", "Discharge_File_Name")]
+  
+  #convert date to date format
+  if(is.Date(d$Date)){
+
+    d$Date<-d$Date
+
+  } else{
+
+    #d<-date_format_guess(d,"Date", groups = TRUE, group_col = "LTER")
+    #d <- date_format_guess(data=d,date_col="Date", groups = DischargeFileName)
+    
+    format<-"%m/%d/%Y"
+    d$Date<-as.IDate(d$Date, format)
+    
+    #x = d %>% mutate(Date = as.character(Date)) %>% 
+     # date_format_guess(date_col="Date", groups = DischargeFileName) %>% 
+      #case_when(date_format_guess == "year/month/day" ~ as.Date(Date, ""))
+
+  }
+
+  print(is(d$Date)) # check date format as list is created
+  data_list[[i]] = d
+}
+
+### Create data frame from list - use bind_rows to concatenate each new discharge file
+# should have 3 columns: date, site, discharge
+disc_v1 = bind_rows(data_list)
+
+#####################################################
+## checks on discharge, dates
+# checking files where dates got converted to NA
+na_dates = filter(disc_v1, is.na(Date))
+
+# checking which files have negative discharge values
+neg_Q = filter(disc_v1, Qcms<0)
+
+# plotting to see what they look like
+neg_Q %>% 
+  ggplot(aes(Qcms))+
+  geom_histogram()+
+  facet_wrap(~Discharge_File_Name, scales="free")
+
+# addressing negative values
+# keep all values above zero, replace -999999 with NA, replace negative with 0
+disc_v2 = disc_v1 %>% 
+  mutate(Qcms = case_when(
+   Qcms >= 0 ~ Qcms,
+   Qcms == -999999 ~ NA,
+   Qcms < 0 ~ 0))
+
+# check
+neg_Q <- filter(disc_v2, Qcms<0)
+
+## plot to see what new data look like
+disc_v2 %>% 
+  filter(Discharge_File_Name == "Rio Purus_Q") %>%  
+  ggplot(aes(Date,Qcms)) +
+  geom_point()
+
+## append the Stream Name to the file before saving ## 
+name_table = QLog %>%
+  select(LTER,Stream_Name,Discharge_File_Name)
+
+disc_v3 <- disc_v2 %>% 
+  left_join(y=name_table,by="Discharge_File_Name")
+
+#check this
+glimpse(disc_v3)
+
+#check the many-to-many warnings
+name_table %>% filter(Discharge_File_Name=="ARC_Imnavait_fill_Q")
+disc_v2 %>% filter(Discharge_File_Name=="AAGEVEG_Q") %>% pull(Discharge_File_Name) %>% unique()
+#pull() makes a column and returns it as a vector
+
+#the number of rows should be the same, to make check discharge is added for multi-alias'd sites
+disc_v2 %>% filter(Discharge_File_Name=="AAGEVEG_Q") %>% nrow()
+disc_v3 %>% filter(Discharge_File_Name=="AAGEVEG_Q") %>% nrow()
+
+####
+# plot all discharge and save to file
+p = ggplot(data = disc_v3, aes(x = Date, y = Qcms)) + 
+  geom_point()
+
+plots = disc_v3 %>%
+  group_by(DischargeFileName) %>%
+  do(plots = p %+% . + facet_wrap(~DischargeFileName))
+
+setwd("C:/Users/kjankowski/OneDrive - DOI/Documents/Projects/SilicaSynthesis/Data/Discharge")
+pdf()
+plots$plots
+dev.off()
+
+#change date to reflect new file creation
+setwd('../discharge_tidy')
+write.csv(disc_v3, "110823_masterdata_discharge.csv", row.names=FALSE)
+
+
+
+########################################################################
+### reviewing files
+filter(all_discharge_save, DischargeFileName == "AL02.3M_Q")
+
+
+##########################################################################################
+### clean up Australia files to combine into larger dataset - and save them to file 
 ## they have leading rows that need to be skipped and weird time/date stamp
 # Murray Darling
 setwd("C:/Users/kjankowski/OneDrive - DOI/Documents/Projects/SilicaSynthesis/Data/Discharge/Discharge_forAnalysis")
@@ -131,92 +290,6 @@ AUS_dat %>%
   group_walk(~ write_csv(.x, paste0(.y$Filename)))
 
 
-### set working directory for reference table
-#setwd("/Users/keirajohnson/Box Sync/Keira_Johnson/SiSyn")
-setwd("C:/Users/kjankowski/OneDrive - DOI/Documents/Projects/SilicaSynthesis/Data/Discharge/")
-
-#read in reference table - you might need to change this link
-ref_table_link<-"https://docs.google.com/spreadsheets/d/11t9YYTzN_T12VAQhHuY5TpVjGS50ymNmKznJK4rKTIU/edit?usp=sharing"
-
-ref_table_folder = drive_get(as_id(ref_table_link))
-
-ref_table<-drive_download(ref_table_folder$drive_resource, overwrite = T)
-
-QLog<-read_xlsx(ref_table$local_path)
-
-# OLD read in discharge log
-#QLog<-read.csv("WRTDS_Reference_Table_LTER_V2.csv")
-#setwd("/Users/keirajohnson/Box Sync/Keira_Johnson/SiSyn/All_Q")
-#Q<-read.csv("UpdatedAll_Q_master.csv")
-
-### Prep for loop to concatentate discharge files
-setwd("C:/Users/kjankowski/OneDrive - DOI/Documents/Projects/SilicaSynthesis/Data/Discharge/Discharge_forAnalysis")
-
-#create list to store output from for loop
-data_list = list()
-
-# Create lists for discharge and dates
-# this is where you add different names for discharge and date columns
-#you will need to add more to incorporate new data
-# added additional items to the "DischargeList"
-DischargeList<-c("MEAN_Q", "Discharge", "InstantQ", "Q_m3sec", "discharge", "Q", 
-                 "Q_cms","Flow","var", "Value", "valeur",
-                 "AVG_DISCHARGE")
-DateList<-c("Date", "dateTime", "dates", "date", "datetime", "DATE_TIME")
-
-i=101
-
-#loop through each discharge file
-#rename columns, convert units, keep only important columns
-
-for (i in 1:length(discharge_files)) {
-  #LTER_name = substr(discharge_files[i],start=1,stop=3)
-  file_name_nocsv<-substr(discharge_files[i],start=1,stop=nchar(discharge_files[i])-4)
-  file_name = discharge_files[i]
-  d = fread(file_name, sep=",")
-  names(d)[which(colnames(d) %in% DischargeList)]<-"Q"
-  names(d)[which(colnames(d) %in% DateList)]<-"Date"
-  d<-d[,c("Q", "Date")]
-  d$DischargeFileName<-file_name_nocsv
-  ref_site<-subset(QLog, QLog$Discharge_File_Name==file_name_nocsv)
-  ref_site<-ref_site[1,]
-  d$Units<-ref_site$Units
-  #d$LTER = LTER_name
-  
-  #convert all Q file units to CMS
-  d$Qcms<-ifelse(d$Units=="cms", d$Q, 
-                 ifelse(d$Units=="cfs", d$Q*0.0283,
-                        ifelse(d$Units=="Ls", d$Q*0.001,
-                               ifelse(d$Units=="cmd", d$Q*1.15741e-5, ""))))
-  
-  d<-d[,c("Qcms", "Date", "DischargeFileName")]
-  
-  #convert date to date format
-  if(is.Date(d$Date)){
-
-    d$Date<-d$Date
-
-  } else{
-
-    #d<-date_format_guess(d,"Date", groups = TRUE, group_col = "LTER")
-    d<-date_format_guess(data=d,date_col=as.character("Date"), groups = FALSE)
-    
-    format<-"%m/%d/%Y"
-    d$Date<-as.Date(d$Date, format)
-
-  }
-
-  data_list[[i]] = d
-}
-
-#use bind_rows to concatenate each new discharge file
-#should have 3 columns: date, site, discharge
-all_discharge = bind_rows(data_list)
-
-all_discharge<-all_discharge[,c("Qcms", "Date", "DischargeFileName")]
-
-#change date to reflect new file creation
-write.csv(all_discharge, "UpdatedAll_Q_master_10092023.csv")
 
 # allQ<-read.csv("UpdatedAll_Q_master_10262022.csv")
 # 
