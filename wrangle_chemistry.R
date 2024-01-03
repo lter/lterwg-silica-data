@@ -298,7 +298,7 @@ tidy_v1b <- tidy_v0 %>%
   dplyr::mutate(Dataset = dplyr::case_when(
     is.na(Dataset) & !is.na(LTER) ~ LTER,
     T ~ Dataset)) %>%
-  # Fill in missing stream names
+  # Fill in missing stream names - added "Stream_Name" to original datasets 1/2/24
   dplyr::mutate(Stream_Name = dplyr::case_when(
     Raw_Filename == "NigerRiver.csv" & is.na(Stream_Name) ~ "Niger",
     Raw_Filename == "MCM_Chem_clean.csv" ~ "McMurdo",
@@ -363,6 +363,10 @@ tidy_v2b <- tidy_v2a %>%
     measurement == "NaN" ~ NA,
     measurement == "N/A" ~ NA,
     measurement == "<LOD" ~ NA,
+    # Catalina Jemez has many versions of -9999
+    measurement == -9999.00 ~ "NA",
+    measurement == -9999.000 ~ "NA",
+    measurement == -9999.0000 ~ "NA",
     ## Unreasonable numbers
     ### None yet!
     # If not broken, leave alone!
@@ -416,6 +420,8 @@ tidy_v3a <- tidy_v2c %>%
 # Did that fix the pH issues?
 summary(tidy_v3a$pH) ## Yes! Many fewer NAs
 
+### NEED TO COMBINE CHLOROPHYLL COLUMNS ###
+
 # Fix some of the element columns too
 tidy_v3b <- tidy_v3a %>%
   # Alkalinity (uEq/L)
@@ -446,7 +452,7 @@ tidy_v3b %>%
   dplyr::select(-Dataset:-date) %>%
   names() %>% sort()
 
-# Now handle the Canadian solutes (they use un-abbreviated names)
+# Now handle the Canadian solutes (they use un-abbreviated names) 
 tidy_v3c <- tidy_v3b %>%
   ## DOC
   dplyr::mutate(doc_actual = dplyr::coalesce(doc_mg_L, carbon_dissolved_organic_mg_L)) %>%
@@ -458,8 +464,18 @@ tidy_v3c <- tidy_v3b %>%
   dplyr::mutate(tn_actual = dplyr::coalesce(tn_mg_N_L, nitrogen_total_mg_N_L)) %>%
   dplyr::select(-tn_mg_N_L, -nitrogen_total_mg_N_L) %>%
   dplyr::rename(tn_mg_L = tn_actual) %>%
+  ## NH4
+  dplyr::mutate(nh4_actual = dplyr::coalesce(nh4_mg_NH4_L, ammonia_dissolved_mg_NH4_L)) %>%
+  dplyr::select(-nh4_mg_NH4_L, -ammonia_dissolved_mg_NH4_L) %>%
+  dplyr::rename(nh4_mg_NH4_L = nh4_actual) %>%
+  ## NO3
+  dplyr::mutate(no3_actual = dplyr::coalesce(no3_mg_NO3_L, dissolved_nitrogen_nitrate_mg_NO3_L)) %>%
+  dplyr::select(-no3_mg_NO3_L, -dissolved_nitrogen_nitrate_mg_NO3_L) %>%
+  dplyr::rename(no3_mg_NO3_L = no3_actual) %>%
   ## TP
   dplyr::rename(tp_mg_L = phosphorus_total_mg_P_L) %>%
+  ## TDP
+  dplyr::rename(tdp_mg_L = phosphorus_total_dissolved_mg_P_L) %>%
   ## DSi
   dplyr::mutate(dsi_actual = dplyr::coalesce(dsi_mg_Si_L, silicon_extractable_mg_Si_L)) %>%
   dplyr::select(-dsi_mg_Si_L, -silicon_extractable_mg_Si_L) %>%
@@ -611,18 +627,18 @@ tidy_v4b <- tidy_v4a %>%
   dplyr::select(-na_mg_L) %>%
   # Ammonia (NH3)
   dplyr::mutate(nh3_uM = dplyr::case_when(
-    !is.na(nh3_mg_NH3_N_L) ~ (nh3_mg_NH3_N_L / NH3_mw) * 10^3,
+    !is.na(nh3_mg_NH3_N_L) ~ (nh3_mg_NH3_N_L / N_mw) * 10^3,
     T ~ NA), .after = nh3_mg_NH3_N_L) %>%
   dplyr::select(-nh3_mg_NH3_N_L) %>%
   # Ammonium (NH4)
   dplyr::mutate(nh4_uM = dplyr::case_when(
     !is.na(nh4_uM) ~ nh4_uM,
-    is.na(nh4_uM) & !is.na(nh4_mg_NH4_N_L) ~ (nh4_mg_NH4_N_L / NH4_mw) * 10^3,
-    is.na(nh4_uM) & !is.na(nh4_ug_NH4_N_L) ~ nh4_ug_NH4_N_L / NH4_mw,
+    is.na(nh4_uM) & !is.na(nh4_mg_NH4_N_L) ~ (nh4_mg_NH4_N_L / N_mw) * 10^3,
+    is.na(nh4_uM) & !is.na(nh4_ug_NH4_N_L) ~ nh4_ug_NH4_N_L / N_mw,
     T ~ NA)) %>%
   dplyr::select(-nh4_mg_NH4_N_L, -nh4_ug_NH4_N_L) %>%
   # Ammoni__ (NHx)
-  dplyr::mutate(nhx_uM = (nhx_mg_NH4_N_L / NH4_mw) * 10^3, 
+  dplyr::mutate(nhx_uM = (nhx_mg_NH4_N_L / N_mw) * 10^3, 
                 .after = nhx_mg_NH4_N_L) %>%
   dplyr::select(-nhx_mg_NH4_N_L) %>%
   # Nitrate (NO3)
@@ -635,16 +651,16 @@ tidy_v4b <- tidy_v4a %>%
   # Nitr__ (NOx)
   dplyr::mutate(nox_uM = dplyr::case_when(
     !is.na(nox_uM) ~ nox_uM,
-    is.na(nox_uM) & !is.na(nox_mg_NO3_N_L) ~ (nox_mg_NO3_N_L / NO3_mw) * 10^3,
-    is.na(nox_uM) & !is.na(nox_ug_NO3_N_L) ~ nox_ug_NO3_N_L / NO3_mw,
+    is.na(nox_uM) & !is.na(nox_mg_NO3_N_L) ~ (nox_mg_NO3_N_L / N_mw) * 10^3,
+    is.na(nox_uM) & !is.na(nox_ug_NO3_N_L) ~ nox_ug_NO3_N_L / N_mw,
     T ~ NA)) %>%
   dplyr::select(-nox_mg_NO3_N_L, -nox_ug_NO3_N_L) %>%
   # Phosphate (PO4)
   dplyr::mutate(po4_uM = dplyr::case_when(
     !is.na(po4_uM) ~ po4_uM,
     is.na(po4_uM) & !is.na(po4_mg_PO4_L) ~ (po4_mg_PO4_L / PO4_mw) * 10^3,
-    is.na(po4_uM) & !is.na(po4_mg_PO4_P_L) ~ (po4_mg_PO4_P_L / PO4_mw) * 10^3,
-    is.na(po4_uM) & !is.na(po4_ug_PO4_P_L) ~ (po4_ug_PO4_P_L / PO4_mw),
+    is.na(po4_uM) & !is.na(po4_mg_PO4_P_L) ~ (po4_mg_PO4_P_L / P_mw) * 10^3,
+    is.na(po4_uM) & !is.na(po4_ug_PO4_P_L) ~ (po4_ug_PO4_P_L / P_mw),
     T ~ NA)) %>%
   dplyr::select(-po4_mg_PO4_L, -po4_mg_PO4_P_L, -po4_ug_PO4_P_L) %>%
   # Sulfate (SO4)
@@ -690,8 +706,8 @@ tidy_v4b <- tidy_v4a %>%
   # Total Phosphorus (TP)
   dplyr::mutate(tp_uM = dplyr::case_when(
     !is.na(tp_uM) ~ tp_uM,
-    is.na(tp_uM) & !is.na(tp_mg_P_L) ~ tp_mg_P_L,
-    is.na(tp_uM) & !is.na(tp_mg_L) ~ tp_mg_L,
+    is.na(tp_uM) & !is.na(tp_mg_P_L) ~ tp_mg_P_L / P_mw * 10^3,
+    is.na(tp_uM) & !is.na(tp_mg_L) ~ tp_mg_L / P_mw * 10^3,
     T ~ NA)) %>%
   dplyr::select(-tp_mg_P_L, -tp_mg_L)
 
@@ -889,24 +905,28 @@ tidy_v8a %>%
 # Identify format for each file name based on **human eye/judgement**
 tidy_v8b <- tidy_v8a %>%
   dplyr::mutate(date_format = dplyr::case_when(
-    Raw_Filename == "20221030_masterdata_chem.csv" ~ "ymd",
+    Raw_Filename == "20221030_masterdata_chem_V2.csv" ~ "ymd",
     Raw_Filename == "Australia_MurrayBasin_PJulian_071723.csv" ~ "ymd",
+    Raw_Filename == "CAMELS_USGS_N_P.csv" ~ "ymd",
     Raw_Filename == "CAMREX_filled_template.csv" ~ "mdy",
     Raw_Filename == "Canada_WQ_dat.csv" ~ "ymd",
     Raw_Filename == "Chem_Cameroon.csv" ~ "mdy",
     Raw_Filename == "Chem_HYBAM.csv" ~ "mdy",
-    Raw_Filename == "ElbeRiverChem.csv" ~ "mdy",
-    Raw_Filename == "Krycklan_NP.csv" ~ "ymd",
+    Raw_Filename == "ElbeRiverChem.csv" ~ "dmy",
+    Raw_Filename == "Krycklan_NP.csv" ~ "mdy",
     Raw_Filename == "MCM_Chem_clean.csv" ~ "mdy",
     Raw_Filename == "MurrayDarlingChem_Merged.csv" ~ "ymd",
     Raw_Filename == "NIVA_Water_chemistry.csv" ~ "mdy",
-    Raw_Filename == "NT_NSW_Chem_Cleaned.csv" ~ "mdy",
+    Raw_Filename == "NT_NSW_Chem_Cleaned.csv" ~ "dmy",
     Raw_Filename == "NigerRiver.csv" ~ "mdy",
     Raw_Filename == "SiSyn_DataTemplate_Sweden_102423.csv" ~ "mdy",
-    Raw_Filename == "UK_Si.csv" ~ "mdy",
-    Raw_Filename == "UMR_si_new_sites.csv" ~ "mdy",
-    Raw_Filename == "UMR_si_update_existing_sites.csv" ~ "mdy",
+    Raw_Filename == "UK_Si.csv" ~ "dmy",
+    Raw_Filename == "UMR_si_new_sites.csv" ~ "ymd",
+    Raw_Filename == "UMR_si_update_existing_sites.csv" ~ "ymd",
     Raw_Filename == "USGS_NWQA_Chemistry_MissRiverSites.csv" ~ "ymd",
+    Raw_Filename == "NEON_Chem.csv" ~"ymd",
+    Raw_Filename == "WalkerBranch_Chem.csv" ~"ymd",
+    Raw_Filename == "CatalinaJemez_chemistry_2009-2019_V2.csv"~ "mdy",
     # Raw_Filename == "" ~ "",
     T ~ "UNKNOWN"))
 
@@ -925,7 +945,10 @@ tidy_v8c <- tidy_v8b %>%
     # Anything after '24 is definitely "19__"
     date_format == "mdy" & nchar(date3) == 2 & as.numeric(date3) >= 24 ~ paste0("19", date3),
     # Less than '24 is likely early 2000s (rather than really early 1900s)
-    date_format == "mdy" & nchar(date3) == 2 & as.numeric(date3) < 24 ~ paste0("20", date3),
+    date_format == "mdy"  & nchar(date3) == 2 & as.numeric(date3) < 24 ~ paste0("20", date3),
+    date_format == "dmy" & nchar(date3) == 2 & as.numeric(date3) >= 24 ~ paste0("19", date3),
+    # Less than '24 is likely early 2000s (rather than really early 1900s)
+    date_format == "dmy"  & nchar(date3) == 2 & as.numeric(date3) < 24 ~ paste0("20", date3),
     T ~ date3)) %>%
   # Do the same fixes for the other date format
   dplyr::mutate(date1 = dplyr::case_when(
@@ -950,16 +973,19 @@ tidy_v8d <- tidy_v8c %>%
     day = dplyr::case_when(
       date_format == "ymd" ~ date3,
       date_format == "mdy" ~ date2,
+      date_format == "dmy" ~ date1,
       T ~ NA),
     ## Months
     month = dplyr::case_when(
       date_format == "ymd" ~ date2,
       date_format == "mdy" ~ date1,
+      date_format == "dmy" ~ date2,
       T ~ NA),
     ## Years
     year = dplyr::case_when(
       date_format == "ymd" ~ date1,
       date_format == "mdy" ~ date3,
+      date_format == "dmy" ~ date3,
       T ~ NA),
     .after = date_v4)
 
