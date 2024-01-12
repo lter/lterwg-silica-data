@@ -586,13 +586,13 @@ tidy_v4b <- tidy_v4a %>%
   # Silica (!)
   dplyr::mutate(dsi_uM = dplyr::case_when(
     !is.na(dsi_uM) ~ dsi_uM,
-    is.na(dsi_uM) & !is.na(dsi_mg_L) ~ (dsi_mg_L / Si_mw) * 10^3,
+    is.na(dsi_uM) & !is.na(dsi_mg_Si_L) ~ (dsi_mg_Si_L / Si_mw) * 10^3, # updated this be mg Si/L
     is.na(dsi_uM) & !is.na(dsi_mg_SiO2_L) ~ (dsi_mg_SiO2_L / (Si_mw + (O_mw * 2))) * 10^3,
     is.na(dsi_uM) & !is.na(dsi_mg_L) ~ (dsi_mg_L / Si_mw) * 10^3,
     T ~ NA)) %>%
-  dplyr::select(-dsi_mg_L, -dsi_mg_SiO2_L, -dsi_mg_L) %>%
+  dplyr::select(-dsi_mg_L, -dsi_mg_SiO2_L, -dsi_mg_Si_L) %>%
   # Fluorine
-  dplyr::mutate(f_uM = ifelse(test = (is.na(f_uM) == T),
+  dplyr::mutate(f_uM = ifelse(test = (is.na(f_uM) == T), # NOTE this is ifelse(), more than one needs case_when
                               yes = (f_mg_L / F_mw) * 10^3,
                               no = f_uM)) %>%
   dplyr::select(-f_mg_L) %>%
@@ -645,9 +645,10 @@ tidy_v4b <- tidy_v4a %>%
   dplyr::mutate(no3_uM = dplyr::case_when( 
     !is.na(no3_uM) ~ no3_uM,
     is.na(no3_uM) & !is.na(no3_mg_NO3_L) ~ (no3_mg_NO3_L / NO3_mw) * 10^3,
-    is.na(no3_uM) & !is.na(no3_ug_NO3_N_L) ~ (no3_ug_NO3_N_L / NO3_mw),
+    is.na(no3_uM) & !is.na(no3_mg_NO3_N_L) ~ (no3_mg_NO3_N_L / N_mw) * 10^3, ## see here for how we fixed this!
+    is.na(no3_uM) & !is.na(no3_ug_NO3_N_L) ~ (no3_ug_NO3_N_L / N_mw),
     T ~ NA)) %>%
-  dplyr::select(-no3_mg_NO3_L, -no3_ug_NO3_N_L) %>%
+  dplyr::select(-no3_mg_NO3_L, -no3_ug_NO3_N_L, -no3_mg_NO3_N_L) %>% ## make sure to add all original units here!!
   # Nitr__ (NOx)
   dplyr::mutate(nox_uM = dplyr::case_when(
     !is.na(nox_uM) ~ nox_uM,
