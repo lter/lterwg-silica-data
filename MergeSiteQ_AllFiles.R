@@ -69,7 +69,7 @@ csv_files_download <- csv_files %>%
 #### Download files from Google Drive to store locally
 # check working directory where files will be stored locally; separate folder within project folder
 
-setwd("C:/Users/kjankowski/OneDrive - DOI/Documents/Projects/SilicaSynthesis/Data/Discharge/Discharge_Analysis")
+setwd("C:/Users/kjankowski/OneDrive - DOI/Documents/Projects/SilicaSynthesis/Data/Discharge/discharge_raw")
 
 # download each file to the working directory; files are saved locally
 for (i in 1:length(csv_files_download$drive_resource)) {
@@ -213,8 +213,8 @@ p = ggplot(data = disc_v3, aes(x = Date, y = Qcms)) +
   geom_point()
 
 plots = disc_v3 %>%
-  group_by(DischargeFileName) %>%
-  do(plots = p %+% . + facet_wrap(~DischargeFileName))
+  group_by(Discharge_File_Name) %>%
+  do(plots = p %+% . + facet_wrap(~Discharge_File_Name))
 
 setwd("C:/Users/kjankowski/OneDrive - DOI/Documents/Projects/SilicaSynthesis/Data/Discharge")
 pdf()
@@ -223,7 +223,7 @@ dev.off()
 
 #change date to reflect new file creation
 setwd('../discharge_tidy')
-write.csv(disc_v3, "110823_masterdata_discharge.csv", row.names=FALSE)
+write.csv(disc_v3, "20240130_masterdata_discharge.csv", row.names=FALSE)
 
 
 
