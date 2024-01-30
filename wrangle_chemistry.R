@@ -301,7 +301,7 @@ tidy_v1b <- tidy_v0 %>%
   # Fill in missing stream names - added "Stream_Name" to original datasets 1/2/24
   dplyr::mutate(Stream_Name = dplyr::case_when(
     Raw_Filename == "NigerRiver.csv" & is.na(Stream_Name) ~ "Niger",
-    Raw_Filename == "MCM_Chem_clean.csv" ~ "McMurdo",
+    #Raw_Filename == "MCM_Chem_clean.csv" ~ "McMurdo",
     Raw_Filename == "ElbeRiverChem.csv" ~ "Elbe",
     T ~ Stream_Name)) %>%
   # Drop any unitless columns that we don't want to retain
@@ -420,8 +420,6 @@ tidy_v3a <- tidy_v2c %>%
 
 # Did that fix the pH issues?
 summary(tidy_v3a$pH) ## Yes! Many fewer NAs
-
-### NEED TO COMBINE CHLOROPHYLL COLUMNS ###
 
 # Fix some of the element columns too
 tidy_v3b <- tidy_v3a %>%
