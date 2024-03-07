@@ -100,7 +100,7 @@ data_list = list()
 
 DischargeList<-c("MEAN_Q", "Discharge", "InstantQ", "Q_m3sec", "discharge", "Q", 
                  "Q_cms","Flow","var", "Value", "valeur",
-                 "AVG_DISCHARGE")
+                 "AVG_DISCHARGE","dailyQ")
 DateList<-c("Date", "dateTime", "dates", "date", "datetime", "DATE_TIME",
             "Sampling Date", "Dates")
 
@@ -223,7 +223,7 @@ dev.off()
 
 #change date to reflect new file creation
 setwd('../discharge_tidy')
-write.csv(disc_v3, "20240130_masterdata_discharge.csv", row.names=FALSE)
+write.csv(disc_v3, "20240201_masterdata_discharge.csv", row.names=FALSE)
 
 
 

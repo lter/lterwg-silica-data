@@ -81,7 +81,7 @@ purrr::walk2(.x = chem_drive_actual$id, .y = chem_drive_actual$name,
 # Process the data key object as needed
 key <- key_v1 %>%
   # Drop unwanted columns
-  dplyr::select(-Data_type, -Notes) %>%
+  dplyr::select(-Data_type, -Notes,-"...10") %>%
   # Mangle raw column names as they will be by reading in the CSVs
   dplyr::mutate(Raw_Column_Name = gsub(pattern = " |\\+|\\(|\\)|\\/|\\-", replacement = ".",
                                        x = Raw_Column_Name))
@@ -91,7 +91,7 @@ dplyr::glimpse(key)
 
 # Do the same for the units key
 units_key <- units_key_v1 %>%
-  dplyr::select(-Data_type, -Notes) %>%
+  dplyr::select(-Data_type, -Notes,-X) %>%
   dplyr::mutate(Variable = tolower(Variable))
 
 # Re-check structure
