@@ -429,27 +429,27 @@ tidy_v3b <- tidy_v3a %>%
   dplyr::select(-alkalinity_uEq_l, -alkalinity_ueq_L) %>%
   dplyr::rename(alkalinity_ueq_L = alka_actual) %>%
   # Conductivity (uS/cm) # included additional versions of column names 1/29/24
-  dplyr::mutate(cond_actual = dplyr::coalesce(cond_us_cm,cond_uS_cm, conduct_uS_cm,conductivity_uS_cm), 
-                .after = cond_uS_cm) %>%
-  dplyr::select(-cond_us_cm,-cond_uS_cm,-conduct_uS_cm, -conductivity_uS_cm) %>%
+  dplyr::mutate(cond_actual = dplyr::coalesce(conduct_uS_cm,conductivity_us_cm, conductivity_uS_cm), 
+                .after = conductivity_uS_cm) %>%
+  dplyr::select(-conduct_uS_cm, -conductivity_us_cm,-conductivity_uS_cm) %>%
   dplyr::rename(conductivity_uS_cm = cond_actual) %>%
   # Na (mg/L)
-  dplyr::mutate(na_actual = dplyr::coalesce(na_mg_L, Na_mg_L), .after = na_mg_L) %>%
-  dplyr::select(-na_mg_L, -Na_mg_L) %>%
-  dplyr::rename(na_mg_L = na_actual) %>%
+  #dplyr::mutate(na_actual = dplyr::coalesce(na_mg_L, Na_mg_L), .after = na_mg_L) %>%
+  #dplyr::select(-na_mg_L, -Na_mg_L) %>%
+  #dplyr::rename(na_mg_L = na_actual) %>%
   # TSS (mg/L)
-  dplyr::mutate(tss_actual = dplyr::coalesce(tss_mg_L, TSS_mg_L), .after = tss_mg_L) %>%
-  dplyr::select(-tss_mg_L, -TSS_mg_L) %>%
-  dplyr::rename(tss_mg_L = tss_actual) %>%
+  #dplyr::mutate(tss_actual = dplyr::coalesce(tss_mg_L, TSS_mg_L), .after = tss_mg_L) %>%
+  #dplyr::select(-tss_mg_L, -TSS_mg_L) %>%
+  #dplyr::rename(tss_mg_L = tss_actual) %>%
   # VSS (mg/L)
-  dplyr::mutate(vss_actual = dplyr::coalesce(vss_mg_L, VSS_mg_L), .after = vss_mg_L) %>%
-  dplyr::select(-vss_mg_L, -VSS_mg_L) %>%
-  dplyr::rename(vss_mg_L = vss_actual) %>% 
+  #dplyr::mutate(vss_actual = dplyr::coalesce(vss_mg_L, VSS_mg_L), .after = vss_mg_L) %>%
+  #dplyr::select(-vss_mg_L, -VSS_mg_L) %>%
+  #dplyr::rename(vss_mg_L = vss_actual) %>% 
   # Chl a 
   dplyr::mutate(chla_actual = dplyr::coalesce(chl_a_ug_L, chla_ug_L, suspended_chl_ug_L), .after = chla_ug_L) %>%
   dplyr::select(-chl_a_ug_L, -chla_ug_L,-suspended_chl_ug_L) %>%
   dplyr::rename(chla_ug_L = chla_actual) %>% 
-  # Chl a 
+  # DO 
   dplyr::mutate(do_actual = dplyr::coalesce(do_mg_L, do_mg_O2_L), .after = do_mg_O2_L) %>%
   dplyr::select(-do_mg_L, -do_mg_O2_L) %>%
   dplyr::rename(do_mg_L = do_actual) 
@@ -691,9 +691,10 @@ tidy_v4b <- tidy_v4a %>%
   dplyr::mutate(so4_uM = dplyr::case_when(
     !is.na(so4_uM) ~ so4_uM,
     !is.na(so4_um) ~ so4_um,
+    is.na(so4_uM) & !is.na(so4_mg_L) ~ (so4_mg_L / SO4_mw) * 10^3,
     is.na(so4_uM) & !is.na(so4_mg_SO4_L) ~ (so4_mg_SO4_L / SO4_mw) * 10^3,
     T ~ NA)) %>%
-  dplyr::select(-so4_um, -so4_mg_SO4_L) %>%
+  dplyr::select(-so4_um, -so4_mg_L,-so4_mg_SO4_L) %>%
   # Strontium (Sr)
   dplyr::mutate(sr_uM = (sr_mg_L / Sr_mw) * 10^3,
                 .before = sr_mg_L) %>%
