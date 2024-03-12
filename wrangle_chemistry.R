@@ -462,8 +462,8 @@ tidy_v3b %>%
 # Now handle the Canadian solutes (they use un-abbreviated names) 
 tidy_v3c <- tidy_v3b %>%
   ## DOC
-  dplyr::mutate(doc_actual = dplyr::coalesce(doc_mg_L, carbon_dissolved_organic_mg_L)) %>%
-  dplyr::select(-doc_mg_L, -carbon_dissolved_organic_mg_L) %>%
+  dplyr::mutate(doc_actual = dplyr::coalesce(doc_mg_L,doc_mg_C_L, carbon_dissolved_organic_mg_L)) %>%
+  dplyr::select(-doc_mg_L, -carbon_dissolved_organic_mg_L,-doc_mg_C_L) %>%
   dplyr::rename(doc_mg_L = doc_actual) %>%
   ## TDN
   dplyr::rename(tdn_mg_L = nitrogen_total_dissolved_mg_N_L) %>%
@@ -585,10 +585,9 @@ tidy_v4b <- tidy_v4a %>%
   # Dissolved Organic Carbon
   dplyr::mutate(doc_uM = dplyr::case_when(
     !is.na(doc_uM) ~ doc_uM,
-    is.na(doc_uM) & !is.na(doc_mg_C_L) ~ (doc_mg_C_L / C_mw) * 10^3,
     is.na(doc_uM) & !is.na(doc_mg_L) ~ (doc_mg_L / C_mw) * 10^3,
     T ~ NA)) %>%
-  dplyr::select(-doc_mg_C_L, -doc_mg_L) %>%
+  dplyr::select(-doc_mg_L) %>%
   # Dissolved Oxygen
   dplyr::mutate(do_uM = (do_mg_L / (O_mw * 2)) * 10^3, 
                 .after = do_mg_L) %>%
@@ -958,6 +957,7 @@ tidy_v8b <- tidy_v8a %>%
     Raw_Filename == "UMR_si_new_sites.csv" ~ "ymd",
     Raw_Filename == "UMR_si_update_existing_sites.csv" ~ "ymd",
     Raw_Filename == "USGS_NWQA_Chemistry_MissRiverSites.csv" ~ "ymd",
+    Raw_Filename == "USGS_geogenic_solutes.csv" ~ "ymd",
     Raw_Filename == "NEON_Chem.csv" ~"ymd",
     Raw_Filename == "WalkerBranch_Chem.csv" ~"ymd",
     Raw_Filename == "CatalinaJemez_chemistry_2009-2019_V2.csv"~ "mdy",
