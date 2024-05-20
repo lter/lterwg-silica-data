@@ -710,8 +710,9 @@ tidy_v4b <- tidy_v4a %>%
     !is.na(tdn_uM) ~ tdn_uM,
     is.na(tdn_uM) & !is.na(tdn_mg_L) ~ (tdn_mg_L / N_mw) * 10^3,
     is.na(tdn_uM) & !is.na(tdn_mg_N_L) ~ (tdn_mg_N_L / N_mw) * 10^3,
+    is.na(tdn_uM) & !is.na(tdn_ug_N_L) ~ (tdn_ug_N_L / N_mw),
     T ~ NA)) %>%
-  dplyr::select(-tdn_mg_L,-tdn_mg_N_L) %>%
+  dplyr::select(-tdn_mg_L,-tdn_mg_N_L,-tdn_ug_N_L) %>%
   # total Kjeldahl nitrogen (TKN)
   dplyr::mutate(tkn_uM = (tkn_mg_N_L / N_mw) * 10^3, 
                 .after = tkn_mg_N_L) %>%
@@ -738,9 +739,9 @@ tidy_v4b <- tidy_v4a %>%
   # Total Dissolved Phosphorus (TDP)
   dplyr::mutate(tdp_uM = dplyr::case_when(
     !is.na(tdp_mg_L) ~ (tdp_mg_L / P_mw) * 10^3,
-    !is.na(tdp_mg_P_L) ~ (tdp_mg_P_L / P_mw) * 10^3,
+    !is.na(tdp_ug_P_L) ~ (tdp_ug_P_L / P_mw),
     T ~ NA)) %>% 
-  dplyr::select(-tdp_mg_L,-tdp_mg_P_L) %>% 
+  dplyr::select(-tdp_mg_L,-tdp_ug_P_L) %>% 
   # Zinc
   dplyr::mutate(zn_uM = (zn_mg_L / Zn_mw) * 10^3, 
                 .after = zn_mg_L) %>%
@@ -873,7 +874,7 @@ sort(unique(tidy_v6$units))
 dplyr::glimpse(tidy_v6)
 
 ## -------------------------------------------- ##
-              # Handle Outliers ----
+      # Handle Outliers and remove duplicates ----
 ## -------------------------------------------- ##
 
 # Now we need to identify / handle outlier values
@@ -906,15 +907,30 @@ nrow(tidy_v7a) - nrow(tidy_v7b)
 # Glimpse it
 dplyr::glimpse(tidy_v7b)
 
+## Remove duplicate NOx and NO3 data from select sites
+tidy_v7c <- tidy_v7b %>% 
+  dplyr::mutate(value = dplyr::case_when(
+    LTER == "Krycklan" & variable == "NO3" ~ NA,
+    Stream_Name == "Biscuit Brook" & variable == "NOx"~ NA,
+    Stream_Name == "Frio River" & variable == "NO3"~ NA,
+    Stream_Name == "Cane Creek" & variable == "NO3"~ NA,
+    Stream_Name == "Merced River" & variable == "NO3"~ NA,
+    Stream_Name == "Turkey River" & variable == "NO3"~ NA,
+    Stream_Name == "James River" & variable == "NO3"~ NA,
+    Stream_Name == "Corral Gulch" & variable == "NO3"~ NA,
+    Stream_Name == "Flat Brook" & variable == "NO3"~ NA,
+    .default = value
+  ))
+
 ## -------------------------------------------- ##
                 # Wrangle Dates ----
 ## -------------------------------------------- ##
 
 # Check out current dates
-sort(unique(tidy_v7b$date))
+sort(unique(tidy_v7c$date))
 
 # Try to standardize date formatting a bit
-tidy_v8a <- tidy_v7b %>%
+tidy_v8a <- tidy_v7c %>%
   # Remove time stamps where present
   dplyr::mutate(date_v2 = gsub(pattern = " [[:digit:]]{1,2}\\:[[:digit:]]{1,2}",
                                replacement = "", x = date),
