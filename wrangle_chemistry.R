@@ -710,9 +710,9 @@ tidy_v4b <- tidy_v4a %>%
     !is.na(tdn_uM) ~ tdn_uM,
     is.na(tdn_uM) & !is.na(tdn_mg_L) ~ (tdn_mg_L / N_mw) * 10^3,
     is.na(tdn_uM) & !is.na(tdn_mg_N_L) ~ (tdn_mg_N_L / N_mw) * 10^3,
-    #is.na(tdn_uM) & !is.na(tdn_ug_N_L) ~ (tdn_ug_N_L / N_mw),
+    is.na(tdn_uM) & !is.na(tdn_ug_N_L) ~ (tdn_ug_N_L / N_mw),
     T ~ NA)) %>%
-  dplyr::select(-tdn_mg_L,-tdn_mg_N_L) %>%
+  dplyr::select(-tdn_mg_L,-tdn_mg_N_L,-tdn_ug_N_L) %>%
   # total Kjeldahl nitrogen (TKN)
   dplyr::mutate(tkn_uM = (tkn_mg_N_L / N_mw) * 10^3, 
                 .after = tkn_mg_N_L) %>%
@@ -739,9 +739,9 @@ tidy_v4b <- tidy_v4a %>%
   # Total Dissolved Phosphorus (TDP)
   dplyr::mutate(tdp_uM = dplyr::case_when(
     !is.na(tdp_mg_L) ~ (tdp_mg_L / P_mw) * 10^3,
-    !is.na(tdp_mg_P_L) ~ (tdp_mg_P_L / P_mw)*10^3,
+    !is.na(tdp_ug_P_L) ~ (tdp_ug_P_L / P_mw),
     T ~ NA)) %>% 
-  dplyr::select(-tdp_mg_L,-tdp_mg_P_L) %>% 
+  dplyr::select(-tdp_mg_L,-tdp_ug_P_L) %>% 
   # Zinc
   dplyr::mutate(zn_uM = (zn_mg_L / Zn_mw) * 10^3, 
                 .after = zn_mg_L) %>%
