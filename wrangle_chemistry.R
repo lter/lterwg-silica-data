@@ -365,9 +365,9 @@ tidy_v2b <- tidy_v2a %>%
     measurement == "N/A" ~ NA,
     measurement == "<LOD" ~ NA,
     # Catalina Jemez has many versions of -9999
-    measurement == -9999.00 ~ "NA",
-    measurement == -9999.000 ~ "NA",
-    measurement == -9999.0000 ~ "NA",
+    measurement == -9999.00 ~ NA,
+    measurement == -9999.000 ~ NA,
+    measurement == -9999.0000 ~ NA,
     ## Unreasonable numbers
     ### None yet!
     # If not broken, leave alone!
@@ -710,9 +710,9 @@ tidy_v4b <- tidy_v4a %>%
     !is.na(tdn_uM) ~ tdn_uM,
     is.na(tdn_uM) & !is.na(tdn_mg_L) ~ (tdn_mg_L / N_mw) * 10^3,
     is.na(tdn_uM) & !is.na(tdn_mg_N_L) ~ (tdn_mg_N_L / N_mw) * 10^3,
-    is.na(tdn_uM) & !is.na(tdn_ug_N_L) ~ (tdn_ug_N_L / N_mw),
+    #is.na(tdn_uM) & !is.na(tdn_ug_N_L) ~ (tdn_ug_N_L / N_mw),
     T ~ NA)) %>%
-  dplyr::select(-tdn_mg_L,-tdn_mg_N_L,-tdn_ug_N_L) %>%
+  dplyr::select(-tdn_mg_L,-tdn_mg_N_L) %>%
   # total Kjeldahl nitrogen (TKN)
   dplyr::mutate(tkn_uM = (tkn_mg_N_L / N_mw) * 10^3, 
                 .after = tkn_mg_N_L) %>%
@@ -739,9 +739,9 @@ tidy_v4b <- tidy_v4a %>%
   # Total Dissolved Phosphorus (TDP)
   dplyr::mutate(tdp_uM = dplyr::case_when(
     !is.na(tdp_mg_L) ~ (tdp_mg_L / P_mw) * 10^3,
-    !is.na(tdp_ug_P_L) ~ (tdp_ug_P_L / P_mw),
+    !is.na(tdp_mg_P_L) ~ (tdp_mg_P_L / P_mw)*10^3,
     T ~ NA)) %>% 
-  dplyr::select(-tdp_mg_L,-tdp_ug_P_L) %>% 
+  dplyr::select(-tdp_mg_L,-tdp_mg_P_L) %>% 
   # Zinc
   dplyr::mutate(zn_uM = (zn_mg_L / Zn_mw) * 10^3, 
                 .after = zn_mg_L) %>%
@@ -919,6 +919,22 @@ tidy_v7c <- tidy_v7b %>%
     Stream_Name == "James River" & variable == "NO3"~ NA,
     Stream_Name == "Corral Gulch" & variable == "NO3"~ NA,
     Stream_Name == "Flat Brook" & variable == "NO3"~ NA,
+    Stream_Name == "Choptank River" & variable == "NO3" ~ NA,
+    Stream_Name == "Green River" & variable == "NO3" ~ NA,
+    Stream_Name == "North Slyamore Creek" & variable == "NO3" ~ NA,
+    Stream_Name == "Smith Creek" & variable == "NO3" ~ NA,
+    Stream_Name == "Sopchoppy River" & variable == "NO3" ~ NA,
+    Stream_Name == "Vallecito Creek" & variable == "NO3" ~ NA,
+    Stream_Name == "West Clear Creek" & variable == "NO3" ~ NA,
+    .default = value
+  ))
+
+# remove duplicate SRP/PO4
+tidy_v7d <- tidy_v7c %>% 
+  dplyr::mutate(value = dplyr::case_when(
+    LTER == "Krycklan" & variable == "SRP" ~ NA,
+    Stream_Name == "MG_WEIR" & variable == "SRP"~ NA,
+    Stream_Name == "OR_low" & variable == "SRP"~ NA,
     .default = value
   ))
 
@@ -927,10 +943,10 @@ tidy_v7c <- tidy_v7b %>%
 ## -------------------------------------------- ##
 
 # Check out current dates
-sort(unique(tidy_v7c$date))
+sort(unique(tidy_v7d$date))
 
 # Try to standardize date formatting a bit
-tidy_v8a <- tidy_v7c %>%
+tidy_v8a <- tidy_v7d %>%
   # Remove time stamps where present
   dplyr::mutate(date_v2 = gsub(pattern = " [[:digit:]]{1,2}\\:[[:digit:]]{1,2}",
                                replacement = "", x = date),
