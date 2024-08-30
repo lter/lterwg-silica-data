@@ -35,6 +35,13 @@ WRTDS (Weighted Regressions on Time, Discharge, and Season) is a group of workfl
 - `01-wrtds-step04_results-report.R`: **Creates single results output files for each type of WRTDS output.**
     - _When to Use:_ you want to generate new summary files
 
+### Data Down/Upload (`99`) - _INTERNAL USE ONLY_
+
+This group makes extensive use of Google Drive for convenient storing/sharing of the outputs of these scripts. However, such interactions do require access to the groups' Shared Google Drive and thus include these operations directly in the code functionally makes the code only run-able by members of the group. To solve this, **all Google Drive interactions are isolated into a standalone script**. Only a member of this working group can run the script so all others must run the 'actual' workflow scripts (in order) to ensure they have the relevant inputs for each.
+
+- `99-gdrive_download-upload.R`: **Downloads inputs and uploads outputs from/to the Shared Google Drive.**
+    - _When to Use:_ you want to skip 'early' steps in the workflow by downloading their most recent outputs from the Drive
+
 ## Related Repositories
 
 This working group has several repositories. All are linked and described (briefly) below.

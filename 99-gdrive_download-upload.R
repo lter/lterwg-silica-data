@@ -26,7 +26,7 @@ rm(list = ls())
 # dir.create(path = file.path(), showWarnings = F)
 
 # Identify path to location of shared data
-(path <- scicomptools::wd_loc(local = T, remote_path = file.path('/', "home", "shares", "lter-si", "si-watershed-extract")))
+(path <- scicomptools::wd_loc(local = F, remote_path = file.path('/', "home", "shares", "lter-si", "si-watershed-extract")))
 
 ## ---------------------------------------------- ##
         # Reference Table - Download -----
@@ -55,7 +55,7 @@ googledrive::drive_download(file = as_id(ref_id),
 wrtds_step1_out <- file.path(path, "WRTDS_Reference_Table_with_Areas_DO_NOT_EDIT.csv")
 
 # If the file exists locally, upload it
-if(file.exists(wrtds_step1_out)){
+if(file.exists(wrtds_step1_out) == TRUE){
   
   # Upload it to the relevant folder
   googledrive::drive_upload(media = wrtds_step1_out, overwrite = T,
