@@ -48,13 +48,16 @@ po/*~
 # RStudio Connect folder
 rsconnect/
 
-# Ignore .Rproj
+# .Rproj file
 *.Rproj
 
-# Ignore Mac system file
+# Mac system file
 .DS_Store
 
-# Folders to ignore
+# Files / file types
+*.xlsx
+
+# Folders
 WRTDS*/
 keys/
 chem_raw/
