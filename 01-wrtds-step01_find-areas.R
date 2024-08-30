@@ -12,7 +12,7 @@
 ## ---------------------------------------------- ##
 # Read needed libraries
 # install.packages("librarian")
-librarian::shelf(tidyverse, googledrive, sf, terra, nngeo, scicomptools)
+librarian::shelf(tidyverse, sf, terra, nngeo, scicomptools)
 
 # Clear environment
 rm(list = ls())
@@ -32,15 +32,6 @@ rm(list = ls())
 ## 3) Click "Continue" at the bottom
 ## 4) Copy the "authorization code"
 ## 5) Paste it into the field in the Console
-
-# Identify reference table Google ID
-ref_id <- googledrive::drive_ls(as_id("https://drive.google.com/drive/u/0/folders/0AIPkWhVuXjqFUk9PVA")) %>%
-  dplyr::filter(name == "Site_Reference_Table")
-
-# Download ref table (overwriting previous downloads)
-googledrive::drive_download(file = as_id(ref_id),
-                            path = file.path(path, "Site_Reference_Table.xlsx"),
-                            overwrite = T)
 
 # Read in reference table of all sites
 sites_v0 <- readxl::read_excel(path = file.path(path, "Site_Reference_Table.xlsx"))
@@ -401,9 +392,5 @@ out_name <- file.path(path, "WRTDS_Reference_Table_with_Areas_DO_NOT_EDIT.csv")
 
 # Save this locally
 write.csv(x = ref_table_final, na = "", row.names = F, file = out_name)
-
-# Now upload this as well to the GoogleDrive
-googledrive::drive_upload(media = out_name, overwrite = T,
-                          path = as_id("https://drive.google.com/drive/u/0/folders/15FEoe2vu3OAqMQHqdQ9XKpFboR4DvS9M"))
 
 # End ----

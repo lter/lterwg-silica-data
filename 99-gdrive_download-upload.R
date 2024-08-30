@@ -48,10 +48,23 @@ googledrive::drive_download(file = as_id(ref_id),
                             overwrite = T)
 
 ## ---------------------------------------------- ##
-# WRTDS Step 1 (Find Areas) - Download -----
+    # WRTDS Step 1 (Find Areas) - Upload -----
 ## ---------------------------------------------- ##
 
+# Define the name/path of this output
+wrtds_step1_out <- file.path(path, "WRTDS_Reference_Table_with_Areas_DO_NOT_EDIT.csv")
 
+# If the file exists locally, upload it
+if(file.exists(wrtds_step1_out)){
+  
+  # Upload it to the relevant folder
+  googledrive::drive_upload(media = wrtds_step1_out, overwrite = T,
+                            path = googledrive::as_id("https://drive.google.com/drive/u/0/folders/15FEoe2vu3OAqMQHqdQ9XKpFboR4DvS9M"))
+  
+  # Otherwise tell the user to run the relevant script
+} else { message("Output not found! Need to run `01-wrtds-step01_find-areas.R`") }
+
+  
 
 
 
