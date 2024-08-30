@@ -26,7 +26,7 @@ rm(list = ls())
 # dir.create(path = file.path(), showWarnings = F)
 
 # Identify path to location of shared data
-(path <- scicomptools::wd_loc(local = T, remote_path = file.path('/', "home", "shares", "lter-si", "si-watershed-extract")))
+(path <- scicomptools::wd_loc(local = F, remote_path = file.path('/', "home", "shares", "lter-si", "si-watershed-extract")))
 
 ## ---------------------------------------------- ##
         # Reference Table - Download -----
