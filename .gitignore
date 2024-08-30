@@ -55,7 +55,7 @@ rsconnect/
 .DS_Store
 
 # Folders to ignore
+WRTDS*/
 keys/
 chem_raw/
 tidy/
-
