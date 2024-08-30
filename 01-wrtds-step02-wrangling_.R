@@ -9,10 +9,7 @@
 ## ---------------------------------------------- ##
 # Load libraries
 # install.packages("librarian")
-librarian::shelf(tidyverse, googledrive, lubridate, EGRET, EGRETci, supportR, scicomptools,zoo)
-# install HERON
-#devtools::install_github("lter/HERON") 
-
+librarian::shelf(tidyverse, lubridate, EGRET, EGRETci, supportR, scicomptools, zoo, lter/HERON)
 
 # Clear environment
 rm(list = ls())
