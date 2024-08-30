@@ -8,7 +8,13 @@
 
 ### Data Harmonizing (`00`)
 
-- **`wrangle_chemistry.R`** - Ingest chemistry files (per river / stream gage), do necessary harmonizing to meet desired format requirements, and create a single, analysis-ready chemistry dataset
+As with many synthesis projects, this work involves "harmonizing" many separate data files (i.e., rendering them comparable then combining them).
+
+- `00-harmonize_chemistry.R`: **Combines individual _chemistry_ files (river / stream gage level) into a single file.** This is done with virtually no filtering to minimize data loss from this process
+    - _When to Use:_ you want to integrate new _chemistry_ data into the 'master' file
+
+- `00-harmonize_discharge.R`: **Combines individual _discharge_ files (river / stream gage level) into a single file.** This is done with virtually no filtering to minimize data loss from this process
+    - _When to Use:_ you want to integrate new _discharge_ data into the 'master' file
 
 ### WRTDS (`01`)
 
