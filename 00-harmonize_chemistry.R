@@ -421,6 +421,10 @@ tidy_v3a <- tidy_v2c %>%
 # Did that fix the pH issues?
 summary(tidy_v3a$pH) ## Yes! Many fewer NAs
 
+tidy_v3a %>%
+  dplyr::select(dplyr::contains("pH")) %>%
+  summary()
+
 # Fix some of the element columns too
 tidy_v3b <- tidy_v3a %>%
   # Alkalinity (uEq/L)
@@ -492,6 +496,11 @@ tidy_v3c <- tidy_v3b %>%
 tidy_v3c %>%
   dplyr::select(-Dataset:-date) %>%
   names() %>% sort()
+
+# found column for Si that didn't specify whether Si or SiO2
+tidy_v3c |> select(Dataset,dsi_ug_L) |> 
+  filter(!is.na(dsi_ug_L)) |> 
+  dplyr::distinct(Dataset) 
 
 ## -------------------------------------------- ##
               # Unit Conversions ----
@@ -666,34 +675,37 @@ tidy_v4b <- tidy_v4a %>%
   dplyr::mutate(no3_uM = dplyr::case_when( 
     !is.na(no3_uM) ~ no3_uM,
     is.na(no3_uM) & !is.na(no3_mg_NO3_L) ~ (no3_mg_NO3_L / NO3_mw) * 10^3,
-    is.na(no3_uM) & !is.na(no3_mg_NO3_N_L) ~ (no3_mg_NO3_N_L / N_mw) * 10^3, ## see here for how we fixed this!
+    is.na(no3_uM) & !is.na(no3_mg_NO3_N_L) ~ (no3_mg_NO3_N_L / N_mw) * 10^3, 
+    is.na(no3_uM) & !is.na(no3_mg_N_L) ~ (no3_mg_N_L / N_mw) * 10^3, 
+    ## see here for how we fixed this!
     is.na(no3_uM) & !is.na(no3_ug_NO3_N_L) ~ (no3_ug_NO3_N_L / N_mw),
     T ~ NA)) %>%
-  dplyr::select(-no3_mg_NO3_L, -no3_ug_NO3_N_L, -no3_mg_NO3_N_L) %>% ## make sure to add all original units here!!
+  dplyr::select(-no3_mg_NO3_L,-no3_mg_N_L, -no3_ug_NO3_N_L, -no3_mg_NO3_N_L) %>% ## make sure to add all original units here!!
   # Nitr__ (NOx)
   dplyr::mutate(nox_uM = dplyr::case_when(
     !is.na(nox_uM) ~ nox_uM,
     is.na(nox_uM) & !is.na(nox_mg_NO3_N_L) ~ (nox_mg_NO3_N_L / N_mw) * 10^3,
     is.na(nox_uM) & !is.na(nox_ug_NO3_N_L) ~ nox_ug_NO3_N_L / N_mw,
-    is.na(nox_uM) & !is.na(nox_mg_L) ~ (nox_mg_L / NO3_mw) * 10^3,
+    #is.na(nox_uM) & !is.na(nox_mg_L) ~ (nox_mg_L / NO3_mw) * 10^3,
     T ~ NA)) %>%
-  dplyr::select(-nox_mg_NO3_N_L, -nox_ug_NO3_N_L,-nox_mg_L) %>%
+  dplyr::select(-nox_mg_NO3_N_L, -nox_ug_NO3_N_L) %>%
   # Phosphate (PO4)
   dplyr::mutate(po4_uM = dplyr::case_when(
     !is.na(po4_uM) ~ po4_uM,
     is.na(po4_uM) & !is.na(po4_mg_PO4_L) ~ (po4_mg_PO4_L / PO4_mw) * 10^3,
     is.na(po4_uM) & !is.na(po4_mg_PO4_P_L) ~ (po4_mg_PO4_P_L / P_mw) * 10^3,
+    is.na(po4_uM) & !is.na(po4_mg_P_L) ~ (po4_mg_P_L / P_mw) * 10^3,
     is.na(po4_uM) & !is.na(po4_ug_PO4_P_L) ~ (po4_ug_PO4_P_L / P_mw),
     T ~ NA)) %>%
-  dplyr::select(-po4_mg_PO4_L, -po4_mg_PO4_P_L, -po4_ug_PO4_P_L) %>%
+  dplyr::select(-po4_mg_PO4_L,-po4_mg_P_L, -po4_mg_PO4_P_L, -po4_ug_PO4_P_L) %>%
   # Sulfate (SO4)
   dplyr::mutate(so4_uM = dplyr::case_when(
     !is.na(so4_uM) ~ so4_uM,
-    !is.na(so4_um) ~ so4_um,
+    #!is.na(so4_um) ~ so4_um,
     is.na(so4_uM) & !is.na(so4_mg_L) ~ (so4_mg_L / SO4_mw) * 10^3,
     is.na(so4_uM) & !is.na(so4_mg_SO4_L) ~ (so4_mg_SO4_L / SO4_mw) * 10^3,
     T ~ NA)) %>%
-  dplyr::select(-so4_um, -so4_mg_L,-so4_mg_SO4_L) %>%
+  dplyr::select(-so4_mg_L,-so4_mg_SO4_L) %>%
   # Strontium (Sr)
   dplyr::mutate(sr_uM = (sr_mg_L / Sr_mw) * 10^3,
                 .before = sr_mg_L) %>%
@@ -894,6 +906,12 @@ tidy_v7a <- tidy_v6 %>%
 # Identify percent outliers
 (nrow(dplyr::filter(tidy_v7a, is_outlier == T)) / nrow(tidy_v6)) * 100
 
+# what is it identifying as outliers?
+# alot of Australia values
+tidy_v7a |> 
+  filter(is_outlier == "TRUE") |> 
+  aggregate(value~Dataset, FUN=length)
+
 # Handle outliers
 tidy_v7b <- tidy_v7a %>%
   # Currently handling outliers by removing them
@@ -971,6 +989,7 @@ tidy_v8a %>%
 tidy_v8b <- tidy_v8a %>%
   dplyr::mutate(date_format = dplyr::case_when(
     Raw_Filename == "20221030_masterdata_chem_V2.csv" ~ "ymd",
+    # I think this one from PJulian might be obselete
     Raw_Filename == "Australia_MurrayBasin_PJulian_071723.csv" ~ "ymd",
     Raw_Filename == "CAMELS_USGS_N_P.csv" ~ "ymd",
     Raw_Filename == "CAMREX_filled_template.csv" ~ "mdy",
@@ -986,6 +1005,7 @@ tidy_v8b <- tidy_v8a %>%
     Raw_Filename == "NigerRiver.csv" ~ "mdy",
     Raw_Filename == "SiSyn_DataTemplate_Sweden_102423.csv" ~ "mdy",
     Raw_Filename == "UK_Si.csv" ~ "dmy",
+    Raw_Filename == "UK_nonSi_solutes.csv" ~ "ymd",
     Raw_Filename == "UMR_si_new_sites.csv" ~ "ymd",
     Raw_Filename == "UMR_si_update_existing_sites.csv" ~ "ymd",
     Raw_Filename == "USGS_NWQA_Chemistry_MissRiverSites.csv" ~ "ymd",
