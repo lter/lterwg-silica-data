@@ -26,7 +26,7 @@ dir.create(path = file.path(path, "WRTDS Inputs_data paper"), showWarnings=F)
 file_names <- c("WRTDS_Reference_Table_with_Areas_DO_NOT_EDIT.csv", # No.1 Simplified ref table
                 "Site_Reference_Table", # No.2 Full ref table
                 "20240801_masterdata_discharge.csv", # No.3 Main discharge ## update this file with new discharge!!
-                "20240624_masterdata_chem.csv", # No.4 Main chemistry ## update this file with new chemistry!!
+                "20241003_masterdata_chem.csv", # No.4 Main chemistry ## update this file with new chemistry!!
                 "Data_Cropping_WRTDS") # No.5 Data cropping for chemistry (Si) 
 
 # Find those files' IDs
@@ -372,7 +372,7 @@ disc_lims <- chem_v3 %>%
   # Pare down columns (drop date now that we have `min_date`)
   dplyr::select(LTER, Stream_Name, Discharge_File_Name, min_date) %>%
   # Subtract 1 years to crop the discharge data to 1 yrs per chemistry data
-  dplyr::mutate(disc_start = (min_date - (1 * 365.25)) - 1) %>% # changed this to 2 years
+  dplyr::mutate(disc_start = (min_date - (1 * 365.25)) - 1) %>% # changed this to 1 years
   # Keep only unique rows
   dplyr::distinct()
 
@@ -401,7 +401,7 @@ dplyr::glimpse(chem_lims)
 disc_v4 <- disc_v3 %>%
   # Left join on the start date from the chemistry data
   dplyr::left_join(y = disc_lims, by = c("LTER", "Discharge_File_Name", "Stream_Name")) %>%
-  # Drop any years before the ten year buffer suggested by WRTDS
+  # Drop any years before the buffer suggested by WRTDS (currently 1 year)
   dplyr::filter(Date > disc_start) %>% 
   # Reorder columns / rename Q column / implicitly drop unwanted columns
   dplyr::select(Stream_ID, LTER, Discharge_File_Name, Stream_Name, Date, Q = Qcms)
@@ -503,9 +503,9 @@ for (i in 1:length(site_names)){
 # Q_interp_summary = ldply(date_list)
 disc_v6 = do.call(rbind, Q_interp)
 
+##### !!! may need to fix - the interpolated sites lose information in the "LTER", "Discharge_File_Name", and "Stream_Name" columns
+# but we link with chemistry using "Stream_ID" so probably OK
 glimpse(disc_v6)
-
-
 
 ## ---------------------------------------------- ##
           # Final Processing & Export ----
