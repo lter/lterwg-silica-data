@@ -27,6 +27,9 @@ dir.create(path = file.path(path, "WRTDS Outputs_Feb2024"), showWarnings = F)
 input_ids <- 
   googledrive::drive_ls(googledrive::as_id("https://drive.google.com/drive/u/0/folders/1QEofxLdbWWLwkOTzNRhI6aorg7-2S3JE"))
 
+# exclude "archive" folder
+input_ids <- filter(input_ids, name != "WRTDS Input Archive")
+
 # Download them locally
 purrr::walk2(.x = input_ids$name, .y = input_ids$id,
              .f = ~ googledrive::drive_download(file = .y, overwrite = T,
@@ -143,14 +146,17 @@ missing_q <- c()
 # Set of problem rivers to drop from the loop (for reasons not specified above)
 bad_rivers <- c(
   # River names with slashes cause a file path issue later on
-  "UK__EDEN AT PENSHURST / VEXOUR BRIDGE_DSi", 
+  "UK__EDEN AT PENSHURST / VEXOUR BRIDGE_DSi",
   "UK__MEDWAY AT TESTON / EAST FARLEIGH_DSi")
 
 #Error in if (!(localUnits %in% allCaps)) { : the condition has length > 1
 odd_ones <- c('USGS__Wild River_DSi','USGS__Wild River_NH4',
               'USGS__Wild River_NO3','USGS__Wild River_NOx','USGS__Wild River_P')
 
-crash_rivers <- c()
+crash_rivers <- c("Australia__DARLING RIVER AT BOURKE TOWN_NO3",            
+                   "Australia__DARLING RIVER AT BOURKE TOWN_NOx",              
+                   "Australia__DARLING RIVER AT BOURKE TOWN_P",
+                  "Australia__DARLING RIVER AT BURTUNDY_NO3")
 
 # Identify all rivers that aren't in the broken data vectors
 good_rivers <- setdiff(x = unique(chemistry$Stream_Element_ID),
@@ -162,7 +168,23 @@ good_rivers <- setdiff(x = unique(chemistry$Stream_Element_ID),
 ## ---------------------------------------------- ##
 
 # Vector for storing problem rivers identified in latest run of WRTDS
-new_bads <- c()
+new_bads <- c("UK__EDEN AT PENSHURST / VEXOUR BRIDGE_NO3",
+              "UK__EDEN AT PENSHURST / VEXOUR BRIDGE_P",
+              "UK__MEDWAY AT TESTON / EAST FARLEIGH_NO3",
+              "UK__MEDWAY AT TESTON / EAST FARLEIGH_P",
+              "USGS__YAMPA RIVER AT DEERLODGE PARK_P",
+              "HYBAM__Obidos_NOx","HYBAM__Obidos_P", # minNumUncen
+              "Australia__BILLABONG CREEK AT DARLOT_NOx",
+              "Australia__BILLABONG CREEK AT DARLOT_P",
+              "Australia__DARLING RIVER AT BOURKE TOWN_NH4",
+              "Australia__DARLING RIVER AT WILCANNIA MAIN CHANNEL_NH4",
+              "Australia__DARLING RIVER AT WILCANNIA MAIN CHANNEL_P",
+              "Australia__EDWARD RIVER AT DENILIQUIN_NH4",
+              "Australia__NAMOI RIVER AT GOANGRA_NH4",
+              "Australia__NAMOI RIVER AT GOANGRA_NOx",
+              "Australia__NAMOI RIVER AT GOANGRA_P",
+              "Australia__PEEL RIVER AT UPSTREAM PARADISE WEIR_NO3",
+              "Australia__PEEL RIVER AT UPSTREAM PARADISE WEIR_P") 
               
 skipped <- c()
 
@@ -172,14 +194,6 @@ done_rivers <- data.frame("file" = dir(path = file.path(path, "WRTDS Loop Diagno
   dplyr::mutate(river = gsub(pattern = "\\_Loop\\_Diagnostic.csv", replacement = "", x = file))
 
 # Identify particular subset to run
-rivers_swed_dat <- chemistry %>% 
-  separate_wider_delim(cols=Stream_ID,names=c("LTER","Stream_Name"),delim ="__",
-                       too_many="debug") %>% 
-  select(LTER,Stream_Element_ID) %>% 
-  filter(LTER == "Swedish Goverment")
-
-rivers_swed <- unique(rivers_swed_dat$Stream_Element_ID)
-
 #
 rivers_aus_dat <- chemistry %>% 
   separate_wider_delim(cols=Stream_ID,names=c("LTER","Stream_Name"),delim ="__",
@@ -190,10 +204,11 @@ rivers_aus_dat <- chemistry %>%
 rivers_aus <- unique(rivers_aus_dat$Stream_Element_ID)
 
 ## Final list of rivers to run
-rivers_to_do <- rivers_aus
+#rivers_to_do <- rivers_aus
 
-#rivers_to_do <- sort(setdiff(x = unique(good_rivers), 
-  #                           y = c(unique(done_rivers$river), new_bads,skipped)))
+rivers_to_do <- sort(setdiff(x = unique(good_rivers), 
+                          y = c(unique(done_rivers$river), new_bads, skipped)))
+
 
 # What are the next few that will be processed and how many total left?
 rivers_to_do[1:5]; length(rivers_to_do)
