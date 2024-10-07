@@ -366,13 +366,15 @@ disc_lims <- chem_v3 %>%
   # Make a new column of earliest days per stream (note we don't care which solute this applies to)
   dplyr::group_by(LTER, Stream_Name, Discharge_File_Name) %>%
   dplyr::mutate(min_date = min(Date, na.rm = T)) %>%
+  dplyr::mutate(max_date = max(Date, na.rm = T)) %>%
   dplyr::ungroup() %>%
   # Filter to only those dates
   dplyr::filter(Date == min_date) %>%
   # Pare down columns (drop date now that we have `min_date`)
-  dplyr::select(LTER, Stream_Name, Discharge_File_Name, min_date) %>%
+  dplyr::select(LTER, Stream_Name, Discharge_File_Name, min_date, max_date) %>%
   # Subtract 1 years to crop the discharge data to 1 yrs per chemistry data
   dplyr::mutate(disc_start = (min_date - (1 * 365.25)) - 1) %>% # changed this to 1 years
+  dplyr::mutate(disc_end = (max_date + (0.25*365))) %>% 
   # Keep only unique rows
   dplyr::distinct()
 
@@ -403,6 +405,7 @@ disc_v4 <- disc_v3 %>%
   dplyr::left_join(y = disc_lims, by = c("LTER", "Discharge_File_Name", "Stream_Name")) %>%
   # Drop any years before the buffer suggested by WRTDS (currently 1 year)
   dplyr::filter(Date > disc_start) %>% 
+  dplyr::filter(Date <= disc_end) %>% 
   # Reorder columns / rename Q column / implicitly drop unwanted columns
   dplyr::select(Stream_ID, LTER, Discharge_File_Name, Stream_Name, Date, Q = Qcms)
 
