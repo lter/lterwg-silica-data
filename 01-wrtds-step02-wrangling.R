@@ -513,11 +513,15 @@ glimpse(disc_v6)
 
 # Remove sites with limited data ## UNDER CONSTRUCTION ## ------------------------------------------
 low_n <- chem_v4 |> 
+  dplyr::mutate(Stream_Element_ID = paste0(Stream_ID, "_", variable),
+                .before = dplyr::everything()) %>% 
   group_by(Stream_Element_ID) |> 
   summarise(n=n()) |> 
   filter(n<45)
 
 high_cens <- chem_v4 |> 
+  dplyr::mutate(Stream_Element_ID = paste0(Stream_ID, "_", variable),
+                .before = dplyr::everything()) %>% 
   mutate(remark_2 = ifelse(remarks == "<",1,0)) |> 
   group_by(Stream_Element_ID,remark_2) |>
   summarise(cens_n = n()) |> 
@@ -534,6 +538,8 @@ high_cens_2 <- high_cens |>
 to_remove <- full_join(low_n,high_cens_2,by="Stream_Element_ID")
 
 chem_v5 <- chem_v4 |> 
+  dplyr::mutate(Stream_Element_ID = paste0(Stream_ID, "_", variable),
+                .before = dplyr::everything()) %>% 
   filter(!Stream_Element_ID %in% to_remove$Stream_Element_ID)
 
 
@@ -541,7 +547,7 @@ chem_v5 <- chem_v4 |>
           # Final Processing & Export ----
 ## ---------------------------------------------- ##
 # Identify streams in all three datasets (information, chemistry, and discharge)
-incl_streams <- intersect(x = intersect(x = disc_v6$Stream_ID, y = chem_v4$Stream_ID),
+incl_streams <- intersect(x = intersect(x = disc_v6$Stream_ID, y = chem_v5$Stream_ID),
                           y = wrtds_info$Stream_ID)
 
 # Filter to only those streams & drop unneeded name columns
@@ -583,27 +589,27 @@ supportR::diff_check(old = unique(wrtds_info$Stream_ID), new = unique(informatio
 
 # Write these final products out for posterity
 write.csv(x = discharge, row.names = F, na = "",
-          file = file.path(path, "WRTDS Inputs_Feb2024",
+          file = file.path(path, "WRTDS Inputs",
                            "WRTDS-input_discharge.csv"))
 write.csv(x = chemistry, row.names = F, na = "",
-          file = file.path(path, "WRTDS Inputs_Feb2024",
+          file = file.path(path, "WRTDS Inputs",
                            "WRTDS-input_chemistry.csv"))
 write.csv(x = information, row.names = F, na = "",
-          file = file.path(path, "WRTDS Inputs_Feb2024",
+          file = file.path(path, "WRTDS Inputs",
                            "WRTDS-input_information.csv"))
 
-# Export them to Google Drive to in case anyone has other uses for them
++# Export them to Google Drive to in case anyone has other uses for them
 ## Name Drive folder
 tidy_dest <- googledrive::as_id("https://drive.google.com/drive/u/0/folders/1QEofxLdbWWLwkOTzNRhI6aorg7-2S3JE")
 ## Export to it
 googledrive::drive_upload(path = tidy_dest, overwrite = T,
-                          media = file.path(path, "WRTDS Inputs_Feb2024",
+                          media = file.path(path, "WRTDS Inputs",
                                             "WRTDS-input_discharge.csv"))
 googledrive::drive_upload(path = tidy_dest, overwrite = T,
-                          media = file.path(path, "WRTDS Inputs_Feb2024",
+                          media = file.path(path, "WRTDS Inputs",
                                             "WRTDS-input_chemistry.csv"))
 googledrive::drive_upload(path = tidy_dest, overwrite = T,
-                          media = file.path(path, "WRTDS Inputs_Feb2024",
+                          media = file.path(path, "WRTDS Inputs",
                                             "WRTDS-input_information.csv"))
 
 ## ---------------------------------------------- ##
