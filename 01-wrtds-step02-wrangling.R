@@ -7,9 +7,10 @@
 ## ---------------------------------------------- ##
                 # Housekeeping ----
 ## ---------------------------------------------- ##
-# Load libraries
+# Load libraries.
 # install.packages("librarian")
-librarian::shelf(tidyverse, lubridate, EGRET, EGRETci, supportR, scicomptools, zoo, lter/HERON)
+librarian::shelf(tidyverse, lubridate, EGRET, EGRETci, supportR, scicomptools, zoo, lter/HERON,
+                 tsibble,googledrive)
 
 # Clear environment
 rm(list = ls())
@@ -24,7 +25,7 @@ dir.create(path = file.path(path, "WRTDS Inputs"), showWarnings = F)
 # Define the names of the Drive files we need
 file_names <- c("WRTDS_Reference_Table_with_Areas_DO_NOT_EDIT.csv", # No.1 Simplified ref table
                 "Site_Reference_Table", # No.2 Full ref table
-                "20240801_masterdata_discharge.csv", # No.3 Main discharge ## update this file with new discharge!!
+                "20250527_masterdata_discharge.csv", # No.3 Main discharge ## update this file with new discharge!!
                 "20241003_masterdata_chem.csv", # No.4 Main chemistry ## update this file with new chemistry!!
                 "Data_Cropping_WRTDS") # No.5 Data cropping for chemistry (Si) 
 
@@ -35,6 +36,7 @@ ids <- googledrive::drive_ls(as_id("https://drive.google.com/drive/u/0/folders/1
   dplyr::bind_rows(googledrive::drive_ls(as_id("https://drive.google.com/drive/u/0/folders/0AIPkWhVuXjqFUk9PVA"))) %>%
   ## And filter out any extraneous files
   dplyr::filter(name %in% file_names)
+
 
 # Check that no file names have changed
 for(file in file_names){
@@ -83,10 +85,13 @@ ref_table %>%
 # Check structure
 dplyr::glimpse(ref_table)
 
-# Any *discharge* rivers not in reference table?
+# Any *discharge* rivers not in reference table? or vice versa
+# this list will reflect rivers that were removed based on "use_WRTDS" of "no"
+#setdiff(x = unique(disc_v0$Discharge_File_Name),y = unique(ref_table$Discharge_File_Name))
 setdiff(x = unique(ref_table$Discharge_File_Name), y = unique(disc_v0$Discharge_File_Name))
 
 # Wrangle discharge
+# fixes issue with OSTEGLO_Q here
 disc_v1 <- disc_v0 %>%
   # Rename site column as it appears in the reference table
   dplyr::rename(Discharge_File_Name = Discharge_File_Name) %>%
@@ -238,6 +243,7 @@ dplyr::glimpse(disc_v2)
 supportR::diff_check(old = unique(disc_v1$Discharge_File_Name),
                      new = unique(disc_v2$Discharge_File_Name))
 
+
 # Clean up the chemistry data
 chem_v2 <- chem_v1 %>%
   # Calculate the mg/L (from micro moles) for each of these chemicals
@@ -359,8 +365,7 @@ disc_v3 <- disc_v2
 # So we need to identify the min/max dates of discharge and chemistry (separately)...
 # ...to be able to use them to crop the actual data as WRTDS requires
 
-# Identify earliest chemical data at each site -
-## need to add MAX DATE!
+# Identify earliest and latest chemical data at each site -
 disc_lims <- chem_v3 %>%
   # Make a new column of earliest days per stream (note we don't care which solute this applies to)
   dplyr::group_by(LTER, Stream_Name, Discharge_File_Name) %>%
@@ -415,6 +420,9 @@ dplyr::glimpse(disc_v4)
 supportR::diff_check(old = unique(disc_v3$Discharge_File_Name),
                      new = unique(disc_v4$Discharge_File_Name))
 
+check <- disc_v3 %>% 
+  filter(Discharge_File_Name == "MD_410130_Q"| Discharge_File_Name == "Site 37004_Q")
+
 # Check for unintentionally lost columns
 supportR::diff_check(old = names(disc_v3), new = names(disc_v4))
 ## Change to discharge column name is fine
@@ -447,6 +455,13 @@ supportR::diff_check(old = names(chem_v3), new = names(chem_v4))
 
 #read in WRTDS input file here
 disc_v5 <-disc_v4
+
+# identify time series with long gaps 
+disc_gaps <- disc_v5 %>% 
+  as_tsibble(index = Date, key=Stream_Name) %>% 
+  count_gaps(.full=FALSE) %>% 
+  filter(.n > 60) %>% 
+  distinct(Stream_Name)
 
 site_names = unique(disc_v5$Stream_ID)
 #date_list = list()
@@ -510,6 +525,7 @@ disc_v6 = do.call(rbind, Q_interp)
 glimpse(disc_v6)
 
 
+  
 
 # Remove sites with limited data ## UNDER CONSTRUCTION ## ------------------------------------------
 low_n <- chem_v4 |> 
