@@ -18,9 +18,8 @@ rm(list = ls())
 (path <- scicomptools::wd_loc(local = FALSE, remote_path = file.path('/', "home", "shares", "lter-si", "WRTDS")))
 
 # Create folders for the raw downloaded files (i.e., sources) & WRTDS inputs (created by this script)
-dir.create(path = file.path(path, "WRTDS Source Files_Feb2024"), showWarnings = F)
-dir.create(path = file.path(path, "WRTDS Inputs_Feb2024"), showWarnings = F)
-dir.create(path = file.path(path, "WRTDS Inputs_data paper"), showWarnings=F)
+dir.create(path = file.path(path, "WRTDS Source Files"), showWarnings = F)
+dir.create(path = file.path(path, "WRTDS Inputs"), showWarnings = F)
 
 # Define the names of the Drive files we need
 file_names <- c("WRTDS_Reference_Table_with_Areas_DO_NOT_EDIT.csv", # No.1 Simplified ref table
@@ -510,6 +509,34 @@ disc_v6 = do.call(rbind, Q_interp)
 # but we link with chemistry using "Stream_ID" so probably OK
 glimpse(disc_v6)
 
+
+
+# Remove sites with limited data ## UNDER CONSTRUCTION ## ------------------------------------------
+low_n <- chem_v4 |> 
+  group_by(Stream_Element_ID) |> 
+  summarise(n=n()) |> 
+  filter(n<45)
+
+high_cens <- chem_v4 |> 
+  mutate(remark_2 = ifelse(remarks == "<",1,0)) |> 
+  group_by(Stream_Element_ID,remark_2) |>
+  summarise(cens_n = n()) |> 
+  pivot_wider(names_from = "remark_2",values_from="cens_n")
+
+colnames(high_cens) <- c("Stream_Element_ID","no","yes")
+
+# remove cases where censored values are greater than some proportion of total - here is 1/3
+high_cens_2 <- high_cens |> 
+  mutate(test = case_when((yes)/(yes+no) >= 0.33 ~ "remove",
+                          .default = "keep")) |> 
+  filter(test == "remove")
+
+to_remove <- full_join(low_n,high_cens_2,by="Stream_Element_ID")
+
+chem_v5 <- chem_v4 |> 
+  filter(!Stream_Element_ID %in% to_remove$Stream_Element_ID)
+
+
 ## ---------------------------------------------- ##
           # Final Processing & Export ----
 ## ---------------------------------------------- ##
@@ -528,7 +555,7 @@ dplyr::glimpse(discharge)
 # Check for gained/lost streams
 supportR::diff_check(old = unique(disc_v6$Stream_ID), new = unique(discharge$Stream_ID))
 
-# Do the same for chemistry
+# Do the same for chemistry - NEED TO UPDATE chem version
 chemistry <- chem_v4 %>%
   dplyr::filter(Stream_ID %in% incl_streams) %>%
   dplyr::select(-LTER, -Discharge_File_Name, -Stream_Name) %>%
