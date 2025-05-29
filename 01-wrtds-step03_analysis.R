@@ -173,7 +173,7 @@ rivers_to_do <- sort(setdiff(x = unique(good_rivers),
 # What are the next few that will be processed and how many total left?
 rivers_to_do[1:5]; length(rivers_to_do)
 
-river = rivers_to_do[25]
+river = rivers_to_do[22]
 
 # Loop across rivers and elements to run WRTDS workflow!
 #for(river in rivers_to_do){ # actual loop
@@ -202,10 +202,29 @@ river = rivers_to_do[25]
     # Drop unneeded columns
     dplyr::select(-Stream_Element_ID, -Stream_ID, -variable)
   
-  # Subset discharge to correct river
+  # Subset discharge to correct river and timeframe
+  disc_lims <- river_chem %>%
+    # Make a new column of earliest days per stream (note we don't care which solute this applies to)
+    dplyr::mutate(min_date = min(as.Date(Date), na.rm = T)) %>%
+    dplyr::mutate(max_date = max(as.Date(Date), na.rm = T)) %>%
+    # Filter to only those dates
+    dplyr::filter(Date == min_date) %>%
+    # Pare down columns (drop date now that we have `min_date`)
+    dplyr::select(Date, min_date, max_date) %>%
+    # Subtract 1 years to crop the discharge data to 1 yrs per chemistry data
+    dplyr::mutate(disc_start = (min_date - (1 * 365.25)) - 1) %>% # changed this to 1 years
+    dplyr::mutate(disc_end = (max_date + (0.25*365))) %>% 
+    # Keep only unique rows
+    dplyr::distinct()
+  
+  
   river_disc <- discharge %>%
     dplyr::filter(Stream_ID == stream_id) %>%
-    dplyr::select(Date, Q)
+    dplyr::select(Date, Q) %>% 
+    dplyr::filter(Date > disc_lims$disc_start) %>% 
+    dplyr::filter(Date <= disc_lims$disc_end) %>% 
+    #remove duplicate rows
+    distinct()
   
   # Create a common prefix for all outputs from this run of the loop
   out_prefix <- paste0(stream_id, "_", element, "_") 
@@ -396,7 +415,7 @@ river = rivers_to_do[25]
   
   # Remove all objects created inside loop
   ## This makes figuring out where the loop breaks *much* easier!
-  rm(list = c("stream_id", "element", "river_chem", "river_disc", "out_prefix", 
+  rm(list = c("stream_id", "element", "river_chem", "river_disc","disc_lims", "out_prefix", 
               "start", "river_info", "egret_disc", "egret_chem", "egret_info", 
               "egret_list", "egret_list_out", "egret_estimation", "egret_error", 
               "flux_bias", "egret_annual", "egret_annual_kalman", "egret_kalman",
