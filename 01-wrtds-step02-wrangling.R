@@ -410,14 +410,14 @@ disc_v3 %>%
 # Identify earliest and latest chemical data at each site -
 disc_lims <- chem_v3 %>%
   # Make a new column of earliest days per stream (note we don't care which solute this applies to)
-  dplyr::group_by(LTER, Stream_Name, Discharge_File_Name) %>%
+  dplyr::group_by(LTER, Stream_Name, Discharge_File_Name, variable) %>%
   dplyr::mutate(min_date = min(Date, na.rm = T)) %>%
   dplyr::mutate(max_date = max(Date, na.rm = T)) %>%
   dplyr::ungroup() %>%
   # Filter to only those dates
   dplyr::filter(Date == min_date) %>%
   # Pare down columns (drop date now that we have `min_date`)
-  dplyr::select(LTER, Stream_Name, Discharge_File_Name, min_date, max_date) %>%
+  dplyr::select(LTER, Stream_Name, Discharge_File_Name, variable, min_date, max_date) %>%
   # Subtract 1 years to crop the discharge data to 1 yrs per chemistry data
   dplyr::mutate(disc_start = (min_date - (1 * 365.25)) - 1) %>% # changed this to 1 years
   dplyr::mutate(disc_end = (max_date + (0.25*365))) %>% 
@@ -426,6 +426,7 @@ disc_lims <- chem_v3 %>%
 
 # Check that
 dplyr::glimpse(disc_lims)
+head(disc_lims)
 
 # Identify min/max of discharge data 
 chem_lims <- disc_v3 %>%
@@ -452,7 +453,9 @@ disc_v4 <- disc_v3 %>%
   dplyr::filter(Date > disc_start) %>% 
   dplyr::filter(Date <= disc_end) %>% 
   # Reorder columns / rename Q column / implicitly drop unwanted columns
-  dplyr::select(Stream_ID, LTER, Discharge_File_Name, Stream_Name, Date, Q = Qcms)
+  dplyr::select(Stream_ID, LTER, Discharge_File_Name, Stream_Name, Date, Q = Qcms) %>% 
+  #remove duplicate rows
+  distinct()
 
 # Take another look
 dplyr::glimpse(disc_v4)
