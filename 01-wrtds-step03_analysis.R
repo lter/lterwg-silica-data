@@ -44,10 +44,12 @@ crop <- read.csv(file.path(path,"WRTDS Inputs","WRTDS_data_cropping.csv"))
 # format cropping object to modify blankTime columns for running WRTDS
 crop_v1 <- crop |> 
   dplyr::mutate(Stream_ID = paste0(LTER, "__", Site),
-                .before = dplyr::everything()) |> 
+                .before = dplyr::everything(),keep="all") %>% 
+  dplyr::mutate(Stream_element_ID = paste0(Stream_ID,"_",variable),
+                .after = dplyr::everything(),.keep="all") |> 
   # drop unwanted columns
   dplyr::select(-dplyr::ends_with("_Than"),starts_with("X."),-LTER,-Site) %>% 
-  dplyr::select(Stream_ID,variable,BlankTime_Start,BlankTime_End) |> 
+  dplyr::select(Stream_ID,Stream_element_ID,variable,BlankTime_Start,BlankTime_End) |> 
   # drop non-unique rows
   dplyr::distinct() %>% 
   # drop uncropped streams
@@ -142,7 +144,20 @@ new_bads <- c("UK__EDEN AT PENSHURST / VEXOUR BRIDGE_NO3",
               "Australia__NAMOI RIVER AT GOANGRA_NOx",
               "Australia__NAMOI RIVER AT GOANGRA_P",
               "Australia__PEEL RIVER AT UPSTREAM PARADISE WEIR_NO3",
-              "Australia__PEEL RIVER AT UPSTREAM PARADISE WEIR_P") 
+              "Australia__PEEL RIVER AT UPSTREAM PARADISE WEIR_P",
+              ## as of 6/1/25
+              "USGS__Corral Gulch_P",
+              "Australia__DARLING RIVER AT BURTUNDY_NOx",                 
+              "Australia__DARLING RIVER AT BURTUNDY_P",
+              'Australia__DARLING RIVER AT WILCANNIA MAIN CHANNEL_NO3',
+              'Australia__EDWARD RIVER AT DENILIQUIN_DSi',
+              'Australia__EDWARD RIVER AT DENILIQUIN_NOx',
+              "Australia__EDWARD RIVER AT DENILIQUIN_P",
+              "Australia__PEEL RIVER AT UPSTREAM PARADISE WEIR_NOx",
+              'KRR__S65_NH4','LUQ__Q2_DSi','LUQ__Q2_NH4',
+              # min num uncens
+              "HBR__ws7_P", 'HBR__ws8_P', 'LMP__LMP73_NH4', 'LMP__LMP73_P')
+
               
 skipped <- c()
 
@@ -155,7 +170,7 @@ skipped <- c()
 
 # Identify all rivers that aren't in the broken data vectors
 good_rivers <- setdiff(x = unique(chemistry$Stream_Element_ID),
-                       y = unique(c(few_data_cens,few_data_obs, odd_ones, bad_rivers, crash_rivers)))
+                       y = unique(c(few_data_cens,few_data_obs, odd_ones, bad_rivers, crash_rivers,new_bads,skipped)))
 
 ## Note this includes weird rivers that need special treatment and those that don't
 # Set of rivers we've already run the workflow for
@@ -165,6 +180,7 @@ done_rivers <- data.frame("file" = dir(path = file.path(path, "WRTDS Loop Diagno
 
 ## Final list of rivers to run
 #rivers_to_do <- rivers_aus
+#rivers_to_do <- good_rivers
 
 rivers_to_do <- sort(setdiff(x = unique(good_rivers), 
                           y = c(unique(done_rivers$river), new_bads, skipped)))
@@ -173,7 +189,6 @@ rivers_to_do <- sort(setdiff(x = unique(good_rivers),
 # What are the next few that will be processed and how many total left?
 rivers_to_do[1:5]; length(rivers_to_do)
 
-river = rivers_to_do[22]
 
 # Loop across rivers and elements to run WRTDS workflow!
 #for(river in rivers_to_do){ # actual loop
@@ -195,6 +210,8 @@ river = rivers_to_do[22]
     dplyr::select(variable) %>%
     unique() %>%
     as.character()
+  
+  stream_element_id <- paste0(stream_id,"_",element)
   
   # Subset chemistry
   river_chem <- chemistry %>%
@@ -288,39 +305,56 @@ river = rivers_to_do[22]
   
   # Handle rivers that have blank time periods
   # GFN output adjustments 
-  if(stream_id %in% crop_v1$Stream_ID){
+  if(stream_element_id %in% crop_v1$Stream_element_ID){
     egret_list_out <- EGRET::blankTime(eList=egret_list_out, 
-                                       startBlank=unique(crop_v1[which(crop_v1$Stream_ID == stream_id & crop_v1$variable == element),]$BlankTime_Start_Date), 
-                                       endBlank = unique(crop_v1[which(crop_v1$Stream_ID == stream_id & crop_v1$variable == element),]$BlankTime_End_Date)) }
+                                       startBlank=unique(crop_v1[which(crop_v1$Stream_element_ID == stream_element_id),]$BlankTime_Start_Date),
+                                       endBlank = unique(crop_v1[which(crop_v1$Stream_element_ID == stream_element_id),]$BlankTime_End_Date)) }
   
   
   # original outputs
-  if(stream_id %in% crop_v1$Stream_ID){
-    egret_estimation<- EGRET::blankTime(eList=egret_estimation, 
-                                       startBlank=unique(crop_v1[which(crop_v1$Stream_ID == stream_id & crop_v1$variable == element),]$BlankTime_Start_Date), 
-                                       endBlank = unique(crop_v1[which(crop_v1$Stream_ID == stream_id & crop_v1$variable == element),]$BlankTime_End_Date)) }
+  if(stream_element_id %in% crop_v1$Stream_element_ID){
+    egret_list_out <- EGRET::blankTime(eList=egret_estimation, 
+                                       startBlank=unique(crop_v1[which(crop_v1$Stream_element_ID == stream_element_id),]$BlankTime_Start_Date),
+                                       endBlank = unique(crop_v1[which(crop_v1$Stream_element_ID == stream_element_id),]$BlankTime_End_Date)) }
+  
   
   # Kalman outputs
-  if(stream_id %in% crop_v1$Stream_ID){
-    egret_kalman<- EGRET::blankTime(eList=egret_kalman, 
-                                       startBlank=unique(crop_v1[which(crop_v1$Stream_ID == stream_id & crop_v1$variable == element),]$BlankTime_Start_Date), 
-                                       endBlank = unique(crop_v1[which(crop_v1$Stream_ID == stream_id & crop_v1$variable == element),]$BlankTime_End_Date)) }
+  if(stream_element_id %in% crop_v1$Stream_element_ID){
+    egret_list_out <- EGRET::blankTime(eList=egret_kalman, 
+                                       startBlank=unique(crop_v1[which(crop_v1$Stream_element_ID == stream_element_id),]$BlankTime_Start_Date),
+                                       endBlank = unique(crop_v1[which(crop_v1$Stream_element_ID == stream_element_id),]$BlankTime_End_Date)) }
   
   
   
   ## OLD ##
   if(stream_id == "USGS__Mississippi River at Grafton"){
     egret_list_out <- EGRET::blankTime(eList = egret_list_out, startBlank = "1981-10-01", 
-                                       endBlank = "1982-09-29") }
+                                       endBlank = "1982-09-29")
+    egret_estimation <- EGRET::blankTime(eList = egret_estimation, startBlank = "1981-10-01", 
+                                       endBlank = "1982-09-29")
+    egret_kalman <- EGRET::blankTime(eList = egret_kalman, startBlank = "1981-10-01", 
+                                       endBlank = "1982-09-29")}
   if(stream_id == "USGS__PICEANCE CREEK RYAN GULCH"){
     egret_list_out <- EGRET::blankTime(eList = egret_list_out, startBlank = "1998-10-01",
-                                       endBlank = "1999-09-30") }
+                                       endBlank = "1999-09-30") 
+    egret_estimation <- EGRET::blankTime(eList = egret_estimation, startBlank = "1998-10-01",
+                                       endBlank = "1999-09-30")
+    egret_kalman <- EGRET::blankTime(eList = egret_kalman, startBlank = "1998-10-01",
+                                       endBlank = "1999-09-30")}
   if(stream_id == "USGS__YAMPA RIVER AT DEERLODGE PARK"){
     egret_list_out <- EGRET::blankTime(eList = egret_list_out, startBlank = "1994-10-01",
+                                       endBlank = "1996-09-30")
+    egret_estimation <- EGRET::blankTime(eList = egret_estimation, startBlank = "1994-10-01",
+                                       endBlank = "1996-09-30") 
+    egret_kalman <- EGRET::blankTime(eList = egret_kalman, startBlank = "1994-10-01",
                                        endBlank = "1996-09-30") }
   if(stream_id == "USGS__YUKON RIVER"){
     egret_list_out <- EGRET::blankTime(eList = egret_list_out, startBlank = "1996-10-01",
-                                       endBlank = "2001-09-29") }
+                                       endBlank = "2001-09-29")
+    egret_estimation <- EGRET::blankTime(eList = egret_estimation, startBlank = "1996-10-01",
+                                       endBlank = "2001-09-29")
+    egret_kalman <- EGRET::blankTime(eList = egret_kalman, startBlank = "1996-10-01",
+                                       endBlank = "2001-09-29")}
   
   # Some rivers just need the period of absence tweaked
   ## McMurdo (12 to 2)
@@ -345,11 +379,12 @@ river = rivers_to_do[22]
   # Loop - create and save outputs ----
   
   # Identify error statistics
-  # egret_error <- EGRET::errorStats(eList = egret_estimation)
-  egret_error <- EGRET::errorStats(eList = egret_kalman)
+  egret_error <- EGRET::errorStats(eList = egret_estimation)
+  egret_error_kalman <- EGRET::errorStats(eList = egret_kalman)
   
    # Save the error stats out
   write.csv(x = egret_error, file = file.path(path, "WRTDS Outputs_2025", paste0(out_prefix, "ErrorStats_WRTDS.csv")), row.names = F, na = "")
+  write.csv(x = egret_error_kalman, file = file.path(path, "WRTDS Outputs_2025", paste0(out_prefix, "ErrorStats_kalman_WRTDS.csv")), row.names = F, na = "")
   
   # Calculate flux bias statistic
   # flux_bias <- EGRET::fluxBiasStat(localSample = EGRET::getSample(x = egret_estimation))
@@ -360,7 +395,7 @@ river = rivers_to_do[22]
   
   # Create PDF report of preliminary graphs
   HERON::egret_report(eList_estim = egret_estimation, eList_series = egret_list_out,
-                      out_path = file.path(path, "WRTDS Outputs_2025", paste0(out_prefix, "WRTDS_GFN_output.pdf")))
+                      out_path = file.path(path, "WRTDS Outputs_2025", paste0(out_prefix, "WRTDS_output.pdf")))
   
   # Create annual averages
   egret_annual <- EGRET::tableResults(eList = egret_list_out)
@@ -373,9 +408,6 @@ river = rivers_to_do[22]
   # Identify monthly results
   egret_monthly <- EGRET::calculateMonthlyResults(eList = egret_list_out)
   egret_monthly_kalman <- EGRET::calculateMonthlyResults(eList = egret_kalman)
-  
-  monthlyResults <- calculateMonthlyResults(egret_kalman)
-  plot(monthlyResults$DecYear, monthlyResults$GenFlux/1000, type = "l", xaxs = "i", xlim = c(1980,2020), yaxs = "i", ylim = c(0,90), las = 1, tck = 0.02, xlab = "", ylab = "Flux, in metric tons per day", main = "Potomac River at Chain Bridge, Washington, DC\nTotal Phosphorus Flux, by Month")
   
   # Export those
   write.csv(x = egret_monthly, file.path(path, "WRTDS Outputs_2025", paste0(out_prefix, "Monthly_GFN_WRTDS.csv")), row.names = F, na = "")
@@ -417,7 +449,7 @@ river = rivers_to_do[22]
   ## This makes figuring out where the loop breaks *much* easier!
   rm(list = c("stream_id", "element", "river_chem", "river_disc","disc_lims", "out_prefix", 
               "start", "river_info", "egret_disc", "egret_chem", "egret_info", 
-              "egret_list", "egret_list_out", "egret_estimation", "egret_error", 
+              "egret_list", "egret_list_out", "egret_estimation", "egret_error", "egret_error_kalman",
               "flux_bias", "egret_annual", "egret_annual_kalman", "egret_kalman",
               "egret_monthly", "egret_monthly_kalman", "egret_concentration", 
               "egret_conc_kalman", "egret_flownorm", "end", "loop_diagnostic"))
