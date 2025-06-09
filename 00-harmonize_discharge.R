@@ -82,11 +82,14 @@ for (i in 1:length(csv_files_download$drive_resource)) {
 
 # get list of files downloaded
 discharge_files = list.files(path="discharge_raw", pattern = ".csv")
+discharge_files = list.files(pattern = ".csv")
 
 # remove all "Master Q" or other unneeded files
 discharge_files<-discharge_files[!(discharge_files %like% "Discharge_master")]
 remove_these<-setdiff(csv_files$name,discharge_files)
 discharge_files<-discharge_files[!(discharge_files %in% remove_these)]
+
+check <- as.data.frame(discharge_files)
 
 # set working directory where discharge files stored locally
 setwd("discharge_raw")
@@ -222,8 +225,8 @@ plots$plots
 dev.off()
 
 #change date to reflect new file creation
-setwd('../discharge_tidy')
-write.csv(disc_v3, "20240201_masterdata_discharge.csv", row.names=FALSE)
+setwd('./discharge_tidy')
+write.csv(disc_v3, "20250527_masterdata_discharge.csv", row.names=FALSE)
 
 
 
