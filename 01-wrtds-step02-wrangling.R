@@ -7,9 +7,10 @@
 ## ---------------------------------------------- ##
                 # Housekeeping ----
 ## ---------------------------------------------- ##
-# Load libraries
+# Load libraries.
 # install.packages("librarian")
-librarian::shelf(tidyverse, lubridate, EGRET, EGRETci, supportR, scicomptools, zoo, lter/HERON)
+librarian::shelf(tidyverse, lubridate, EGRET, EGRETci, supportR, scicomptools, zoo, lter/HERON,
+                 tsibble,googledrive)
 
 # Clear environment
 rm(list = ls())
@@ -18,16 +19,16 @@ rm(list = ls())
 (path <- scicomptools::wd_loc(local = FALSE, remote_path = file.path('/', "home", "shares", "lter-si", "WRTDS")))
 
 # Create folders for the raw downloaded files (i.e., sources) & WRTDS inputs (created by this script)
-dir.create(path = file.path(path, "WRTDS Source Files_Feb2024"), showWarnings = F)
-dir.create(path = file.path(path, "WRTDS Inputs_Feb2024"), showWarnings = F)
-dir.create(path = file.path(path, "WRTDS Inputs_data paper"), showWarnings=F)
+dir.create(path = file.path(path, "WRTDS Source Files"), showWarnings = F)
+dir.create(path = file.path(path, "WRTDS Inputs"), showWarnings = F)
 
 # Define the names of the Drive files we need
 file_names <- c("WRTDS_Reference_Table_with_Areas_DO_NOT_EDIT.csv", # No.1 Simplified ref table
                 "Site_Reference_Table", # No.2 Full ref table
-                "20240801_masterdata_discharge.csv", # No.3 Main discharge ## update this file with new discharge!!
-                "20240624_masterdata_chem.csv", # No.4 Main chemistry ## update this file with new chemistry!!
-                "Data_Cropping_WRTDS") # No.5 Data cropping for chemistry (Si) 
+                "20250527_masterdata_discharge.csv", # No.3 Main discharge ## update this file with new discharge!!
+                "20241003_masterdata_chem.csv", # No.4 Main chemistry ## update this file with new chemistry!!
+                "Data_Cropping_WRTDS", # No.5 Data cropping for chemistry (Si)
+                "Discharge_Cropping_WRTDS")  # No.6 Data cropping for discharge
 
 # Find those files' IDs
 ids <- googledrive::drive_ls(as_id("https://drive.google.com/drive/u/0/folders/15FEoe2vu3OAqMQHqdQ9XKpFboR4DvS9M")) %>%
@@ -36,6 +37,7 @@ ids <- googledrive::drive_ls(as_id("https://drive.google.com/drive/u/0/folders/1
   dplyr::bind_rows(googledrive::drive_ls(as_id("https://drive.google.com/drive/u/0/folders/0AIPkWhVuXjqFUk9PVA"))) %>%
   ## And filter out any extraneous files
   dplyr::filter(name %in% file_names)
+
 
 # Check that no file names have changed
 for(file in file_names){
@@ -55,6 +57,8 @@ disc_v0 <- read.csv(file = file.path(path, "WRTDS Source Files", file_names[3]))
 chem_v0 <- read.csv(file = file.path(path, "WRTDS Source Files", file_names[4]))
 chemcrop_v0 <- readxl::read_excel(path = file.path(path, "WRTDS Source Files", 
                                                    paste0(file_names[5], ".xlsx")))
+discrop_v0 <- readxl::read_excel(path = file.path(path, "WRTDS Source Files", 
+                                                  paste0(file_names[6], ".xlsx")))
 
 ## ---------------------------------------------- ##
         # Process Raw Files (v0 -> v1) ----
@@ -84,10 +88,13 @@ ref_table %>%
 # Check structure
 dplyr::glimpse(ref_table)
 
-# Any *discharge* rivers not in reference table?
+# Any *discharge* rivers not in reference table? or vice versa
+# this list will reflect rivers that were removed based on "use_WRTDS" of "no"
+#setdiff(x = unique(disc_v0$Discharge_File_Name),y = unique(ref_table$Discharge_File_Name))
 setdiff(x = unique(ref_table$Discharge_File_Name), y = unique(disc_v0$Discharge_File_Name))
 
 # Wrangle discharge
+# fixes issue with OSTEGLO_Q here
 disc_v1 <- disc_v0 %>%
   # Rename site column as it appears in the reference table
   dplyr::rename(Discharge_File_Name = Discharge_File_Name) %>%
@@ -239,6 +246,7 @@ dplyr::glimpse(disc_v2)
 supportR::diff_check(old = unique(disc_v1$Discharge_File_Name),
                      new = unique(disc_v2$Discharge_File_Name))
 
+
 # Clean up the chemistry data
 chem_v2 <- chem_v1 %>%
   # Calculate the mg/L (from micro moles) for each of these chemicals
@@ -299,7 +307,7 @@ supportR::diff_check(old = unique(chem_v1$Stream_Name),
                      new = unique(chem_v2$Stream_Name))
 
 ## ---------------------------------------------- ##
-# Crop Chemistry dataset for QA (v2 -> v3) ----
+# Crop datasets for QA (v2 -> v3) ----
 ## ---------------------------------------------- ##
 
 chemcrop <- chemcrop_v0 %>% 
@@ -334,19 +342,58 @@ chem_v3 <- chem_v2 %>%
   
 glimpse(chem_v3)
 
-# do the same for discharge - I don't think we want to crop this because we do below
-#disc_v3 <- disc_v2 %>% 
- # left_join(chemcrop,by=c("Stream_ID")) %>% 
-  #mutate(year = as.numeric(str_sub(Date,start=1,end=4))) %>% 
-  #filter(
-   # (is.na(Greater_Than) & is.na(Less_Than)) |
-    #  ((!is.na(Greater_Than) & is.na(Less_Than)) & year >= Greater_Than) |
-     # ((is.na(Greater_Than) & !is.na(Less_Than)) & year <= Less_Than) |
-      #((!is.na(Greater_Than) & !is.na(Less_Than)) & year <= Less_Than & year >= Greater_Than)) %>%
-  #select(-year,-Less_Than,-Greater_Than)
+# Crop the discharge file!
+
+# review gaps in discharge data
+# identify time series with long gaps 
+disc_gaps <- disc_v3 %>% 
+  as_tsibble(index = Date, key=Stream_Name) %>% 
+  count_gaps(.full=FALSE) %>% 
+  filter(.n > 365)
+
+discrop <- discrop_v0 %>% 
+  # Generate a 'stream ID' column that combines LTER and chemistry stream name
+  #dplyr::mutate(Stream_ID = paste0(LTER, "__", Site),
+   #             .before = dplyr::everything()) %>% 
+  # drop unwanted columns
+  dplyr::select(-dplyr::starts_with("Remove")) %>% 
+  # drop non-unique rows
+  dplyr::distinct() %>% 
+  # drop uncropped streams
+  dplyr::filter(!(Greater_Than == "NA" & Less_Than == "NA")) %>% 
+  # make years numeric; makes all "NAs" in original dataset into real NA
+  dplyr::mutate(Greater_Than = suppressWarnings(as.numeric(Greater_Than)), 
+                Less_Than = suppressWarnings(as.numeric(Less_Than)))
+
+dplyr::glimpse(discrop)
+
+disc_v3 <- disc_v2 %>% 
+  left_join(discrop,by=c("Stream_ID")) %>% 
+  mutate(year = as.numeric(str_sub(Date,start=1,end=4))) %>% 
+  filter(
+    # keep every river where there is no date cropping
+    (is.na(Greater_Than) & is.na(Less_Than)) |
+      # removes years before "Greater_Than" when there is no Less_Than condition
+      ((!is.na(Greater_Than) & is.na(Less_Than)) & year >= Greater_Than) |
+      # removes years after "Less_Than" when there is no Greater_Than condition
+      ((is.na(Greater_Than) & !is.na(Less_Than)) & year <= Less_Than) |
+      # removes years before Greater_Than and after Less_Than when years are between those
+      ((!is.na(Greater_Than) & !is.na(Less_Than)) & year <= Less_Than & year >= Greater_Than)) %>%
+  select(-year,-Less_Than,-Greater_Than)
+
+glimpse(disc_v3)
+
+
+# check that worked as expected
+
+disc_v3 %>% 
+  filter(Stream_ID %in% discrop$Stream_ID) %>% 
+  ggplot(aes(Date,Qcms))+
+  geom_point()+
+  facet_wrap(~Stream_ID, scales="free")
 
 # adding this to avoid having to update all disc objects below in case I made wrong decision
-disc_v3 <- disc_v2
+# disc_v3 <- disc_v2
 
 # pick a river that should change and check that it did change accordingly
 # and vice versa
@@ -360,24 +407,26 @@ disc_v3 <- disc_v2
 # So we need to identify the min/max dates of discharge and chemistry (separately)...
 # ...to be able to use them to crop the actual data as WRTDS requires
 
-# Identify earliest chemical data at each site -
-## need to add MAX DATE!
+# Identify earliest and latest chemical data at each site -
 disc_lims <- chem_v3 %>%
   # Make a new column of earliest days per stream (note we don't care which solute this applies to)
-  dplyr::group_by(LTER, Stream_Name, Discharge_File_Name) %>%
+  dplyr::group_by(LTER, Stream_Name, Discharge_File_Name, variable) %>%
   dplyr::mutate(min_date = min(Date, na.rm = T)) %>%
+  dplyr::mutate(max_date = max(Date, na.rm = T)) %>%
   dplyr::ungroup() %>%
   # Filter to only those dates
   dplyr::filter(Date == min_date) %>%
   # Pare down columns (drop date now that we have `min_date`)
-  dplyr::select(LTER, Stream_Name, Discharge_File_Name, min_date) %>%
+  dplyr::select(LTER, Stream_Name, Discharge_File_Name, variable, min_date, max_date) %>%
   # Subtract 1 years to crop the discharge data to 1 yrs per chemistry data
-  dplyr::mutate(disc_start = (min_date - (1 * 365.25)) - 1) %>% # changed this to 2 years
+  dplyr::mutate(disc_start = (min_date - (1 * 365.25)) - 1) %>% # changed this to 1 years
+  dplyr::mutate(disc_end = (max_date + (0.25*365))) %>% 
   # Keep only unique rows
   dplyr::distinct()
 
 # Check that
 dplyr::glimpse(disc_lims)
+head(disc_lims)
 
 # Identify min/max of discharge data 
 chem_lims <- disc_v3 %>%
@@ -397,14 +446,16 @@ chem_lims <- disc_v3 %>%
 # Look at that outcome
 dplyr::glimpse(chem_lims)
 
-# Crop the discharge file!
 disc_v4 <- disc_v3 %>%
   # Left join on the start date from the chemistry data
   dplyr::left_join(y = disc_lims, by = c("LTER", "Discharge_File_Name", "Stream_Name")) %>%
-  # Drop any years before the ten year buffer suggested by WRTDS
+  # Drop any years before the buffer suggested by WRTDS (currently 1 year)
   dplyr::filter(Date > disc_start) %>% 
+  dplyr::filter(Date <= disc_end) %>% 
   # Reorder columns / rename Q column / implicitly drop unwanted columns
-  dplyr::select(Stream_ID, LTER, Discharge_File_Name, Stream_Name, Date, Q = Qcms)
+  dplyr::select(Stream_ID, LTER, Discharge_File_Name, Stream_Name, Date, Q = Qcms) %>% 
+  #remove duplicate rows
+  distinct()
 
 # Take another look
 dplyr::glimpse(disc_v4)
@@ -412,6 +463,9 @@ dplyr::glimpse(disc_v4)
 # Check for gained/lost streams
 supportR::diff_check(old = unique(disc_v3$Discharge_File_Name),
                      new = unique(disc_v4$Discharge_File_Name))
+
+check <- disc_v3 %>% 
+  filter(Discharge_File_Name == "MD_410130_Q"| Discharge_File_Name == "Site 37004_Q")
 
 # Check for unintentionally lost columns
 supportR::diff_check(old = names(disc_v3), new = names(disc_v4))
@@ -503,15 +557,60 @@ for (i in 1:length(site_names)){
 # Q_interp_summary = ldply(date_list)
 disc_v6 = do.call(rbind, Q_interp)
 
+##### !!! may need to fix - the interpolated sites lose information in the "LTER", "Discharge_File_Name", and "Stream_Name" columns
+# but we link with chemistry using "Stream_ID" so probably OK
 glimpse(disc_v6)
+  
 
+# Remove sites with limited data ## UNDER CONSTRUCTION ## ------------------------------------------
+low_n <- chem_v4 |> 
+  dplyr::mutate(Stream_Element_ID = paste0(Stream_ID, "_", variable),
+                .before = dplyr::everything()) %>% 
+  group_by(Stream_Element_ID) |> 
+  summarise(n=n()) |> 
+  filter(n<45)
+
+high_cens <- chem_v4 |> 
+  dplyr::mutate(Stream_Element_ID = paste0(Stream_ID, "_", variable),
+                .before = dplyr::everything()) %>% 
+  mutate(remark_2 = ifelse(remarks == "<",1,0)) |> 
+  group_by(Stream_Element_ID,remark_2) |>
+  summarise(cens_n = n()) |> 
+  pivot_wider(names_from = "remark_2",values_from="cens_n")
+
+colnames(high_cens) <- c("Stream_Element_ID","no","yes")
+
+# remove cases where censored values are greater than some proportion of total - here is 1/3
+high_cens_2 <- high_cens |> 
+  mutate(test = case_when((yes)/(yes+no) >= 0.33 ~ "remove",
+                          .default = "keep")) |> 
+  filter(test == "remove")
+
+glimpse(high_cens_2)
+
+to_remove <- full_join(low_n,high_cens_2,by="Stream_Element_ID") %>% 
+  separate(Stream_Element_ID,into=c("LTER","Stream_Element"), sep="__", remove=FALSE, extra="merge") %>% 
+  separate(Stream_Element, into=c("Stream_Name","Element"), sep="_",remove=FALSE, extra="merge")
+
+chem_v5 <- chem_v4 |> 
+  dplyr::mutate(Stream_Element_ID = paste0(Stream_ID, "_", variable),
+                .before = dplyr::everything()) %>% 
+  filter(!Stream_Element_ID %in% to_remove$Stream_Element_ID)
+
+# check how many removed
+chem_v4 <- chem_v4 %>% dplyr::mutate(Stream_Element_ID = paste0(Stream_ID, "_", variable),
+              .before = dplyr::everything()) 
+
+length(unique(chem_v4$Stream_Element_ID))-length(unique(chem_v5$Stream_Element_ID))
+
+length(unique(chem_v5$Stream_ID))
 
 
 ## ---------------------------------------------- ##
           # Final Processing & Export ----
 ## ---------------------------------------------- ##
 # Identify streams in all three datasets (information, chemistry, and discharge)
-incl_streams <- intersect(x = intersect(x = disc_v6$Stream_ID, y = chem_v4$Stream_ID),
+incl_streams <- intersect(x = intersect(x = disc_v6$Stream_ID, y = chem_v5$Stream_ID),
                           y = wrtds_info$Stream_ID)
 
 # Filter to only those streams & drop unneeded name columns
@@ -525,8 +624,8 @@ dplyr::glimpse(discharge)
 # Check for gained/lost streams
 supportR::diff_check(old = unique(disc_v6$Stream_ID), new = unique(discharge$Stream_ID))
 
-# Do the same for chemistry
-chemistry <- chem_v4 %>%
+# Do the same for chemistry - NEED TO UPDATE chem version
+chemistry <- chem_v5 %>%
   dplyr::filter(Stream_ID %in% incl_streams) %>%
   dplyr::select(-LTER, -Discharge_File_Name, -Stream_Name) %>%
   # Make a column for Stream_ID + Chemical
@@ -553,13 +652,13 @@ supportR::diff_check(old = unique(wrtds_info$Stream_ID), new = unique(informatio
 
 # Write these final products out for posterity
 write.csv(x = discharge, row.names = F, na = "",
-          file = file.path(path, "WRTDS Inputs_Feb2024",
+          file = file.path(path, "WRTDS Inputs",
                            "WRTDS-input_discharge.csv"))
 write.csv(x = chemistry, row.names = F, na = "",
-          file = file.path(path, "WRTDS Inputs_Feb2024",
+          file = file.path(path, "WRTDS Inputs",
                            "WRTDS-input_chemistry.csv"))
 write.csv(x = information, row.names = F, na = "",
-          file = file.path(path, "WRTDS Inputs_Feb2024",
+          file = file.path(path, "WRTDS Inputs",
                            "WRTDS-input_information.csv"))
 
 # Export them to Google Drive to in case anyone has other uses for them
@@ -567,13 +666,13 @@ write.csv(x = information, row.names = F, na = "",
 tidy_dest <- googledrive::as_id("https://drive.google.com/drive/u/0/folders/1QEofxLdbWWLwkOTzNRhI6aorg7-2S3JE")
 ## Export to it
 googledrive::drive_upload(path = tidy_dest, overwrite = T,
-                          media = file.path(path, "WRTDS Inputs_Feb2024",
+                          media = file.path(path, "WRTDS Inputs",
                                             "WRTDS-input_discharge.csv"))
 googledrive::drive_upload(path = tidy_dest, overwrite = T,
-                          media = file.path(path, "WRTDS Inputs_Feb2024",
+                          media = file.path(path, "WRTDS Inputs",
                                             "WRTDS-input_chemistry.csv"))
 googledrive::drive_upload(path = tidy_dest, overwrite = T,
-                          media = file.path(path, "WRTDS Inputs_Feb2024",
+                          media = file.path(path, "WRTDS Inputs",
                                             "WRTDS-input_information.csv"))
 
 ## ---------------------------------------------- ##
