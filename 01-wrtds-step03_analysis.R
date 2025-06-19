@@ -156,10 +156,15 @@ new_bads <- c("UK__EDEN AT PENSHURST / VEXOUR BRIDGE_NO3",
               "Australia__PEEL RIVER AT UPSTREAM PARADISE WEIR_NOx",
               'KRR__S65_NH4','LUQ__Q2_DSi','LUQ__Q2_NH4',
               # min num uncens
-              "HBR__ws7_P", 'HBR__ws8_P', 'LMP__LMP73_NH4', 'LMP__LMP73_P')
+              "HBR__ws7_P", 'HBR__ws8_P', 'LMP__LMP73_NH4', 'LMP__LMP73_P'
+              )
 
               
-skipped <- c()
+skipped <- c("LUQ__Q2_NOx", "LUQ_Q2_P","LUQ__Q2_P",                                        
+              "LUQ__RI_DSi",                                      
+               "LUQ__RI_NH4",                                      
+               "LUQ__RI_NOx",                                      
+               "MCM__Onyx River at Lower Wright Weir_NH4" )
 
 
 
@@ -189,6 +194,7 @@ rivers_to_do <- sort(setdiff(x = unique(good_rivers),
 # What are the next few that will be processed and how many total left?
 rivers_to_do[1:5]; length(rivers_to_do)
 
+river=river
 
 # Loop across rivers and elements to run WRTDS workflow!
 #for(river in rivers_to_do){ # actual loop
