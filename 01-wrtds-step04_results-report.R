@@ -18,8 +18,8 @@ rm(list = ls())
 (path <- scicomptools::wd_loc(local = FALSE, remote_path = file.path('/', "home", "shares", "lter-si", "WRTDS")))
 
 # Create a new folder for saving temporary results
-dir.create(path = file.path(path, "WRTDS Results_Feb2024"), showWarnings = F)
-dir.create(path = file.path(path, "WRTDS Bootstrap Results_Feb2024"), showWarnings = F)
+dir.create(path = file.path(path, "WRTDS Results_2025"), showWarnings = F)
+dir.create(path = file.path(path, "WRTDS Bootstrap Results"), showWarnings = F)
 
 # Download the reference table object
 googledrive::drive_ls(googledrive::as_id("https://drive.google.com/drive/u/0/folders/15FEoe2vu3OAqMQHqdQ9XKpFboR4DvS9M"), pattern = "WRTDS_Reference_Table_with_Areas_DO_NOT_EDIT.csv") %>%
@@ -37,13 +37,13 @@ dplyr::glimpse(ref_table)
 
 # Define the GoogleDrive URL to upload flat results files
 ## Original destination
-dest_url <- googledrive::as_id("https://drive.google.com/drive/u/0/folders/1V5EqmOlWA8U9NWfiBcWdqEH9aRAP-zCk")
+dest_url <- googledrive::as_id("https://drive.google.com/drive/u/1/folders/1V5EqmOlWA8U9NWfiBcWdqEH9aRAP-zCk")
 
 # Check current contents of this folder
 googledrive::drive_ls(path = dest_url)
 
 # Identify complete rivers for typical workflow
-done_rivers <- data.frame("file" = dir(path = file.path(path, "WRTDS Loop Diagnostic_Feb2024"))) %>%
+done_rivers <- data.frame("file" = dir(path = file.path(path, "WRTDS Loop Diagnostic_2025"))) %>%
   # Drop the file suffix part of the file name 
   dplyr::mutate(river = gsub(pattern = "\\_Loop\\_Diagnostic.csv", replacement = "", x = file)) %>%
   # Pull out just that column
@@ -59,7 +59,13 @@ done_boots <- data.frame("file" = dir(path = file.path(path, "WRTDS Bootstrap Di
 ## ---------------------------------------------- ##
 
 # List all files in "WRTDS Outputs"
-wrtds_outs_v0 <- dir(path = file.path(path, "WRTDS Outputs_Feb2024"))
+wrtds_outs_v0 <- dir(path = file.path(path, "WRTDS Outputs_2025"))
+
+wrtds_outs_v1 <- data.frame("file_name" = wrtds_outs_v0) %>% 
+  # Split LTER off the file name
+  tidyr::separate(col = file_name, into = c("LTER", "other_content"),
+                  sep = "__", remove = FALSE, fill = "right", extra = "merge") %>% 
+  filter(LTER == "Finnish Environmental Institute")
 
 # Do some useful processing of that object
 wrtds_outs <- data.frame("file_name" = wrtds_outs_v0) %>%
@@ -108,7 +114,7 @@ for(type in out_types){
   for(file in file_set){
    
     # Read in CSV and add it to the list
-    datum <- read.csv(file = file.path(path, "WRTDS Outputs_Feb2024", file))
+    datum <- read.csv(file = file.path(path, "WRTDS Outputs_2025", file))
     
     # Add it to the list
     sub_list[[paste0(type, "_", k)]] <- datum %>%
@@ -551,7 +557,7 @@ for(name in names(export_list)){
   datum <- export_list[[name]]
   
   # Define name for this file
-  report_file <- file.path(path, "WRTDS Results_Feb2024", paste0("Full_Results_", name))
+  report_file <- file.path(path, "WRTDS Results_2025", paste0("Full_Results_", name))
   
   # Write this CSV out
   write.csv(x = datum, na = "", row.names = F, file = report_file)
@@ -604,7 +610,7 @@ for(report in unique(pdf_outs$file_name)){
 #for(report in new_pdfs){
 
   # Send that report to a GoogleDrive folder
-  googledrive::drive_upload(media = file.path(path, "WRTDS Outputs_Feb2024", report),
+  googledrive::drive_upload(media = file.path(path, "WRTDS Outputs_2025", report),
                             overwrite = T, path = pdf_url) }
 
 # Clear environment of everything but the filepath, destination URL, and ref_table
