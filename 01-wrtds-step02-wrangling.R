@@ -26,7 +26,7 @@ dir.create(path = file.path(path, "WRTDS Inputs"), showWarnings = F)
 file_names <- c("WRTDS_Reference_Table_with_Areas_DO_NOT_EDIT.csv", # No.1 Simplified ref table
                 "Site_Reference_Table", # No.2 Full ref table
                 "20250527_masterdata_discharge.csv", # No.3 Main discharge ## update this file with new discharge!!
-                "20241003_masterdata_chem.csv", # No.4 Main chemistry ## update this file with new chemistry!!
+                "20250602_masterdata_chem.csv", # No.4 Main chemistry ## update this file with new chemistry!!
                 "Data_Cropping_WRTDS", # No.5 Data cropping for chemistry (Si)
                 "Discharge_Cropping_WRTDS")  # No.6 Data cropping for discharge
 
