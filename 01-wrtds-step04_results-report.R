@@ -87,6 +87,12 @@ wrtds_outs <- data.frame("file_name" = wrtds_outs_v0) %>%
 # Glimpse it
 dplyr::glimpse(wrtds_outs)
 
+# quantify how many of each element there are
+wrtds_outs %>% 
+  group_by(Stream_Element_ID,chemical,stream) %>% 
+  summarise(n=n()) %>% 
+  aggregate(stream~chemical, FUN=length)
+
 # Create an empty list
 out_list <- list()
 
@@ -584,7 +590,7 @@ pdf_outs <- data.frame("file_name" = wrtds_outs_v0) %>%
   # Recreate the "Stream_Element_ID" column
   dplyr::mutate(Stream_Element_ID = paste0(LTER, "__", stream, "_", chemical)) %>%
   # Remove the PDFs of exploratory graphs
-  dplyr::filter(data_type == "WRTDS_GFN_output.pdf") %>%
+  dplyr::filter(data_type == "WRTDS_output.pdf") %>%
   # Remove unwanted chemicals that we have data for
   dplyr::filter(!chemical %in% c("TN", "TP")) %>%
   # Keep only rivers that finish the whole workflow!
@@ -595,7 +601,7 @@ dplyr::glimpse(pdf_outs)
 
 # Identify PDF folder
 ## Standard output destination
-pdf_url <- googledrive::as_id("https://drive.google.com/drive/folders/1sqgNj0OPrquEe2_IyKn8Bplb_VFoPg7X")
+pdf_url <- googledrive::as_id("https://drive.google.com/drive/folders/1Sx0A5C8nk53ft2Ip28q4PipnjYYwi3D7")
 
 # Identify PDFs already in GoogleDrive
 drive_pdfs <- googledrive::drive_ls(path = pdf_url)
