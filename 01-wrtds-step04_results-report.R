@@ -269,8 +269,8 @@ monthly <- out_list[["Monthly_GFN_WRTDS.csv"]] %>%
   dplyr::rename(Discharge_cms = Q,
                 Conc_mgL = Conc,
                 FNConc_mgL = FNConc,
-                Flux_10_6kg_yr = Flux,
-                FNFlux_10_6kg_yr = FNFlux) %>%
+                Flux_kg_day = Flux,
+                FNFlux_kg_day = FNFlux) %>%
   # Do some unit conversions
   dplyr::mutate(
     Conc_uM = dplyr::case_when(
@@ -281,19 +281,19 @@ monthly <- out_list[["Monthly_GFN_WRTDS.csv"]] %>%
       chemical %in% c("DSi") ~ (FNConc_mgL / 28) * 1000,
       chemical %in% c("NOx", "NH4", "NO3", "TN") ~ (FNConc_mgL / 14) * 1000,
       chemical %in% c("P", "TP") ~ (FNConc_mgL / 30.9) * 1000),
-    Flux_10_6kmol_yr = dplyr::case_when(
-      chemical %in% c("DSi") ~ (Flux_10_6kg_yr / 28),
-      chemical %in% c("NOx", "NH4", "NO3", "TN") ~ (Flux_10_6kg_yr / 14),
-      chemical %in% c("P", "TP") ~ (Flux_10_6kg_yr / 30.9)),
-    FNFlux_10_6kmol_yr = dplyr::case_when(
-      chemical %in% c("DSi") ~ (FNFlux_10_6kg_yr / 28),
-      chemical %in% c("NOx", "NH4", "NO3", "TN") ~ (FNFlux_10_6kg_yr / 14),
-      chemical %in% c("P", "TP") ~ (FNFlux_10_6kg_yr / 30.9)) ) %>%
+    Flux_kmol_day = dplyr::case_when(
+      chemical %in% c("DSi") ~ (Flux_kg_day / 28),
+      chemical %in% c("NOx", "NH4", "NO3", "TN") ~ (Flux_kg_day / 14),
+      chemical %in% c("P", "TP") ~ (Flux_kg_day / 30.9)),
+    FNFlux_kmol_day = dplyr::case_when(
+      chemical %in% c("DSi") ~ (FNFlux_kg_day / 28),
+      chemical %in% c("NOx", "NH4", "NO3", "TN") ~ (FNFlux_kg_day / 14),
+      chemical %in% c("P", "TP") ~ (FNFlux_kg_day / 30.9)) ) %>%
   # Move area to the left
   dplyr::relocate(drainSqKm, .after = stream) %>%
   # Calculate ratios of different chemicals
   ## Pivot longer to get various responses into a column
-  tidyr::pivot_longer(cols = Discharge_cms:FNFlux_10_6kmol_yr,
+  tidyr::pivot_longer(cols = Discharge_cms:FNFlux_kmol_day,
                       names_to = "response_types",
                       values_to = "response_values") %>%
   # Handle "duplicate" values for sites that break across a year so have two values for one year
@@ -316,7 +316,7 @@ monthly <- out_list[["Monthly_GFN_WRTDS.csv"]] %>%
                 Si_to_P = ifelse(test = (!is.na(DSi) & !is.na(P)),
                                    yes = (DSi / P), no = NA)) %>%
   ## Pivot back long
-  tidyr::pivot_longer(cols = DSi:Si_to_P,
+  tidyr::pivot_longer(cols = NOx:Si_to_P,
                       names_to = "chemical",
                       values_to = "response_values") %>%
   ## Drop NAs this pivot introduces
@@ -331,12 +331,12 @@ monthly <- out_list[["Monthly_GFN_WRTDS.csv"]] %>%
   # Reorder column names
   dplyr::select(LTER:chemical, Discharge_cms,
                 dplyr::ends_with("Conc_mgL"), dplyr::ends_with("Conc_uM"),
-                dplyr::ends_with("Flux_10_6kg_yr"), dplyr::ends_with("Flux_10_6kmol_yr")) %>%
+                dplyr::ends_with("Flux_kg_day"), dplyr::ends_with("Flux_kmol_day")) %>%
   # Calculate yield for both units
-  dplyr::mutate(Yield = Flux_10_6kg_yr / drainSqKm,
-                FNYield = FNFlux_10_6kg_yr / drainSqKm,
-                Yield_10_6kmol_yr_km2 = Flux_10_6kmol_yr / drainSqKm,
-                FNYield_10_6kmol_yr_km2 = FNFlux_10_6kmol_yr / drainSqKm)%>% 
+  dplyr::mutate(Yield = Flux_kg_day / drainSqKm,
+                FNYield = FNFlux_kg_day / drainSqKm,
+                Yield_kmol_day_km2 = Flux_kmol_day / drainSqKm,
+                FNYield_kmol_day_km2 = FNFlux_kmol_day / drainSqKm)%>% 
   dplyr::rename(Stream_Name = stream)
 
 # Check it out
@@ -363,10 +363,10 @@ kalman_monthly <- out_list[["Monthly_Kalman_WRTDS.csv"]] %>%
     TRUE ~ ""), .after = Month) %>%
   # Rename columns to be more explicit about starting units
   dplyr::rename(Discharge_cms = Q,
-                Conc_mgL = Conc,
+                Conc_mgL = GenConc,
                 FNConc_mgL = FNConc,
-                Flux_10_6kg_yr = Flux,
-                FNFlux_10_6kg_yr = FNFlux) %>%
+                Flux_kg_day = GenFlux,
+                FNFlux_kg_day = FNFlux) %>%
   # Do some unit conversions
   dplyr::mutate(
     Conc_uM = dplyr::case_when(
@@ -377,19 +377,19 @@ kalman_monthly <- out_list[["Monthly_Kalman_WRTDS.csv"]] %>%
       chemical %in% c("DSi") ~ (FNConc_mgL / 28) * 1000,
       chemical %in% c("NOx", "NH4", "NO3", "TN") ~ (FNConc_mgL / 14) * 1000,
       chemical %in% c("P", "TP") ~ (FNConc_mgL / 30.9) * 1000),
-    Flux_10_6kmol_yr = dplyr::case_when(
-      chemical %in% c("DSi") ~ (Flux_10_6kg_yr / 28),
-      chemical %in% c("NOx", "NH4", "NO3", "TN") ~ (Flux_10_6kg_yr / 14),
-      chemical %in% c("P", "TP") ~ (Flux_10_6kg_yr / 30.9)),
-    FNFlux_10_6kmol_yr = dplyr::case_when(
-      chemical %in% c("DSi") ~ (FNFlux_10_6kg_yr / 28),
-      chemical %in% c("NOx", "NH4", "NO3", "TN") ~ (FNFlux_10_6kg_yr / 14),
-      chemical %in% c("P", "TP") ~ (FNFlux_10_6kg_yr / 30.9)) ) %>%
+    Flux_kmol_day = dplyr::case_when(
+      chemical %in% c("DSi") ~ (Flux_kg_day / 28),
+      chemical %in% c("NOx", "NH4", "NO3", "TN") ~ (Flux_kg_day / 14),
+      chemical %in% c("P", "TP") ~ (Flux_kg_day / 30.9)),
+    FNFlux_kmol_day = dplyr::case_when(
+      chemical %in% c("DSi") ~ (FNFlux_kg_day / 28),
+      chemical %in% c("NOx", "NH4", "NO3", "TN") ~ (FNFlux_kg_day / 14),
+      chemical %in% c("P", "TP") ~ (FNFlux_kg_day / 30.9)) ) %>%
   # Move area to the left
   dplyr::relocate(drainSqKm, .after = stream) %>%
   # Calculate ratios of different chemicals
   ## Pivot longer to get various responses into a column
-  tidyr::pivot_longer(cols = Discharge_cms:FNFlux_10_6kmol_yr,
+  tidyr::pivot_longer(cols = Discharge_cms:FNFlux_kmol_day,
                       names_to = "response_types",
                       values_to = "response_values") %>%
   # Handle "duplicate" values for sites that break across a year so have two values for one year
@@ -412,7 +412,7 @@ kalman_monthly <- out_list[["Monthly_Kalman_WRTDS.csv"]] %>%
                 Si_to_P = ifelse(test = (!is.na(DSi) & !is.na(P)),
                                  yes = (DSi / P), no = NA)) %>%
   ## Pivot back long
-  tidyr::pivot_longer(cols = DSi:Si_to_P,
+  tidyr::pivot_longer(cols = NOx:Si_to_P,
                       names_to = "chemical",
                       values_to = "response_values") %>%
   ## Drop NAs this pivot introduces
@@ -427,12 +427,12 @@ kalman_monthly <- out_list[["Monthly_Kalman_WRTDS.csv"]] %>%
   # Reorder column names
   dplyr::select(LTER:chemical, Discharge_cms,
                 dplyr::ends_with("Conc_mgL"), dplyr::ends_with("Conc_uM"),
-                dplyr::ends_with("Flux_10_6kg_yr"), dplyr::ends_with("Flux_10_6kmol_yr")) %>%
+                dplyr::ends_with("Flux_kg_day"), dplyr::ends_with("Flux_kmol_day")) %>%
   # Calculate yield for both units
-  dplyr::mutate(Yield = Flux_10_6kg_yr / drainSqKm,
-                FNYield = FNFlux_10_6kg_yr / drainSqKm,
-                Yield_10_6kmol_yr_km2 = Flux_10_6kmol_yr / drainSqKm,
-                FNYield_10_6kmol_yr_km2 = FNFlux_10_6kmol_yr / drainSqKm)%>% 
+  dplyr::mutate(Yield = Flux_kg_day / drainSqKm,
+                FNYield = FNFlux_kg_day / drainSqKm,
+                Yield_kmol_day_km2 = Flux_kmol_day / drainSqKm,
+                FNYield_kmol_day_km2 = FNFlux_kmol_day / drainSqKm)%>% 
   dplyr::rename(Stream_Name = stream)
 
 # Check it out
