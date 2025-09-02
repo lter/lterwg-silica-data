@@ -164,7 +164,7 @@ skipped <- c("LUQ__Q2_NOx", "LUQ_Q2_P","LUQ__Q2_P",
               "LUQ__RI_DSi",                                      
                "LUQ__RI_NH4",                                      
                "LUQ__RI_NOx",                                      
-               "MCM__Onyx River at Lower Wright Weir_NH4" )
+               "MCM__Onyx River at Lower Wright Weir_NH4")
 
 
 
