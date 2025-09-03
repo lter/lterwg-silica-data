@@ -190,11 +190,10 @@ done_rivers <- data.frame("file" = dir(path = file.path(path, "WRTDS Loop Diagno
 rivers_to_do <- sort(setdiff(x = unique(good_rivers), 
                           y = c(unique(done_rivers$river), new_bads, skipped)))
 
+river = good_rivers[80]
 
 # What are the next few that will be processed and how many total left?
 rivers_to_do[1:5]; length(rivers_to_do)
-
-river=river
 
 # Loop across rivers and elements to run WRTDS workflow!
 #for(river in rivers_to_do){ # actual loop
@@ -319,17 +318,16 @@ river=river
   
   # original outputs
   if(stream_element_id %in% crop_v1$Stream_element_ID){
-    egret_list_out <- EGRET::blankTime(eList=egret_estimation, 
+    egret_estimation <- EGRET::blankTime(eList=egret_estimation, 
                                        startBlank=unique(crop_v1[which(crop_v1$Stream_element_ID == stream_element_id),]$BlankTime_Start_Date),
                                        endBlank = unique(crop_v1[which(crop_v1$Stream_element_ID == stream_element_id),]$BlankTime_End_Date)) }
   
   
   # Kalman outputs
   if(stream_element_id %in% crop_v1$Stream_element_ID){
-    egret_list_out <- EGRET::blankTime(eList=egret_kalman, 
+    egret_kalman <- EGRET::blankTime(eList=egret_kalman, 
                                        startBlank=unique(crop_v1[which(crop_v1$Stream_element_ID == stream_element_id),]$BlankTime_Start_Date),
                                        endBlank = unique(crop_v1[which(crop_v1$Stream_element_ID == stream_element_id),]$BlankTime_End_Date)) }
-  
   
   
   ## OLD ##
@@ -405,7 +403,8 @@ river=river
   
   # Create annual averages
   egret_annual <- EGRET::tableResults(eList = egret_list_out)
-  egret_annual_kalman <- EGRET::setupYears(localDaily = egret_kalman$Daily)
+  egret_annual_kalman <- EGRET::tableResults(eList=egret_kalman)
+  #egret_annual_kalman <- EGRET::setupYears(localDaily = egret_kalman$Daily)
   
   # Export both as CSVs also
   write.csv(x = egret_annual, file.path(path, "WRTDS Outputs_2025", paste0(out_prefix, "ResultsTable_GFN_WRTDS.csv")), row.names = F, na = "")
