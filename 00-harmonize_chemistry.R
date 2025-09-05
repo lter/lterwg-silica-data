@@ -1,7 +1,7 @@
 ## ---------------------------------------------------------- ##
             # Chemistry - Harmonization & Wrangling
 ## ---------------------------------------------------------- ##
-# Script author(s): Nick J Lyon
+# Script author(s): Nick J Lyon, Kathi Jo Jankowski, Paul Julian
 
 # PURPOSE:
 ## Ingest all chemistry files and perform harmonization necessary for creation of 'master' file
@@ -102,6 +102,8 @@ dplyr::glimpse(units_key)
 
 # Make an empty list to store re-formatted raw data
 df_list <- list()
+
+j=j
 
 # For each raw file...
 for(j in 1:length(raw_files)){
@@ -372,6 +374,8 @@ tidy_v2b <- tidy_v2a %>%
     ### None yet!
     # If not broken, leave alone!
     T ~ measurement)) %>%
+  # remove values that contain [] from swedish dataset
+  dplyr::filter(!str_detect(measurement,"]")) %>% 
   # Filter out all NAs (don't worry we'll get them back momentarily)
   dplyr::filter(!is.na(measurement))
 
@@ -433,13 +437,16 @@ tidy_v3b <- tidy_v3a %>%
   dplyr::select(-alkalinity_uEq_l, -alkalinity_ueq_L) %>%
   dplyr::rename(alkalinity_ueq_L = alka_actual) %>%
   # Conductivity (uS/cm) 
-  dplyr::mutate(cond_actual = dplyr::coalesce(conduct_uS_cm,conductivity_uS_cm, fldcond_uscm_uS_cm,conductivity_us_cm), 
+  dplyr::mutate(cond_actual = dplyr::coalesce(conduct_uS_cm,conductivity_uS_cm, cond_uscm_uS_cm,
+                                              `conductivity_at_25°c_uS_cm`,fldcond_uscm_uS_cm,
+                                              labcond_uscm_uS_cm,conductivity_us_cm), 
                 .after = conductivity_uS_cm) %>%
-  dplyr::select(-conduct_uS_cm, -conductivity_uS_cm, -fldcond_uscm_uS_cm,-conductivity_us_cm) %>%
+  dplyr::select(-conduct_uS_cm, -conductivity_uS_cm, -fldcond_uscm_uS_cm,-conductivity_us_cm,-cond_uscm_uS_cm,
+                -`conductivity_at_25°c_uS_cm`,-labcond_uscm_uS_cm) %>%
   dplyr::rename(conductivity_uS_cm = cond_actual) %>%
   # Chl a 
-  dplyr::mutate(chla_actual = dplyr::coalesce(chl_a_ug_L, chla_ug_L, suspended_chl_ug_L), .after = chla_ug_L) %>%
-  dplyr::select(-chl_a_ug_L, -chla_ug_L,-suspended_chl_ug_L) %>%
+  dplyr::mutate(chla_actual = dplyr::coalesce(chl_a_ug_L, chla_ug_L, suspended_chl_ug_L,chla_ugl_ug_L), .after = chla_ug_L) %>%
+  dplyr::select(-chl_a_ug_L, -chla_ug_L,-suspended_chl_ug_L,-chla_ugl_ug_L) %>%
   dplyr::rename(chla_ug_L = chla_actual) %>% 
   # DO 
   dplyr::mutate(do_actual = dplyr::coalesce(do_mg_L, do_mg_O2_L), .after = do_mg_O2_L) %>%
@@ -458,9 +465,13 @@ tidy_v3b <- tidy_v3a %>%
   dplyr::select(-cl_mgl_mg_L,-cl_mg_L) %>%
   dplyr::rename(cl_mg_L = cl_actual) |> 
   # DOC
-  dplyr::mutate(doc_actual = dplyr::coalesce(doc_mgl_mg_C_L,doc_mg_C_L,doc_mg_L)) %>%
-  dplyr::select(-doc_mgl_mg_C_L,-doc_mg_C_L,-doc_mg_L) %>%
-  dplyr::rename(doc_mg_L = doc_actual) |> 
+  dplyr::mutate(doc_actual = dplyr::coalesce(doc_mgl_mg_C_L,doc_mg_C_L,doc_mg_L,doc_mgl_mg_L)) %>%
+  dplyr::select(-doc_mgl_mg_C_L,-doc_mg_C_L,-doc_mg_L,-doc_mgl_mg_L) %>%
+  dplyr::rename(doc_mg_L = doc_actual) |>
+  # TOC
+  dplyr::mutate(toc_actual = dplyr::coalesce(toc_mgl_mg_L,toc_mg_L,toc_mg_C_L)) %>%
+  dplyr::select(-toc_mgl_mg_L,-toc_mg_L,-toc_mg_C_L) %>%
+  dplyr::rename(toc_mg_L = toc_actual) |>
   # Fluorine
   dplyr::mutate(f_actual = dplyr::coalesce(f_mgl_mg_L,f_mg_L)) %>%
   dplyr::select(-f_mgl_mg_L,-f_mg_L) %>%
@@ -486,11 +497,23 @@ dplyr::mutate(mg_actual = dplyr::coalesce(mg_mg_L,mg_mgl_mg_L)) %>%
 # NH4
 dplyr::mutate(nh4_actual = dplyr::coalesce(nh4_mgl_mg_L,nh4_mg_NH4_L)) %>%
   dplyr::select(-nh4_mgl_mg_L,-nh4_mg_NH4_L) %>%
-  dplyr::rename(nh4_mg_NH4_L = nh4_actual) |> 
+  dplyr::rename(nh4_mg_NH4_L = nh4_actual) |>
+  # NH4 - N
+  dplyr::mutate(nh4_N_actual = dplyr::coalesce(nh4_mgl_mg_NH4_N_L,nh4_mg_NH4_N_L)) %>%
+  dplyr::select(-nh4_mgl_mg_NH4_N_L,-nh4_mg_NH4_N_L) %>%
+  dplyr::rename(nh4_mg_NH4_N_L = nh4_N_actual) |>
   # NO3
-  dplyr::mutate(no3_actual = dplyr::coalesce(no3_mgl_mg_NO3_L,no3_mg_NO3_L)) %>%
-  dplyr::select(-no3_mgl_mg_NO3_L,-no3_mg_NO3_L) %>%
+  dplyr::mutate(no3_actual = dplyr::coalesce(no3_mgl_mg_NO3_L,no3_mg_NO3_L,no3_mgl_mg_NO3_L)) %>%
+  dplyr::select(-no3_mgl_mg_NO3_L,-no3_mg_NO3_L,-no3_mgl_mg_NO3_L) %>%
   dplyr::rename(no3_mg_NO3_L = no3_actual) |> 
+  # NO3-N
+  dplyr::mutate(no3_N_actual = dplyr::coalesce(no3_mgl_mg_NO3_N_L,no3_mg_NO3_N_L)) %>%
+  dplyr::select(-no3_mg_NO3_N_L,-no3_mgl_mg_NO3_N_L) %>%
+  dplyr::rename(no3_mg_NO3_N_L = no3_N_actual) |>
+  #NO2
+  dplyr::mutate(no2_actual = dplyr::coalesce(no2_mgl_mg_NO2_N_L,no2_mg_NO2_N_L)) %>%
+  dplyr::select(-no2_mgl_mg_NO2_N_L,-no2_mg_NO2_N_L) %>%
+  dplyr::rename(no2_mg_NO2_N_L = no2_actual) |>
   # PO4
   dplyr::mutate(po4_actual = dplyr::coalesce(po4_mg_PO4_L,po4_mgl_mg_PO4_L)) %>%
   dplyr::select(-po4_mgl_mg_PO4_L,-po4_mg_PO4_L) %>%
@@ -640,6 +663,7 @@ PO4_mw <- P_mw + (O_mw * 4)
 SO4_mw <- S_mw + (O_mw * 4)
 
 # Need to do unit conversions to get each metric into a single, desired unit
+# still need to fix issue with NO3-N and NO2-N
 tidy_v4b <- tidy_v4a %>%
   dplyr::mutate(al_uM = dplyr::case_when(
     !is.na(al_mg_L) ~ al_mg_L/Al_mw * 10^3,
@@ -813,10 +837,10 @@ tidy_v4b <- tidy_v4a %>%
   # Total Organic Carbon (TOC)
   dplyr::mutate(toc_uM = dplyr::case_when(
     !is.na(toc_uM) ~ toc_uM,
-    is.na(toc_uM) & !is.na(toc_mg_C_L) ~ (toc_mg_C_L / C_mw) * 10^3,
+    #is.na(toc_uM) & !is.na(toc_mg_C_L) ~ (toc_mg_C_L / C_mw) * 10^3,
     is.na(toc_uM) & !is.na(toc_mg_L) ~ (toc_mg_L / C_mw) * 10^3,
     T ~ NA)) %>%
-  dplyr::select(-toc_mg_C_L, -toc_mg_L) %>%
+  dplyr::select(-toc_mg_L) %>%
   # Total Phosphorus (TP)
   dplyr::mutate(tp_uM = dplyr::case_when(
     !is.na(tp_uM) ~ tp_uM,
