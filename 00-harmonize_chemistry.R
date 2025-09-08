@@ -1071,11 +1071,7 @@ tidy_v7d <- tidy_v7c %>%
     .default = value
   ))
 
-# fix Finnish names - under construction
-
-# check finnish river names 
-fin <- tidy_v7d |> 
-  filter(LTER == "Finnish Environmental Institute")
+# fix Finnish names
 
 # Condense Finnish site synonym names
 ## A given site has one name for silica and a diff name for all other chemicals
@@ -1201,18 +1197,20 @@ tidy_v8b <- tidy_v8a %>%
     Raw_Filename == "Alpine_Clean.csv"~ "ymd",
     Raw_Filename == "Finnish_riverine_data_07032025.csv"~ "mdy",
     Raw_Filename == "NIVA_geogenic_clean.csv" ~ "ymd",
-    Raw_Filename == "Cleaned_Seine_Data.csv"~ "mdy", # need to fix
+    Raw_Filename == "Cleaned_Seine_Data.csv"~ "mdy",
     Raw_Filename == "SwedishGovtCationData_Clean.csv"~ "mdy",
     Raw_Filename == "guadeloupe_GRCBDMDF_chem.csv" ~ "ymd",
-    Raw_Filename =="guadeloupe_GRCBDPBD_chem.csv " ~ "ymd",
-    Raw_Filename =="guadeloupe_GRCBDQCK_chem.csv " ~ "ymd",
-    Raw_Filename =="guadeloupe_GRCCEDIG_chem.csv " ~ "ymd",
-    Raw_Filename =="guadeloupe_GRCVHBAR_chem.csv " ~ "ymd",
-    Raw_Filename =="guadeloupe_GRCVHSAV_chem.csv " ~ "ymd",
+    Raw_Filename == "guadeloupe_GRCBDPBD_chem.csv" ~ "ymd",
+    Raw_Filename == "guadeloupe_GRCBDQCK_chem.csv" ~ "ymd",
+    Raw_Filename == "guadeloupe_GRCCEDIG_chem.csv" ~ "ymd",
+    Raw_Filename == "guadeloupe_GRCVHBAR_chem.csv" ~ "ymd",
+    Raw_Filename == "guadeloupe_GRCVHSAV_chem.csv" ~ "ymd",
     Raw_Filename == "swedish_government_chem_090525.csv" ~ "mdy",
     Raw_Filename == "yzeron_301502401_chem.csv"~ "ymd",
     Raw_Filename == "yzeron_v301502402_chem.csv" ~ "ymd",
     Raw_Filename == "yzeron_v3015810_chem.csv" ~ "ymd",
+    Raw_Filename == "Krycklan_Cation_Clean.csv" ~ "mdy",
+    Raw_Filename == "swedish_government_chem_090525.csv" ~ "mdy",
     # Raw_Filename == "" ~ "",
     T ~ "UNKNOWN"))
 
