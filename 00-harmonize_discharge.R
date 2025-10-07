@@ -16,7 +16,7 @@ library(readxl)
 library(supportR)
 
 # file for raw discharge data files
-setwd("C:/Users/kjankowski/OneDrive - DOI/Documents/Projects/SilicaSynthesis/Data/Discharge")
+setwd("~/Documents/Work/Silica/Data/Discharge")
 dir.create(path = file.path("discharge_raw"), showWarnings = F)
 dir.create(path = file.path("discharge_tidy"), showWarnings = F)
 
@@ -69,7 +69,7 @@ csv_files_download <- csv_files %>%
 #### Download files from Google Drive to store locally
 # check working directory where files will be stored locally; separate folder within project folder
 
-setwd("C:/Users/kjankowski/OneDrive - DOI/Documents/Projects/SilicaSynthesis/Data/Discharge/discharge_raw")
+setwd("~/Documents/Work/Silica/Data/Discharge/discharge_raw")
 
 # download each file to the working directory; files are saved locally
 for (i in 1:length(csv_files_download$drive_resource)) {
