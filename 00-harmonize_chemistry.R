@@ -828,8 +828,7 @@ tidy_v4b <- tidy_v4a %>%
     !is.na(so4_uM) ~ so4_uM,
     is.na(so4_uM) & !is.na(so4_ug_SO4_L) ~ (so4_ug_SO4_L / SO4_mw),
     is.na(so4_uM) & !is.na(so4_mg_SO4_L) ~ (so4_mg_SO4_L / SO4_mw) * 10^3,
-    # multiply by 3 to convert version in units of S to units of SO4 (?)
-    is.na(so4_uM) & !is.na(sulfates_mg_S_L) ~ ((sulfates_mg_S_L*3)/ SO4_mw) * 10^3, 
+    is.na(so4_uM) & !is.na(sulfates_mg_S_L) ~ (sulfates_mg_S_L/ S_mw) * 10^3, 
     T ~ NA)) %>%
   dplyr::select(-so4_mg_SO4_L,-so4_ug_SO4_L,-sulfates_mg_S_L) %>%
   # Strontium (Sr)
