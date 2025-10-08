@@ -21,12 +21,15 @@ rm(list = ls())
 # Silence group-wise summarization messages from `dplyr::summarize`
 options(dplyr.summarise.inform = F)
 
+# set up path to store files
+(path <- scicomptools::wd_loc(local = FALSE, remote_path = file.path('/', "home", "shares", "lter-si", "WRTDS")))
+
 # Create a folder for any needed data keys
-dir.create(path = file.path("keys"), showWarnings = F)
+dir.create(path = file.path(path, "keys"), showWarnings = F)
 
 # Create a folder for inputs & and outputs
-dir.create(path = file.path("chem_raw"), showWarnings = F)
-dir.create(path = file.path("tidy"), showWarnings = F)
+dir.create(path = file.path(path, "chem_raw"), showWarnings = F)
+dir.create(path = file.path(path, "tidy"), showWarnings = F)
 
 ## -------------------------------------------- ##
               # Data Acquisition ----
@@ -35,10 +38,10 @@ dir.create(path = file.path("tidy"), showWarnings = F)
 # Identify and download the data key
 googledrive::drive_ls(path = googledrive::as_id("https://drive.google.com/drive/folders/1hbkUsTdo4WAEUnlPReOUuXdeeXm92mg-")) %>%
   dplyr::filter(name == "SiSyn_Data_Key.xlsx") %>%
-  googledrive::drive_download(file = .$id, path = file.path("keys", .$name), overwrite = T)
+  googledrive::drive_download(file = .$id, path = file.path(path, "keys", .$name), overwrite = T)
 
 # Read in the key
-key_v1 <- readxl::read_excel(path = file.path("keys", "SiSyn_Data_Key.xlsx")) %>%
+key_v1 <- readxl::read_excel(path = file.path(path, "keys", "SiSyn_Data_Key.xlsx")) %>%
   # Subset to only chemistry data
   dplyr::filter(Data_type == "chemistry")
 
@@ -48,11 +51,11 @@ dplyr::glimpse(key_v1)
 # Identify and download the **units key** as well
 googledrive::drive_ls(path = googledrive::as_id("https://drive.google.com/drive/folders/1hbkUsTdo4WAEUnlPReOUuXdeeXm92mg-")) %>%
   dplyr::filter(name == "SiSyn_Chem_Units_Key") %>%
-  googledrive::drive_download(file = .$id, path = file.path("keys", .$name), 
+  googledrive::drive_download(file = .$id, path = file.path(path, "keys", .$name), 
                               overwrite = T, type = "csv")
 
 # Read it in
-units_key_v1 <- read.csv(file = file.path("keys", paste0("SiSyn_Chem_Units_Key", ".csv"))) %>%
+units_key_v1 <- read.csv(file = file.path(path, "keys", paste0("SiSyn_Chem_Units_Key", ".csv"))) %>%
   # Subset to only chemistry data
   dplyr::filter(Data_type == "chemistry")
 
@@ -72,7 +75,10 @@ chem_drive_actual <- chem_drive %>%
 # Download these files
 purrr::walk2(.x = chem_drive_actual$id, .y = chem_drive_actual$name,
              .f = ~ googledrive::drive_download(file = .x, overwrite = T,
-                                                path = file.path("chem_raw", .y)))
+                                                path = file.path(path, "chem_raw", .y)))
+
+# check what is in chemistry files folder 
+list.files(path = file.path(path,"chem_raw"))
 
 ## -------------------------------------------- ##
               # Data Harmonizing ----
@@ -98,7 +104,7 @@ units_key <- units_key_v1 %>%
 dplyr::glimpse(units_key)
 
 # Identify all downloaded files
-( raw_files <- dir(path = file.path("chem_raw")) )
+( raw_files <- dir(path = file.path(path, "chem_raw")) )
 
 # Make an empty list to store re-formatted raw data
 df_list <- list()
@@ -120,7 +126,7 @@ for(j in 1:length(raw_files)){
     dplyr::filter(!is.na(Standardized_Column_Name) & nchar(Standardized_Column_Name) != 0)
   
   # Load in that file
-  raw_df_v1 <- read.csv(file = file.path("chem_raw", focal_raw))
+  raw_df_v1 <- read.csv(file = file.path(path, "chem_raw", focal_raw))
   
   # Process it to ready for integration with other raw files
   raw_df_v2 <- raw_df_v1 %>%
@@ -456,8 +462,8 @@ tidy_v3b <- tidy_v3a %>%
   # anc 
   dplyr::rename(anc_ueq_L = anc_ueql_ueq_L) |> 
   # calcium
-  dplyr::mutate(ca_actual = dplyr::coalesce(ca_mgl_mg_L,ca_mg_L)) %>%
-  dplyr::select(-ca_mgl_mg_L,-ca_mg_L) %>%
+  dplyr::mutate(ca_actual = dplyr::coalesce(ca_mgl_mg_L,ca_mg_L,calcium_mg_L)) %>%
+  dplyr::select(-ca_mgl_mg_L,-ca_mg_L,-calcium_mg_L) %>%
   dplyr::rename(ca_mg_L = ca_actual) |> 
   # chloride
   dplyr::mutate(cl_actual = dplyr::coalesce(cl_mgl_mg_L,cl_mg_L)) %>%
@@ -482,12 +488,12 @@ tidy_v3b <- tidy_v3a %>%
   # Iron
   dplyr::rename(fe_ug_L = fe_ugl_ug_L) |> 
   # potassium
-  dplyr::mutate(k_actual = dplyr::coalesce(k_mgl_mg_L,k_mg_L)) %>%
-  dplyr::select(-k_mgl_mg_L,-k_mg_L) %>%
+  dplyr::mutate(k_actual = dplyr::coalesce(k_mgl_mg_L,k_mg_L,potassium_mg_L)) %>%
+  dplyr::select(-k_mgl_mg_L,-k_mg_L,-potassium_mg_L) %>%
   dplyr::rename(k_mg_L = k_actual) |> 
   # magnesium
-dplyr::mutate(mg_actual = dplyr::coalesce(mg_mg_L,mg_mgl_mg_L)) %>%
-  dplyr::select(-mg_mgl_mg_L,-mg_mg_L) %>%
+dplyr::mutate(mg_actual = dplyr::coalesce(mg_mg_L,mg_mgl_mg_L,magnesium_mg_L)) %>%
+  dplyr::select(-mg_mgl_mg_L,-mg_mg_L,-magnesium_mg_L) %>%
   dplyr::rename(mg_mg_L = mg_actual) |> 
   # Manganese
   dplyr::mutate(mn_actual = dplyr::coalesce(mn_ugl_ug_L,mn_ug_L)) %>%
@@ -521,6 +527,10 @@ dplyr::mutate(nh4_actual = dplyr::coalesce(nh4_mgl_mg_L,nh4_mg_NH4_L)) %>%
   dplyr::mutate(po4_actual = dplyr::coalesce(po4_mg_PO4_L,po4_mgl_mg_PO4_L)) %>%
   dplyr::select(-po4_mgl_mg_PO4_L,-po4_mg_PO4_L) %>%
   dplyr::rename(po4_mg_PO4_L = po4_actual) |> 
+  # PO4-P
+  dplyr::mutate(po4_p_actual = dplyr::coalesce(po4_mg_PO4_P_L,po4_mg_P_L)) %>%
+  dplyr::select(-po4_mg_PO4_P_L,-po4_mg_P_L) %>%
+  dplyr::rename(po4_mg_P_L = po4_p_actual) |> 
   # SiO2 (units in Si are corrected below with Canadian solute names)
   dplyr::mutate(sio2_actual = dplyr::coalesce(si_mg_SiO2_L,sio2_mgl_mg_SiO2_L,dsi_mg_SiO2_L,
                                               sio2_mg_SiO2_L)) %>%
@@ -808,18 +818,20 @@ tidy_v4b <- tidy_v4a %>%
   dplyr::mutate(po4_uM = dplyr::case_when(
     !is.na(po4_uM) ~ po4_uM,
     is.na(po4_uM) & !is.na(po4_mg_PO4_L) ~ (po4_mg_PO4_L / PO4_mw) * 10^3,
-    is.na(po4_uM) & !is.na(po4_mg_PO4_P_L) ~ (po4_mg_PO4_P_L / P_mw) * 10^3,
+    #is.na(po4_uM) & !is.na(po4_mg_P_L) ~ (po4_mg_P_L / P_mw) * 10^3,
     is.na(po4_uM) & !is.na(po4_mg_P_L) ~ (po4_mg_P_L / P_mw) * 10^3,
     is.na(po4_uM) & !is.na(po4_ug_PO4_P_L) ~ (po4_ug_PO4_P_L / P_mw),
     T ~ NA)) %>%
-  dplyr::select(-po4_mg_PO4_L,-po4_mg_P_L, -po4_mg_PO4_P_L, -po4_ug_PO4_P_L) %>%
+  dplyr::select(-po4_mg_PO4_L,-po4_mg_P_L, -po4_ug_PO4_P_L) %>%
   # Sulfate (SO4)
   dplyr::mutate(so4_uM = dplyr::case_when(
     !is.na(so4_uM) ~ so4_uM,
     is.na(so4_uM) & !is.na(so4_ug_SO4_L) ~ (so4_ug_SO4_L / SO4_mw),
     is.na(so4_uM) & !is.na(so4_mg_SO4_L) ~ (so4_mg_SO4_L / SO4_mw) * 10^3,
+    # multiply by 3 to convert version in units of S to units of SO4 (?)
+    is.na(so4_uM) & !is.na(sulfates_mg_S_L) ~ ((sulfates_mg_S_L*3)/ SO4_mw) * 10^3, 
     T ~ NA)) %>%
-  dplyr::select(-so4_mg_SO4_L,-so4_ug_SO4_L) %>%
+  dplyr::select(-so4_mg_SO4_L,-so4_ug_SO4_L,-sulfates_mg_S_L) %>%
   # Strontium (Sr)
   dplyr::mutate(sr_uM = (sr_mg_L / Sr_mw) * 10^3,
                 .before = sr_mg_L) %>%
@@ -1198,19 +1210,18 @@ tidy_v8b <- tidy_v8a %>%
     Raw_Filename == "Finnish_riverine_data_07032025.csv"~ "mdy",
     Raw_Filename == "NIVA_geogenic_clean.csv" ~ "ymd",
     Raw_Filename == "Cleaned_Seine_Data.csv"~ "mdy",
-    Raw_Filename == "SwedishGovtCationData_Clean.csv"~ "mdy",
+    Raw_Filename == "Seine_baseGeo_Naides.csv" ~ "ymd",
+    Raw_Filename == "Swedish_Geo_Updated_10062025.csv"~ "ymd",
     Raw_Filename == "guadeloupe_GRCBDMDF_chem.csv" ~ "ymd",
     Raw_Filename == "guadeloupe_GRCBDPBD_chem.csv" ~ "ymd",
     Raw_Filename == "guadeloupe_GRCBDQCK_chem.csv" ~ "ymd",
     Raw_Filename == "guadeloupe_GRCCEDIG_chem.csv" ~ "ymd",
     Raw_Filename == "guadeloupe_GRCVHBAR_chem.csv" ~ "ymd",
     Raw_Filename == "guadeloupe_GRCVHSAV_chem.csv" ~ "ymd",
-    Raw_Filename == "swedish_government_chem_090525.csv" ~ "mdy",
     Raw_Filename == "yzeron_301502401_chem.csv"~ "ymd",
     Raw_Filename == "yzeron_v301502402_chem.csv" ~ "ymd",
     Raw_Filename == "yzeron_v3015810_chem.csv" ~ "ymd",
     Raw_Filename == "Krycklan_Cation_Clean.csv" ~ "mdy",
-    Raw_Filename == "swedish_government_chem_090525.csv" ~ "mdy",
     # Raw_Filename == "" ~ "",
     T ~ "UNKNOWN"))
 
@@ -1318,10 +1329,12 @@ date <- gsub(pattern = "-", replacement = "", x = Sys.Date())
 ( chem_filename <- paste0(date, "_masterdata_chem.csv") )
 
 # Export locally
-write.csv(x = tidy_final, file = file.path("tidy", chem_filename), na = '', row.names = F)
+
+(path <- scicomptools::wd_loc(local = FALSE, remote_path = file.path('/', "home", "shares", "lter-si", "WRTDS")))
+write.csv(x = tidy_final, file = file.path(path,"tidy", chem_filename), na = '', row.names = F)
 
 # Export to Drive
-googledrive::drive_upload(media = file.path("tidy", chem_filename), overwrite = T,
+googledrive::drive_upload(media = file.path(path,"tidy", chem_filename), overwrite = T,
                           path = googledrive::as_id("https://drive.google.com/drive/u/0/folders/1dTENIB5W2ClgW0z-8NbjqARiaGO2_A7W"))
 
 # End ----
