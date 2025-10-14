@@ -15,20 +15,28 @@ require(dataRetrieval)
 library(readxl)
 library(supportR)
 
-# file for raw discharge data files
-setwd("~/Documents/Work/Silica/Data/Discharge")
-dir.create(path = file.path("discharge_raw"), showWarnings = F)
-dir.create(path = file.path("discharge_tidy"), showWarnings = F)
+# set up path to store files
+(path <- scicomptools::wd_loc(local = FALSE, remote_path = file.path('/', "home", "shares", "lter-si", "WRTDS")))
+
+# create new folder for discharge data
+dir.create(path = file.path(path, "discharge"), showWarnings = F)
+
+# create new path for storing discharge folders and files
+(path2 <- scicomptools::wd_loc(local = FALSE, remote_path = file.path('/', "home", "shares", "lter-si", "WRTDS","discharge")))
+
+dir.create(path = file.path(path2,"discharge_raw"), showWarnings = F)
+dir.create(path = file.path(path2,"discharge_tidy"), showWarnings = F)
 
 #read in reference table - you might need to change this link
-ref_table_link<-"https://docs.google.com/spreadsheets/d/11t9YYTzN_T12VAQhHuY5TpVjGS50ymNmKznJK4rKTIU/edit?usp=sharing"
+ref_table_link<-"https://docs.google.com/spreadsheets/d/11t9YYTzN_T12VAQhHuY5TpVjGS50ymNmKznJK4rKTIU"
 
 ref_table_folder = drive_get(as_id(ref_table_link))
 
 ref_table<-drive_download(ref_table_folder$drive_resource, overwrite = T)
 
-QLog<-read_xlsx(ref_table$local_path)
+ref_table <- drive_download(file = ref_table_folder$id, path = file.path(path2,"Site_Reference_Table"), overwrite = T)
 
+QLog<-read_xlsx(ref_table$local_path)
 
 ### Create list of files to download and data download
 #get folder URL from google drive with discharge data - "Discharge_files"
@@ -69,19 +77,19 @@ csv_files_download <- csv_files %>%
 #### Download files from Google Drive to store locally
 # check working directory where files will be stored locally; separate folder within project folder
 
-setwd("~/Documents/Work/Silica/Data/Discharge/discharge_raw")
+#setwd("~/Documents/Work/Silica/Data/Discharge/discharge_raw")
+setwd("//home/shares/lter-si/WRTDS/discharge/discharge_raw")
 
 # download each file to the working directory; files are saved locally
 for (i in 1:length(csv_files_download$drive_resource)) {
   drive_download(csv_files_download$drive_resource[i],  overwrite=T)
 }
 
-
 ###############################################################################################
 ### Prep for loop to concatentate discharge files
 
 # get list of files downloaded
-discharge_files = list.files(path="discharge_raw", pattern = ".csv")
+discharge_files = list.files(path=file.path(path2, "discharge_raw"), pattern = ".csv")
 discharge_files = list.files(pattern = ".csv")
 
 # remove all "Master Q" or other unneeded files
@@ -92,7 +100,7 @@ discharge_files<-discharge_files[!(discharge_files %in% remove_these)]
 check <- as.data.frame(discharge_files)
 
 # set working directory where discharge files stored locally
-setwd("discharge_raw")
+setwd("//home/shares/lter-si/WRTDS/discharge/discharge_raw")
 
 #create list to store output from for loop
 data_list = list()
@@ -103,7 +111,7 @@ data_list = list()
 
 DischargeList<-c("MEAN_Q", "Discharge", "InstantQ", "Q_m3sec", "discharge", "Q", 
                  "Q_cms","Flow","var", "Value", "valeur",
-                 "AVG_DISCHARGE","dailyQ")
+                 "AVG_DISCHARGE","dailyQ","Discharge.m3.s.","Discharge(m3/s)")
 DateList<-c("Date", "dateTime", "dates", "date", "datetime", "DATE_TIME",
             "Sampling Date", "Dates")
 
@@ -129,7 +137,8 @@ for (i in 1:length(discharge_files)) {
   d$Qcms<-ifelse(d$Units=="cms", d$Q, 
                  ifelse(d$Units=="cfs", d$Q*0.0283,
                         ifelse(d$Units=="Ls", d$Q*0.001,
-                               ifelse(d$Units=="cmd", d$Q*1.15741e-5, ""))))
+                               ifelse(d$Units == "cmh", d$Q/3600,
+                               ifelse(d$Units=="cmd", d$Q*1.15741e-5, "")))))
   
   d<-d[,c("Qcms", "Date", "Discharge_File_Name")]
   
@@ -187,7 +196,7 @@ neg_Q <- filter(disc_v2, Qcms<0)
 
 ## plot to see what new data look like
 disc_v2 %>% 
-  filter(Discharge_File_Name == "Rio Purus_Q") %>%  
+  filter(Discharge_File_Name == "Rio Madeira_Q") %>%  
   ggplot(aes(Date,Qcms)) +
   geom_point()
 
@@ -219,16 +228,19 @@ plots = disc_v3 %>%
   group_by(Discharge_File_Name) %>%
   do(plots = p %+% . + facet_wrap(~Discharge_File_Name))
 
-setwd("C:/Users/kjankowski/OneDrive - DOI/Documents/Projects/SilicaSynthesis/Data/Discharge")
+setwd("//home/shares/lter-si/WRTDS/discharge")
 pdf()
 plots$plots
 dev.off()
 
 #change date to reflect new file creation
-setwd('./discharge_tidy')
-write.csv(disc_v3, "20250527_masterdata_discharge.csv", row.names=FALSE)
+setwd("//home/shares/lter-si/WRTDS/discharge/discharge_tidy")
+write.csv(disc_v3, "20251014_masterdata_discharge.csv", row.names=FALSE)
 
+disc_filename = "20251014_masterdata_discharge.csv"
 
+googledrive::drive_upload(media = file.path(path2,"discharge_tidy", disc_filename), overwrite = T,
+                          path = googledrive::as_id("https://drive.google.com/drive/u/0/folders/1hbkUsTdo4WAEUnlPReOUuXdeeXm92mg-"))
 
 ########################################################################
 ### reviewing files
