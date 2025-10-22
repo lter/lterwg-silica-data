@@ -370,6 +370,9 @@ tidy_v2b <- tidy_v2a %>%
     measurement == "NaN" ~ NA,
     measurement == "N/A" ~ NA,
     measurement == "<LOD" ~ NA,
+    measurement == "wrong filtering" ~ NA,
+    measurement == "no filter" ~ NA,
+    measurement == "n/a"~ NA,
     # Catalina Jemez has many versions of -9999
     measurement == -9999.00 ~ NA,
     measurement == -9999.000 ~ NA,
@@ -541,8 +544,8 @@ dplyr::mutate(nh4_actual = dplyr::coalesce(nh4_mgl_mg_L,nh4_mg_NH4_L)) %>%
   dplyr::select(-so4_mgl_mg_SO4_L,-so4_mg_SO4_L,-so4_mg_L) %>%
   dplyr::rename(so4_mg_SO4_L = so4_actual) |> 
   # TDN
-  dplyr::mutate(tdn_actual = dplyr::coalesce(tdn_mg_N_L,tdn_mgl_mg_N_L)) %>%
-  dplyr::select(-tdn_mgl_mg_N_L,-tdn_mg_N_L) %>%
+  dplyr::mutate(tdn_actual = dplyr::coalesce(tdn_mg_N_L,tdn_mgl_mg_N_L,tdn_mg_L)) %>%
+  dplyr::select(-tdn_mgl_mg_N_L,-tdn_mg_N_L,-tdn_mg_L) %>%
   dplyr::rename(tdn_mg_N_L = tdn_actual) |> 
   # temperature
   dplyr::mutate(temp_actual = dplyr::coalesce(temp_C,temp_c_C,`twater_(°c)_C`)) %>%
@@ -859,6 +862,10 @@ tidy_v4b <- tidy_v4a %>%
                                yes = (tn_mg_L / N_mw) * 10^3,
                                no = tn_uM)) %>%
   dplyr::select(-tn_mg_L) %>%
+  # Dissolved Organic Nitrogen (TON)
+  dplyr::mutate(don_uM = (don_mg_L / N_mw) * 10^3, 
+                .after = don_mg_L) %>%
+  dplyr::select(-don_mg_L) %>%
   # Total Organic Carbon (TOC)
   dplyr::mutate(toc_uM = dplyr::case_when(
     !is.na(toc_uM) ~ toc_uM,
@@ -1221,6 +1228,7 @@ tidy_v8b <- tidy_v8a %>%
     Raw_Filename == "yzeron_v301502402_chem.csv" ~ "ymd",
     Raw_Filename == "yzeron_v3015810_chem.csv" ~ "ymd",
     Raw_Filename == "Krycklan_Cation_Clean.csv" ~ "mdy",
+    Raw_Filename == "GRO_Obidos.csv" ~ "mdy",
     # Raw_Filename == "" ~ "",
     T ~ "UNKNOWN"))
 
