@@ -12,13 +12,14 @@
 ## ---------------------------------------------- ##
 # Read needed libraries
 # install.packages("librarian")
-librarian::shelf(tidyverse, sf, terra, nngeo, scicomptools)
+librarian::shelf(tidyverse, sf, terra, nngeo, scicomptools, googledrive, readxl)
 
 # Clear environment
 rm(list = ls())
 
 # Identify path to location of shared data
 (path <- scicomptools::wd_loc(local = F, remote_path = file.path('/', "home", "shares", "lter-si", "si-watershed-extract")))
+(path2 <- scicomptools::wd_loc(local = FALSE, remote_path = file.path('/', "home", "shares", "lter-si", "WRTDS")))
 
 ## ---------------------------------------------- ##
         # Site Coordinate Preparation ----
@@ -33,8 +34,17 @@ rm(list = ls())
 ## 4) Copy the "authorization code"
 ## 5) Paste it into the field in the Console
 
+#read in reference table - you might need to change this link
+ref_table_link<-"https://docs.google.com/spreadsheets/d/11t9YYTzN_T12VAQhHuY5TpVjGS50ymNmKznJK4rKTIU"
+
+ref_table_folder = drive_get(as_id(ref_table_link))
+
+ref_table<-drive_download(ref_table_folder$drive_resource, overwrite = T)
+
+ref_table <- drive_download(file = ref_table_folder$id, path = file.path(path2,"Site_Reference_Table"), overwrite = T)
+
 # Read in reference table of all sites
-sites_v0 <- readxl::read_excel(path = file.path(path, "Site_Reference_Table.xlsx"))
+sites_v0 <- readxl::read_excel(path = file.path(path2, "Site_Reference_Table.xlsx"))
 
 # Do some pre-processing to pare down to only desired information
 sites_v1 <- sites_v0 %>%
@@ -69,6 +79,7 @@ unk_area %>%
   dplyr::filter(is.na(Latitude) | is.na(Longitude) |
                   abs(Latitude) > 90 | abs(Longitude) > 180) %>%
   dplyr::pull(uniqueID)
+
 ## Anything here needs to have areas OR coordinates added _in the reference table_
 ## If MCM, needs area *directly*
 
@@ -116,7 +127,7 @@ europe <- sf::st_read(file.path(path, "hydrosheds-raw", "hybas_eu_lev00_v1c.shp"
 # (the minimum latitude is -55.2° for any of the slices)
 
 # Examine structure of one for greater detail
-str(arctic)
+str(europe)
 # page 6 of the technical documentation contains an attribute table that defines these fields
 # PFAF_[number] refers to the level of specificity in the basin delineation
 ## PFAF_1 = separates continents from one another
@@ -174,7 +185,7 @@ sites_actual %>%
   unique()
 
 # Prepare only needed HydroSheds 'continents'
-basin_needs <- rbind(africa, europe, oceania, north_am, arctic)
+basin_needs <- rbind(africa, north_am, oceania, europe)
 basin_needs$HYBAS_ID <- as.character(basin_needs$HYBAS_ID)
 
 # Get area for our focal polygons
