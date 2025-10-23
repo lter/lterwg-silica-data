@@ -399,9 +399,14 @@ sites_v1 %>% dplyr::filter(is.na(drainSqKm)) %>% nrow()
 ref_table_final %>% dplyr::filter(is.na(drainSqKm)) %>% nrow()
 
 # Define name/path of this file
-out_name <- file.path(path, "WRTDS_Reference_Table_with_Areas_DO_NOT_EDIT.csv")
+out_name <- file.path(path2,"WRTDS Source Files", "WRTDS_Reference_Table_with_Areas_DO_NOT_EDIT.csv")
 
 # Save this locally
-write.csv(x = ref_table_final, na = "", row.names = F, file = out_name)
+write.csv(x = ref_table_final, file = file.path(path2,"WRTDS Source Files", "WRTDS_Reference_Table_with_Areas_DO_NOT_EDIT.csv"), na = '', row.names = F)
+#write.csv(x = ref_table_final, na = "", row.names = F, file = out_name)
+
+# Export to Drive
+googledrive::drive_upload(media = out_name, overwrite = T,
+                          path = googledrive::as_id("https://drive.google.com/drive/u/0/folders/15FEoe2vu3OAqMQHqdQ9XKpFboR4DvS9M"))
 
 # End ----
