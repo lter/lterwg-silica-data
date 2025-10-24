@@ -1228,7 +1228,7 @@ tidy_v8b <- tidy_v8a %>%
     Raw_Filename == "yzeron_v301502402_chem.csv" ~ "ymd",
     Raw_Filename == "yzeron_v3015810_chem.csv" ~ "ymd",
     Raw_Filename == "Krycklan_Cation_Clean.csv" ~ "mdy",
-    Raw_Filename == "GRO_Obidos.csv" ~ "mdy",
+    Raw_Filename == "GRO_Obidos.csv" ~ "ymd",
     # Raw_Filename == "" ~ "",
     T ~ "UNKNOWN"))
 
