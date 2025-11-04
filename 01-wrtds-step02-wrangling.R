@@ -25,8 +25,8 @@ dir.create(path = file.path(path, "WRTDS Inputs"), showWarnings = F)
 # Define the names of the Drive files we need
 file_names <- c("WRTDS_Reference_Table_with_Areas_DO_NOT_EDIT.csv", # No.1 Simplified ref table
                 "Site_Reference_Table", # No.2 Full ref table
-                "20250527_masterdata_discharge.csv", # No.3 Main discharge ## update this file with new discharge!!
-                "20250602_masterdata_chem.csv", # No.4 Main chemistry ## update this file with new chemistry!!
+                "20251024_masterdata_discharge.csv", # No.3 Main discharge ## update this file with new discharge!!
+                "20251024_masterdata_chem.csv", # No.4 Main chemistry ## update this file with new chemistry!!
                 "Data_Cropping_WRTDS", # No.5 Data cropping for chemistry (Si)
                 "Discharge_Cropping_WRTDS")  # No.6 Data cropping for discharge
 
@@ -85,6 +85,9 @@ ref_table <- ref_v0 %>%
 ref_table %>%
   dplyr::filter(is.na(drainSqKm) | nchar(drainSqKm) == 0)
 
+# not sure why I had to assign this by hand for GRO Obidos, I think because of "areas" dataset
+ref_table[91,6] <- 4701550
+
 # Check structure
 dplyr::glimpse(ref_table)
 
@@ -125,7 +128,10 @@ disc_v1 %>%
 dplyr::glimpse(disc_v1)
 
 # Any *chemistry* rivers not in reference table?
-# FYI -- Finnish Names don't read into R well, they say they are missing, but they are not, I adjusted the Finnish Stream names that # differ between chem and ref table when creating chem_v1 below
+# FYI -- Renamed Finnish streams in master chemistry so they all have actual names not Site #'s
+# set them to "no" in "Use_WRTDS" column in reference table
+
+# Finnish Names don't read into R well, they say they are missing, but they are not, I adjusted the Finnish Stream names that # differ between chem and ref table when creating chem_v1 below
 setdiff(x = unique(ref_table$Stream_Name), y = unique(chem_v0$Stream_Name))
 
 # Wrangle chemistry as well
@@ -346,7 +352,7 @@ glimpse(chem_v3)
 
 # review gaps in discharge data
 # identify time series with long gaps 
-disc_gaps <- disc_v3 %>% 
+disc_gaps <- disc_v2 %>% 
   as_tsibble(index = Date, key=Stream_Name) %>% 
   count_gaps(.full=FALSE) %>% 
   filter(.n > 365)
@@ -383,9 +389,7 @@ disc_v3 <- disc_v2 %>%
 
 glimpse(disc_v3)
 
-
 # check that worked as expected
-
 disc_v3 %>% 
   filter(Stream_ID %in% discrop$Stream_ID) %>% 
   ggplot(aes(Date,Qcms))+
@@ -463,9 +467,6 @@ dplyr::glimpse(disc_v4)
 # Check for gained/lost streams
 supportR::diff_check(old = unique(disc_v3$Discharge_File_Name),
                      new = unique(disc_v4$Discharge_File_Name))
-
-check <- disc_v3 %>% 
-  filter(Discharge_File_Name == "MD_410130_Q"| Discharge_File_Name == "Site 37004_Q")
 
 # Check for unintentionally lost columns
 supportR::diff_check(old = names(disc_v3), new = names(disc_v4))
@@ -566,16 +567,16 @@ glimpse(disc_v6)
 low_n <- chem_v4 |> 
   dplyr::mutate(Stream_Element_ID = paste0(Stream_ID, "_", variable),
                 .before = dplyr::everything()) %>% 
-  group_by(Stream_Element_ID) |> 
-  summarise(n=n()) |> 
+  dplyr::group_by(Stream_Element_ID) |> 
+  dplyr::summarise(n=n()) |> 
   filter(n<45)
 
 high_cens <- chem_v4 |> 
   dplyr::mutate(Stream_Element_ID = paste0(Stream_ID, "_", variable),
                 .before = dplyr::everything()) %>% 
   mutate(remark_2 = ifelse(remarks == "<",1,0)) |> 
-  group_by(Stream_Element_ID,remark_2) |>
-  summarise(cens_n = n()) |> 
+  dplyr::group_by(Stream_Element_ID,remark_2) |>
+  dplyr::summarise(cens_n = n()) |> 
   pivot_wider(names_from = "remark_2",values_from="cens_n")
 
 colnames(high_cens) <- c("Stream_Element_ID","no","yes")
@@ -588,10 +589,15 @@ high_cens_2 <- high_cens |>
 
 glimpse(high_cens_2)
 
+# combine low N and streams with a lot of censored values
 to_remove <- full_join(low_n,high_cens_2,by="Stream_Element_ID") %>% 
   separate(Stream_Element_ID,into=c("LTER","Stream_Element"), sep="__", remove=FALSE, extra="merge") %>% 
   separate(Stream_Element, into=c("Stream_Name","Element"), sep="_",remove=FALSE, extra="merge")
 
+# save to file for future reference
+write.csv(x=to_remove, file=file.path(path, "streams_removed_before_WRTDS.csv"))
+
+# no remove those streams from chemistry file
 chem_v5 <- chem_v4 |> 
   dplyr::mutate(Stream_Element_ID = paste0(Stream_ID, "_", variable),
                 .before = dplyr::everything()) %>% 
@@ -601,8 +607,10 @@ chem_v5 <- chem_v4 |>
 chem_v4 <- chem_v4 %>% dplyr::mutate(Stream_Element_ID = paste0(Stream_ID, "_", variable),
               .before = dplyr::everything()) 
 
+# how many were removed?
 length(unique(chem_v4$Stream_Element_ID))-length(unique(chem_v5$Stream_Element_ID))
 
+# check total number of streams remaining
 length(unique(chem_v5$Stream_ID))
 
 
