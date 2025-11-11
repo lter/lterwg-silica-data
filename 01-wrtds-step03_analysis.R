@@ -161,7 +161,7 @@ skipped <- c("ColoradoAlpine__loch_DSi",
 
 # Identify all rivers that aren't in the broken data vectors
 good_rivers <- setdiff(x = unique(chemistry$Stream_Element_ID),
-                       y = unique(c(few_data_cens,few_data_obs, odd_ones, bad_rivers, crash_rivers,new_bads,skipped)))
+                       y = unique(c(few_data_cens,few_data_obs, odd_ones, bad_rivers, crash_rivers,new_bads)))
 
 ## Note this includes weird rivers that need special treatment and those that don't
 # Set of rivers we've already run the workflow for
@@ -174,11 +174,12 @@ done_rivers <- data.frame("file" = dir(path = file.path(path, "WRTDS Loop Diagno
 #rivers_to_do <- good_rivers
 
 rivers_to_do <- sort(setdiff(x = unique(good_rivers), 
-                          y = c(unique(done_rivers$river), new_bads, skipped)))
+                          y = c(unique(done_rivers$river), new_bads)))
 
 # What are the next few that will be processed and how many total left?
 rivers_to_do[1:5]; length(rivers_to_do)
 
+river <- rivers_to_do[3]
 
 # Loop across rivers and elements to run WRTDS workflow!
 #for(river in rivers_to_do){ # actual loop
