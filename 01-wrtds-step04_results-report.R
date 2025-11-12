@@ -59,13 +59,7 @@ done_boots <- data.frame("file" = dir(path = file.path(path, "WRTDS Bootstrap Di
 ## ---------------------------------------------- ##
 
 # List all files in "WRTDS Outputs"
-wrtds_outs_v0 <- dir(path = file.path(path, "WRTDS Outputs_2025"))
-
-wrtds_outs_v1 <- data.frame("file_name" = wrtds_outs_v0) %>% 
-  # Split LTER off the file name
-  tidyr::separate(col = file_name, into = c("LTER", "other_content"),
-                  sep = "__", remove = FALSE, fill = "right", extra = "merge") %>% 
-  filter(LTER == "Finnish Environmental Institute")
+wrtds_outs_v0 <- dir(path = file.path(path, "WRTDS Outputs"))
 
 # Do some useful processing of that object
 wrtds_outs <- data.frame("file_name" = wrtds_outs_v0) %>%
@@ -78,7 +72,8 @@ wrtds_outs <- data.frame("file_name" = wrtds_outs_v0) %>%
   # Recreate the "Stream_Element_ID" column
   dplyr::mutate(Stream_Element_ID = paste0(LTER, "__", stream, "_", chemical)) %>%
   # Remove the PDFs of exploratory graphs
-  dplyr::filter(data_type != "WRTDS_GFN_output.pdf") %>%
+  dplyr::filter(data_type != "WRTDS_output.pdf") %>%
+  dplyr::filter(data_type != "WRTDS_kalman_output.pdf") %>%
   # Remove unwanted chemicals that we have data for
   dplyr::filter(!chemical %in% c("TN", "TP")) %>%
   # Keep only rivers that finish the whole workflow!
@@ -120,7 +115,7 @@ for(type in out_types){
   for(file in file_set){
    
     # Read in CSV and add it to the list
-    datum <- read.csv(file = file.path(path, "WRTDS Outputs_2025", file))
+    datum <- read.csv(file = file.path(path, "WRTDS Outputs", file))
     
     # Add it to the list
     sub_list[[paste0(type, "_", k)]] <- datum %>%
@@ -185,7 +180,7 @@ names(out_list)
 
 # Clear environment of everything but the filepath, destination URL, out_list, & ref_table
 rm(list = setdiff(ls(), c("path", "dest_url", "out_list", "ref_table",
-                          "wrtds_outs", "wrtds_outs_v0", "done_rivers", "done_boots")))
+                          "wrtds_outs", "wrtds_outs_v0","wrtds_outs_v1", "done_rivers", "done_boots")))
 
 ## ---------------------------------------------- ##
            # Process WRTDS - Trends ----
@@ -211,6 +206,11 @@ dplyr::glimpse(flux_stats)
         # Process WRTDS - Daily WRTDS & Kalman ----
 ## ---------------------------------------------- ##
 
+# have to remove certain months from these streams that didn't get properly removed in analysis
+mcm_months <- seq(3,11,1)
+martinelli_months <- c(10,11,12,1,2,3,4)
+saddle_months <- c(8,9,10,11,12,1,2,3,4)
+
 # GFN output
 gfn_daily <- out_list[["GFN_WRTDS.csv"]] %>%
   # rename some columns for clarity 
@@ -222,12 +222,16 @@ gfn_daily <- out_list[["GFN_WRTDS.csv"]] %>%
                 Year = DecYear) %>% 
   # adjust year to not have decimal places
   dplyr::mutate(Year = round(Year)) %>% 
+  # need to remove "winter" months for MCM & NWT since estimation is bad 
+  dplyr::filter(!(LTER == "MCM" & Month %in% mcm_months)) %>% 
+  dplyr::filter(!(stream == "MARTINELLI" & Month %in% martinelli_months)) %>% 
+  dplyr::filter(!(stream == "SADDLE STREAM 007" & Month %in% saddle_months)) %>% 
   # Attach basin area
   dplyr::left_join(y = ref_table, by = c("LTER", "stream")) %>%
   # Calculate some additional columns
   dplyr::mutate(Yield_kg_day_km2 = Flux_kg_day / drainSqKm,
                 FNYield_kg_day_km2 = FNFlux_kg_day / drainSqKm) %>%
-  dplyr::select(-GenFlux,-GenConc) %>% # this might be temporary
+  #dplyr::select(-GenFlux,-GenConc) %>% # this might be temporary
   dplyr::rename(Stream_Name = stream)
 
 # Glimpse
@@ -246,6 +250,10 @@ kalman_daily <- out_list[["Kalman_WRTDS.csv"]] %>%
                 Year = DecYear) %>% 
   # adjust year to not have decimal places
   dplyr::mutate(Year = round(Year)) %>% 
+  # need to remove "winter" months for MCM & NWT since estimation is bad 
+  dplyr::filter(!(LTER == "MCM" & Month %in% mcm_months)) %>% 
+  dplyr::filter(!(stream == "MARTINELLI" & Month %in% martinelli_months)) %>% 
+  dplyr::filter(!(stream == "SADDLE STREAM 007" & Month %in% saddle_months)) %>% 
   # Attach basin area
   dplyr::left_join(y = ref_table, by = c("LTER", "stream")) %>%
   # Calculate some additional columns
@@ -296,6 +304,10 @@ monthly <- out_list[["Monthly_GFN_WRTDS.csv"]] %>%
     LTER == "MCM" & Month %in% 2 ~ "fall",
     LTER == "MCM" & Month %in% 3:11 ~ "winter",
     TRUE ~ ""), .after = Month) %>%
+  # need to remove "winter" months for MCM & NWT since estimation is bad 
+  dplyr::filter(!(LTER == "MCM" & season == "winter")) %>% 
+  dplyr::filter(!(stream == "MARTINELLI" & Month %in% martinelli_months)) %>% 
+  dplyr::filter(!(stream == "SADDLE STREAM 007" & Month %in% saddle_months)) %>% 
   # Rename columns to be more explicit about starting units
   dplyr::rename(Discharge_cms = Q,
                 Conc_mgL = Conc,
@@ -347,7 +359,7 @@ monthly <- out_list[["Monthly_GFN_WRTDS.csv"]] %>%
                 Si_to_P = ifelse(test = (!is.na(DSi) & !is.na(P)),
                                    yes = (DSi / P), no = NA)) %>%
   ## Pivot back long
-  tidyr::pivot_longer(cols = NOx:Si_to_P,
+  tidyr::pivot_longer(cols = DSi:Si_to_P,
                       names_to = "chemical",
                       values_to = "response_values") %>%
   ## Drop NAs this pivot introduces
@@ -392,6 +404,10 @@ kalman_monthly <- out_list[["Monthly_Kalman_WRTDS.csv"]] %>%
     LTER == "MCM" & Month %in% 2 ~ "fall",
     LTER == "MCM" & Month %in% 3:11 ~ "winter",
     TRUE ~ ""), .after = Month) %>%
+  ## remove winter months for NWT and MCM 
+  dplyr::filter(!(LTER == "MCM" & season == "winter")) %>% 
+  dplyr::filter(!(stream == "MARTINELLI" & Month %in% martinelli_months)) %>% 
+  dplyr::filter(!(stream == "SADDLE STREAM 007" & Month %in% saddle_months)) %>% 
   # Rename columns to be more explicit about starting units
   dplyr::rename(Discharge_cms = Q,
                 GenConc_mgL = GenConc, # using Kalman estimate here
@@ -443,7 +459,7 @@ kalman_monthly <- out_list[["Monthly_Kalman_WRTDS.csv"]] %>%
                 Si_to_P = ifelse(test = (!is.na(DSi) & !is.na(P)),
                                  yes = (DSi / P), no = NA)) %>%
   ## Pivot back long
-  tidyr::pivot_longer(cols = NOx:Si_to_P,
+  tidyr::pivot_longer(cols = DSi:Si_to_P,
                       names_to = "chemical",
                       values_to = "response_values") %>%
   ## Drop NAs this pivot introduces
@@ -527,7 +543,7 @@ results_table <- out_list[["ResultsTable_GFN_WRTDS.csv"]] %>%
                 Si_to_P = ifelse(test = (!is.na(DSi) & !is.na(P)),
                                    yes = (DSi / P), no = NA)) %>%
   ## Pivot back long
-  tidyr::pivot_longer(cols = NOx:Si_to_P,
+  tidyr::pivot_longer(cols = DSi:Si_to_P,
                       names_to = "chemical",
                       values_to = "response_values") %>%
   ## Drop NAs this pivot introduces
@@ -560,12 +576,11 @@ dplyr::glimpse(results_table)
 # Results table
 kalman_annual <- out_list[["ResultsTable_Kalman_WRTDS.csv"]] %>%
   # rename some columns for clarity
-  dplyr::rename(Discharge_cms = Q,
-                GenConc_mgL = GenConc,
-                FNConc_mgL = FNConc,
-                GenFlux_10_6kg_yr = GenFlux,
-                FNFlux_10_6kg_yr = FNFlux,
-                Year = DecYear) %>%
+  dplyr::rename(Discharge_cms = Discharge..cms.,
+                GenConc_mgL = GenConc..mg.L.,
+                FNConc_mgL = FN.Conc..mg.L.,
+                GenFlux_10_6kg_yr = GenFlux..10.6kg.yr.,
+                FNFlux_10_6kg_yr = FN.Flux..10.6kg.yr.) %>%
   dplyr::mutate(Year = round(Year)) %>% 
   # Attach basin area
   dplyr::left_join(y = ref_table, by = c("LTER", "stream")) %>%
@@ -613,7 +628,7 @@ kalman_annual <- out_list[["ResultsTable_Kalman_WRTDS.csv"]] %>%
                 Si_to_P = ifelse(test = (!is.na(DSi) & !is.na(P)),
                                  yes = (DSi / P), no = NA)) %>%
   ## Pivot back long
-  tidyr::pivot_longer(cols = NOx:Si_to_P,
+  tidyr::pivot_longer(cols = DSi:Si_to_P,
                       names_to = "chemical",
                       values_to = "response_values") %>%
   ## Drop NAs this pivot introduces
@@ -704,9 +719,31 @@ pdf_outs <- data.frame("file_name" = wrtds_outs_v0) %>%
 # Glimpse it
 dplyr::glimpse(pdf_outs)
 
+# kalman pdf outs
+kalman_pdf_outs <- data.frame("file_name" = wrtds_outs_v0) %>%
+  # Split LTER off the file name
+  tidyr::separate(col = file_name, into = c("LTER", "other_content"),
+                  sep = "__", remove = FALSE, fill = "right", extra = "merge") %>%
+  # Separate the remaining content further
+  tidyr::separate(col = other_content, into = c("stream", "chemical", "data_type"),
+                  sep = "_", remove = TRUE, fill = "right", extra = "merge") %>%
+  # Recreate the "Stream_Element_ID" column
+  dplyr::mutate(Stream_Element_ID = paste0(LTER, "__", stream, "_", chemical)) %>%
+  # Remove the PDFs of exploratory graphs
+  dplyr::filter(data_type == "WRTDS_kalman_output.pdf") %>%
+  # Remove unwanted chemicals that we have data for
+  dplyr::filter(!chemical %in% c("TN", "TP")) %>%
+  # Keep only rivers that finish the whole workflow!
+  dplyr::filter(Stream_Element_ID %in% done_rivers)
+
+# Glimpse it
+dplyr::glimpse(kalman_pdf_outs)
+
+
 # Identify PDF folder
 ## Standard output destination
 pdf_url <- googledrive::as_id("https://drive.google.com/drive/folders/1Sx0A5C8nk53ft2Ip28q4PipnjYYwi3D7")
+kalman_pdf_url <- googledrive::as_id("https://drive.google.com/drive/folders/1n2M0n6UU7_lQrU94gvSzhUXVKl9Qg3V4")
 
 # Identify PDFs already in GoogleDrive
 drive_pdfs <- googledrive::drive_ls(path = pdf_url)
