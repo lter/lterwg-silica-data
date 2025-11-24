@@ -331,7 +331,7 @@ tidy_v1b %>%
   dplyr::distinct() %>%
   dplyr::filter(is.na(Stream_Name))
 
-# Finally, remove any columns that are entirely NA (possibly due to structure of data key)
+# Finally, remove any columns that are entirely NA (possibly due to structure of data key
 tidy_v1c <- tidy_v1b %>%
   # Also drop any columns that don't include any values
   dplyr::select(dplyr::where(~ !(all(is.na(.)) | all(. == ""))))
@@ -339,15 +339,20 @@ tidy_v1c <- tidy_v1b %>%
 # See if that actually removed anything
 supportR::diff_check(old = names(tidy_v1b), new = names(tidy_v1c))
 
+# remove Coal Creek from original "master chemistry"
+tidy_v1d <- tidy_v1c %>% 
+  filter(LTER != "DOE SFA East River") %>% 
+  filter(LTER != "East River SFA")
+
 # Check the structure of the remaining data
-dplyr::glimpse(tidy_v1c)
+dplyr::glimpse(tidy_v1d)
 
 ## -------------------------------------------- ##
                # Numeric Checks ----
 ## -------------------------------------------- ##
 
 # Before we can do units conversions we need to do numeric checks (quality control)
-tidy_v2a <- tidy_v1c %>%
+tidy_v2a <- tidy_v1d %>%
   # Add a row number column
   dplyr::mutate(row_num = 1:nrow(.), .before = dplyr::everything()) %>%
   # Reshape the data to get all numeric columns into long format
@@ -386,6 +391,7 @@ tidy_v2b <- tidy_v2a %>%
   dplyr::filter(measurement != "") %>% 
   # Filter out all NAs (don't worry we'll get them back momentarily)
   dplyr::filter(!is.na(measurement))
+
 
 # Re-check for malformed numbers / unreasonable numbers
 supportR::num_check(data = tidy_v2b, col = "measurement")
@@ -457,8 +463,8 @@ tidy_v3b <- tidy_v3a %>%
   dplyr::select(-chl_a_ug_L, -chla_ug_L,-suspended_chl_ug_L,-chla_ugl_ug_L) %>%
   dplyr::rename(chla_ug_L = chla_actual) %>% 
   # DO 
-  dplyr::mutate(do_actual = dplyr::coalesce(do_mg_L, do_mg_O2_L), .after = do_mg_O2_L) %>%
-  dplyr::select(-do_mg_L, -do_mg_O2_L) %>%
+  dplyr::mutate(do_actual = dplyr::coalesce(do_mg_L, do_mg_O2_L,o2_mg_L), .after = do_mg_O2_L) %>%
+  dplyr::select(-do_mg_L, -do_mg_O2_L,-o2_mg_L) %>%
   dplyr::rename(do_mg_L = do_actual) |> 
   # aluminum
   dplyr::rename(al_ug_L = al_ugl_ug_L) |> 
@@ -468,10 +474,17 @@ tidy_v3b <- tidy_v3a %>%
   dplyr::mutate(ca_actual = dplyr::coalesce(ca_mgl_mg_L,ca_mg_L,calcium_mg_L)) %>%
   dplyr::select(-ca_mgl_mg_L,-ca_mg_L,-calcium_mg_L) %>%
   dplyr::rename(ca_mg_L = ca_actual) |> 
+  # calcium - ug/L
+  dplyr::mutate(ca_actual_ug = dplyr::coalesce(ca_ug_L,calcium_ug_L)) %>%
+  dplyr::select(-ca_ug_L,-calcium_ug_L) %>%
+  dplyr::rename(ca_ug_L = ca_actual_ug) |> 
   # chloride
   dplyr::mutate(cl_actual = dplyr::coalesce(cl_mgl_mg_L,cl_mg_L)) %>%
   dplyr::select(-cl_mgl_mg_L,-cl_mg_L) %>%
   dplyr::rename(cl_mg_L = cl_actual) |> 
+  dplyr::mutate(cl_actual_uM = dplyr::coalesce(chloride_uM,cl_uM)) %>%
+  dplyr::select(-chloride_uM,-cl_uM) %>%
+  dplyr::rename(cl_uM = cl_actual_uM) |> 
   # DOC
   dplyr::mutate(doc_actual = dplyr::coalesce(doc_mgl_mg_C_L,doc_mg_C_L,doc_mg_L,doc_mgl_mg_L)) %>%
   dplyr::select(-doc_mgl_mg_C_L,-doc_mg_C_L,-doc_mg_L,-doc_mgl_mg_L) %>%
@@ -498,6 +511,9 @@ tidy_v3b <- tidy_v3a %>%
 dplyr::mutate(mg_actual = dplyr::coalesce(mg_mg_L,mg_mgl_mg_L,magnesium_mg_L)) %>%
   dplyr::select(-mg_mgl_mg_L,-mg_mg_L,-magnesium_mg_L) %>%
   dplyr::rename(mg_mg_L = mg_actual) |> 
+  dplyr::mutate(mg_actual_ug = dplyr::coalesce(magnesium_ug_L,mg_ug_L)) %>%
+  dplyr::select(-magnesium_ug_L,-mg_ug_L) %>%
+  dplyr::rename(mg_ug_L = mg_actual_ug) |> 
   # Manganese
   dplyr::mutate(mn_actual = dplyr::coalesce(mn_ugl_ug_L,mn_ug_L)) %>%
   dplyr::select(-mn_ugl_ug_L,-mn_ug_L) %>%
@@ -511,16 +527,25 @@ dplyr::mutate(nh4_actual = dplyr::coalesce(nh4_mgl_mg_L,nh4_mg_NH4_L)) %>%
   dplyr::select(-nh4_mgl_mg_L,-nh4_mg_NH4_L) %>%
   dplyr::rename(nh4_mg_NH4_L = nh4_actual) |>
   # NH4 - N
-  dplyr::mutate(nh4_N_actual = dplyr::coalesce(nh4_mgl_mg_NH4_N_L,nh4_mg_NH4_N_L)) %>%
-  dplyr::select(-nh4_mgl_mg_NH4_N_L,-nh4_mg_NH4_N_L) %>%
+  dplyr::mutate(nh4_N_actual = dplyr::coalesce(nh4_mgl_mg_NH4_N_L,nh4_mg_NH4_N_L,nh4___n_mg_NH4_N_L,ammonia_n_mg_L)) %>%
+  dplyr::select(-nh4_mgl_mg_NH4_N_L,-nh4_mg_NH4_N_L,-nh4___n_mg_NH4_N_L,-ammonia_n_mg_L) %>%
   dplyr::rename(nh4_mg_NH4_N_L = nh4_N_actual) |>
+  # NH4-N micrograms
+  dplyr::mutate(nh4_N_actual_ug = dplyr::coalesce(nh4_n_ug_NH4_N_L,nh4_ug_NH4_N_L)) %>%
+  dplyr::select(-nh4_ug_NH4_N_L,-nh4_n_ug_NH4_N_L) %>%
+  dplyr::rename(nh4_ug_NH4_N_L = nh4_N_actual_ug) |>
   # NO3
   dplyr::mutate(no3_actual = dplyr::coalesce(no3_mgl_mg_NO3_L,no3_mg_NO3_L,no3_mgl_mg_NO3_L)) %>%
   dplyr::select(-no3_mgl_mg_NO3_L,-no3_mg_NO3_L,-no3_mgl_mg_NO3_L) %>%
   dplyr::rename(no3_mg_NO3_L = no3_actual) |> 
+  # NO3 micromolar 
+  dplyr::mutate(no3_actual_uM = dplyr::coalesce(no3_uM,nitrate_uM)) %>%
+  dplyr::select(-no3_uM,-nitrate_uM) %>%
+  dplyr::rename(no3_uM = no3_actual_uM) |> 
   # NO3-N
-  dplyr::mutate(no3_N_actual = dplyr::coalesce(no3_mgl_mg_NO3_N_L,no3_mg_NO3_N_L)) %>%
-  dplyr::select(-no3_mg_NO3_N_L,-no3_mgl_mg_NO3_N_L) %>%
+  dplyr::rename(no3_mg_NO3N_L = "no3+no2___n_mg_NO3_N_L") %>% 
+  dplyr::mutate(no3_N_actual = dplyr::coalesce(no3_mgl_mg_NO3_N_L,no3_mg_NO3_N_L,no3_mg_NO3N_L )) %>%
+  dplyr::select(-no3_mg_NO3_N_L,-no3_mgl_mg_NO3_N_L,-no3_mg_NO3N_L ) %>%
   dplyr::rename(no3_mg_NO3_N_L = no3_N_actual) |>
   #NO2
   dplyr::mutate(no2_actual = dplyr::coalesce(no2_mgl_mg_NO2_N_L,no2_mg_NO2_N_L)) %>%
@@ -530,9 +555,13 @@ dplyr::mutate(nh4_actual = dplyr::coalesce(nh4_mgl_mg_L,nh4_mg_NH4_L)) %>%
   dplyr::mutate(po4_actual = dplyr::coalesce(po4_mg_PO4_L,po4_mgl_mg_PO4_L)) %>%
   dplyr::select(-po4_mgl_mg_PO4_L,-po4_mg_PO4_L) %>%
   dplyr::rename(po4_mg_PO4_L = po4_actual) |> 
+  # PO4 - uM
+  dplyr::mutate(po4_actual_uM = dplyr::coalesce(phosphate_uM,po4_uM)) %>%
+  dplyr::select(-phosphate_uM,-po4_uM) %>%
+  dplyr::rename(po4_uM = po4_actual_uM) |> 
   # PO4-P
-  dplyr::mutate(po4_p_actual = dplyr::coalesce(po4_mg_PO4_P_L,po4_mg_P_L)) %>%
-  dplyr::select(-po4_mg_PO4_P_L,-po4_mg_P_L) %>%
+  dplyr::mutate(po4_p_actual = dplyr::coalesce(po4_mg_PO4_P_L,po4_mg_P_L,ortho___p_mg_PO4_P_L)) %>%
+  dplyr::select(-po4_mg_PO4_P_L,-po4_mg_P_L,-ortho___p_mg_PO4_P_L) %>%
   dplyr::rename(po4_mg_P_L = po4_p_actual) |> 
   # SiO2 (units in Si are corrected below with Canadian solute names)
   dplyr::mutate(sio2_actual = dplyr::coalesce(si_mg_SiO2_L,sio2_mgl_mg_SiO2_L,dsi_mg_SiO2_L,
@@ -543,6 +572,10 @@ dplyr::mutate(nh4_actual = dplyr::coalesce(nh4_mgl_mg_L,nh4_mg_NH4_L)) %>%
   dplyr::mutate(so4_actual = dplyr::coalesce(so4_mg_SO4_L,so4_mgl_mg_SO4_L,so4_mg_L)) %>%
   dplyr::select(-so4_mgl_mg_SO4_L,-so4_mg_SO4_L,-so4_mg_L) %>%
   dplyr::rename(so4_mg_SO4_L = so4_actual) |> 
+  # so4 - micromolar
+  dplyr::mutate(so4_actual_uM = dplyr::coalesce(so4_uM, sulfate_uM)) %>%
+  dplyr::select(-so4_uM, -sulfate_uM) %>%
+  dplyr::rename(so4_uM = so4_actual_uM) |>
   # TDN
   dplyr::mutate(tdn_actual = dplyr::coalesce(tdn_mg_N_L,tdn_mgl_mg_N_L,tdn_mg_L)) %>%
   dplyr::select(-tdn_mgl_mg_N_L,-tdn_mg_N_L,-tdn_mg_L) %>%
@@ -555,15 +588,6 @@ dplyr::mutate(nh4_actual = dplyr::coalesce(nh4_mgl_mg_L,nh4_mg_NH4_L)) %>%
   dplyr::rename(tp_ug_P_L = tp_ugl_ug_P_L) %>% 
   # temporary - need to remove this column not using
   select(-contains("nicb"))
-
-# TSS (mg/L)
-#dplyr::mutate(tss_actual = dplyr::coalesce(tss_mg_L, TSS_mg_L), .after = tss_mg_L) %>%
-#dplyr::select(-tss_mg_L, -TSS_mg_L) %>%
-#dplyr::rename(tss_mg_L = tss_actual) %>%
-# VSS (mg/L)
-#dplyr::mutate(vss_actual = dplyr::coalesce(vss_mg_L, VSS_mg_L), .after = vss_mg_L) %>%
-#dplyr::select(-vss_mg_L, -VSS_mg_L) %>%
-#dplyr::rename(vss_mg_L = vss_actual) %>% 
 
 # Re-check remaining columns
 tidy_v3b %>%
@@ -604,10 +628,6 @@ tidy_v3c %>%
   dplyr::select(-Dataset:-date) %>%
   names() %>% sort()
 
-# found column for Si that didn't specify whether Si or SiO2
-tidy_v3c |> select(Dataset,dsi_ug_L) |> 
-  filter(!is.na(dsi_ug_L)) |> 
-  dplyr::distinct(Dataset) 
 
 ## -------------------------------------------- ##
               # Unit Conversions ----
@@ -618,7 +638,6 @@ tidy_v3c %>%
   dplyr::select(-Dataset:-date) %>%
   names() %>% sort()
   
-
 tidy_v3c %>%
   dplyr::select(-Dataset:-date) %>%
   names() %>% sort()
@@ -682,7 +701,6 @@ PO4_mw <- P_mw + (O_mw * 4)
 SO4_mw <- S_mw + (O_mw * 4)
 
 # Need to do unit conversions to get each metric into a single, desired unit
-# still need to fix issue with NO3-N and NO2-N
 tidy_v4b <- tidy_v4a %>%
   dplyr::mutate(al_uM = dplyr::case_when(
     !is.na(al_mg_L) ~ al_mg_L/Al_mw * 10^3,
@@ -693,7 +711,7 @@ tidy_v4b <- tidy_v4a %>%
   dplyr::mutate(br_uM = (br_mg_L / Br_mw) * 10^3, 
                 .after = br_mg_L) %>%
   dplyr::select(-br_mg_L) %>%
-  # calcium - updated 1/29/24 to include ca_ug_L
+  # calcium 
   dplyr::mutate(ca_uM = dplyr::case_when(
     !is.na(ca_uM) ~ ca_uM,
     is.na(ca_uM) & !is.na(ca_mg_L) ~ (ca_mg_L / Ca_mw) * 10^3,
@@ -711,8 +729,16 @@ tidy_v4b <- tidy_v4a %>%
   dplyr::mutate(doc_uM = dplyr::case_when(
     !is.na(doc_uM) ~ doc_uM,
     is.na(doc_uM) & !is.na(doc_mg_L) ~ (doc_mg_L / C_mw) * 10^3,
+    is.na(doc_uM) & !is.na(doc_ug_C_L) ~ (doc_ug_C_L / C_mw),
     T ~ NA)) %>%
-  dplyr::select(-doc_mg_L) %>%
+  dplyr::select(-doc_mg_L,-doc_ug_C_L) %>%
+  # Dissolved Inorganic Carbon
+  dplyr::mutate(dic_uM = dplyr::case_when(
+    !is.na(dic_uM) ~ dic_uM,
+    is.na(dic_uM) & !is.na(dic_mg_C_L) ~ (dic_mg_C_L / C_mw) * 10^3,
+    is.na(dic_uM) & !is.na(dic_mg_L) ~ (dic_mg_L / C_mw)*10^3,
+    T ~ NA)) %>%
+  dplyr::select(-dic_mg_L,-dic_mg_C_L) %>%
   # Dissolved Oxygen
   dplyr::mutate(do_uM = (do_mg_L / (O_mw * 2)) * 10^3, 
                 .after = do_mg_L) %>%
@@ -720,13 +746,14 @@ tidy_v4b <- tidy_v4a %>%
   # Silica (!)
   dplyr::mutate(dsi_uM = dplyr::case_when(
     !is.na(dsi_uM) ~ dsi_uM,
-    is.na(dsi_uM) & !is.na(dsi_mg_Si_L) ~ (dsi_mg_Si_L / Si_mw) * 10^3, # updated this be mg Si/L
-    is.na(dsi_uM) & !is.na(dsi_mg_SiO2_L) ~ (dsi_mg_SiO2_L / (Si_mw + (O_mw * 2))) * 10^3,
+    is.na(dsi_uM) & !is.na(dsi_mg_Si_L) ~ (dsi_mg_Si_L / Si_mw) * 10^3, 
     is.na(dsi_uM) & !is.na(dsi_ug_Si_L) ~ dsi_ug_Si_L / Si_mw,
-    #is.na(dsi_uM) & !is.na(si_mg_Si_L) ~ (si_mg_Si_L / Si_mw) * 10^3,
-    #is.na(dsi_uM) & !is.na(si_mg_SiO2_L) ~ (si_mg_SiO2_L / (Si_mw+(O_mw*2))) * 10^3,
+    is.na(dsi_uM) & !is.na(silicon_ug_L) ~ (silicon_ug_L / Si_mw),
+    is.na(dsi_uM) & !is.na(dsi_mg_SiO2_L) ~ (dsi_mg_SiO2_L / (Si_mw + (O_mw * 2))) * 10^3,
+    is.na(dsi_uM) & !is.na(sio2_ug_SiO2_L) ~ (sio2_ug_SiO2_L / (Si_mw+(O_mw*2))),
+    
     T ~ NA)) %>%
-  dplyr::select(-dsi_mg_SiO2_L, -dsi_mg_Si_L,-dsi_ug_Si_L) %>%
+  dplyr::select(-dsi_mg_SiO2_L, -dsi_mg_Si_L,-dsi_ug_Si_L,-sio2_ug_SiO2_L,-silicon_ug_L) %>%
   # Fluorine
   dplyr::mutate(f_uM = ifelse(test = (is.na(f_uM) == T), # NOTE this is ifelse(), more than one needs case_when
                               yes = (f_mg_L / F_mw) * 10^3,
@@ -735,7 +762,7 @@ tidy_v4b <- tidy_v4a %>%
   # Iron
   #dplyr::mutate(fe_uM = (fe_mg_L / Fe_mw) * 10^3, .after = fe_mg_L) %>%
   dplyr::mutate(fe_uM = dplyr::case_when(
-    #!is.na(f_uM) ~ fe_uM,
+    #!is.na(fe_uM) ~ fe_uM,
     !is.na(fe_mg_L) ~ (fe_mg_L / Fe_mw) * 10^3,
     !is.na(fe_ug_L) ~ fe_ug_L / Fe_mw,
     T ~ NA)) %>%
@@ -745,13 +772,14 @@ tidy_v4b <- tidy_v4a %>%
                                  yes = (hco3_mg_L / HCO3_mw) * 10^3,
                                  no = hco3_uM)) %>%
   dplyr::select(-hco3_mg_L) %>%
-  # Potassium - updated 1/29/24 to include k_ug_L
+  # Potassium 
   dplyr::mutate(k_uM = dplyr::case_when(
     !is.na(k_uM) ~ k_uM,
     is.na(k_uM) & !is.na(k_mg_L) ~ (k_mg_L / K_mw) * 10^3,
     is.na(k_uM) & !is.na(k_ug_L) ~ k_ug_L / K_mw,
+    is.na(k_uM) & !is.na(potassium_ug_L) ~ potassium_ug_L / K_mw,
     T ~ NA)) %>%
-  dplyr::select(-k_mg_L,-k_ug_L) %>%
+  dplyr::select(-k_mg_L,-k_ug_L,-potassium_ug_L) %>%
   # Lithium
   dplyr::mutate(li_uM = (li_mg_L / Li_mw) * 10^3, .after = li_mg_L) %>%
   dplyr::select(-li_mg_L) %>%
@@ -773,8 +801,9 @@ tidy_v4b <- tidy_v4a %>%
     !is.na(na_uM) ~ na_uM,
     is.na(na_uM) & !is.na(na_mg_L) ~ (na_mg_L / Na_mw) * 10^3,
     is.na(na_uM) & !is.na(na_ug_L) ~ na_ug_L / Na_mw,
+    is.na(na_uM) & !is.na(sodium_ug_L) ~ sodium_ug_L / Na_mw,
     T ~ NA)) %>%
-  dplyr::select(-na_mg_L,-na_ug_L) %>%
+  dplyr::select(-na_mg_L,-na_ug_L,-sodium_ug_L) %>%
   # Ammonia (NH3)
   dplyr::mutate(nh3_uM = dplyr::case_when(
     !is.na(nh3_mg_NH3_N_L) ~ (nh3_mg_NH3_N_L / N_mw) * 10^3,
@@ -797,12 +826,13 @@ tidy_v4b <- tidy_v4a %>%
   dplyr::mutate(no3_uM = dplyr::case_when( 
     !is.na(no3_uM) ~ no3_uM,
     is.na(no3_uM) & !is.na(no3_mg_NO3_L) ~ (no3_mg_NO3_L / NO3_mw) * 10^3,
+    is.na(no3_uM) & !is.na(no3_ug_NO3_L) ~ (no3_ug_NO3_L / NO3_mw),
     is.na(no3_uM) & !is.na(no3_mg_NO3_N_L) ~ (no3_mg_NO3_N_L / N_mw) * 10^3, 
     is.na(no3_uM) & !is.na(no3_mg_N_L) ~ (no3_mg_N_L / N_mw) * 10^3, 
     ## see here for how we fixed this!
     is.na(no3_uM) & !is.na(no3_ug_NO3_N_L) ~ (no3_ug_NO3_N_L / N_mw),
     T ~ NA)) %>%
-  dplyr::select(-no3_mg_NO3_L,-no3_mg_N_L, -no3_ug_NO3_N_L, -no3_mg_NO3_N_L) %>% ## make sure to add all original units here!!
+  dplyr::select(-no3_mg_NO3_L,-no3_mg_N_L, -no3_ug_NO3_N_L, -no3_ug_NO3_L,-no3_mg_NO3_N_L) %>% ## make sure to add all original units here!!
   # Nitr__ (NOx)
   dplyr::mutate(nox_uM = dplyr::case_when(
     !is.na(nox_uM) ~ nox_uM,
@@ -821,19 +851,20 @@ tidy_v4b <- tidy_v4a %>%
   dplyr::mutate(po4_uM = dplyr::case_when(
     !is.na(po4_uM) ~ po4_uM,
     is.na(po4_uM) & !is.na(po4_mg_PO4_L) ~ (po4_mg_PO4_L / PO4_mw) * 10^3,
-    #is.na(po4_uM) & !is.na(po4_mg_P_L) ~ (po4_mg_P_L / P_mw) * 10^3,
     is.na(po4_uM) & !is.na(po4_mg_P_L) ~ (po4_mg_P_L / P_mw) * 10^3,
+    is.na(po4_uM) & !is.na(po4_p_ug_PO4_P_L) ~ (po4_p_ug_PO4_P_L/P_mw),
     is.na(po4_uM) & !is.na(po4_ug_PO4_P_L) ~ (po4_ug_PO4_P_L / P_mw),
     T ~ NA)) %>%
-  dplyr::select(-po4_mg_PO4_L,-po4_mg_P_L, -po4_ug_PO4_P_L) %>%
+  dplyr::select(-po4_mg_PO4_L,-po4_mg_P_L, -po4_ug_PO4_P_L,-po4_ug_PO4_P_L, -po4_p_ug_PO4_P_L) %>%
   # Sulfate (SO4)
   dplyr::mutate(so4_uM = dplyr::case_when(
     !is.na(so4_uM) ~ so4_uM,
     is.na(so4_uM) & !is.na(so4_ug_SO4_L) ~ (so4_ug_SO4_L / SO4_mw),
+    is.na(so4_uM) & !is.na(so4_ug_L) ~ (so4_ug_L / SO4_mw),
     is.na(so4_uM) & !is.na(so4_mg_SO4_L) ~ (so4_mg_SO4_L / SO4_mw) * 10^3,
     is.na(so4_uM) & !is.na(sulfates_mg_S_L) ~ (sulfates_mg_S_L/ S_mw) * 10^3, 
     T ~ NA)) %>%
-  dplyr::select(-so4_mg_SO4_L,-so4_ug_SO4_L,-sulfates_mg_S_L) %>%
+  dplyr::select(-so4_mg_SO4_L,-so4_ug_SO4_L,-sulfates_mg_S_L,-so4_ug_L) %>%
   # Strontium (Sr)
   dplyr::mutate(sr_uM = (sr_mg_L / Sr_mw) * 10^3,
                 .before = sr_mg_L) %>%
@@ -1209,7 +1240,7 @@ tidy_v8b <- tidy_v8a %>%
     Raw_Filename == "UMR_si_update_existing_sites.csv" ~ "ymd",
     Raw_Filename == "USGS_NWQA_Chemistry_MissRiverSites.csv" ~ "ymd",
     Raw_Filename == "USGS_geogenic_solutes.csv" ~ "ymd",
-    Raw_Filename == "NEON_Chem.csv" ~"ymd",
+    #Raw_Filename == "NEON_Chem.csv" ~"ymd",
     Raw_Filename == "WalkerBranch_Chem.csv" ~"ymd",
     Raw_Filename == "CatalinaJemez_chemistry_2009-2019_V2.csv"~ "mdy",
     Raw_Filename == "Alpine_Clean.csv"~ "ymd",
@@ -1229,6 +1260,9 @@ tidy_v8b <- tidy_v8a %>%
     Raw_Filename == "yzeron_v3015810_chem.csv" ~ "ymd",
     Raw_Filename == "Krycklan_Cation_Clean.csv" ~ "mdy",
     Raw_Filename == "GRO_Obidos.csv" ~ "ymd",
+    Raw_Filename == "WesternAus_AllSites_Filtered.csv" ~ "ymd",
+    Raw_Filename == "EastRiverSFA_chem.csv" ~ "ymd",
+    Raw_Filename == "Como_Creek_chem.csv" ~ "ymd",
     # Raw_Filename == "" ~ "",
     T ~ "UNKNOWN"))
 
