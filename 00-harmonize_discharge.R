@@ -15,6 +15,8 @@ require(dataRetrieval)
 library(readxl)
 library(supportR)
 
+rm(list = ls())
+
 # set up path to store files
 (path <- scicomptools::wd_loc(local = FALSE, remote_path = file.path('/', "home", "shares", "lter-si", "WRTDS")))
 
@@ -90,7 +92,7 @@ for (i in 1:length(csv_files_download$drive_resource)) {
 
 # get list of files downloaded
 discharge_files = list.files(path=file.path(path2, "discharge_raw"), pattern = ".csv")
-discharge_files = list.files(pattern = ".csv")
+#discharge_files = list.files(pattern = ".csv")
 
 # remove all "Master Q" or other unneeded files
 discharge_files<-discharge_files[!(discharge_files %like% "Discharge_master")]
@@ -111,11 +113,14 @@ data_list = list()
 
 DischargeList<-c("MEAN_Q", "Discharge", "InstantQ", "Q_m3sec", "discharge", "Q", 
                  "Q_cms","Flow","var", "Value", "valeur",
-                 "AVG_DISCHARGE","dailyQ","Discharge.m3.s.","Discharge(m3/s)")
+                 "AVG_DISCHARGE","dailyQ","Discharge.m3.s.","Discharge(m3/s)", 
+                 "Mean Daily", "Mean_Daily_Discharge","mean_daily_Q", "Daily_Mean_Q",
+                 "CC_Q_cms")
 DateList<-c("Date", "dateTime", "dates", "date", "datetime", "DATE_TIME",
-            "Sampling Date", "Dates")
+            "Sampling Date", "Dates","DateTime")
 
 i=i
+
 
 #loop through each discharge file
 #rename columns, convert units, keep only important columns
@@ -162,6 +167,7 @@ for (i in 1:length(discharge_files)) {
   }
 
   print(is(d$Date)) # check date format as list is created
+  print(head(d))
   data_list[[i]] = d
 }
 
@@ -183,6 +189,8 @@ neg_Q %>%
   geom_histogram()+
   facet_wrap(~Discharge_File_Name, scales="free")
 
+# LUQ_QS_Q - two blank rows come up as NA for dates
+
 # addressing negative values
 # keep all values above zero, replace -999999 with NA, replace negative with 0
 disc_v2 = disc_v1 %>% 
@@ -196,7 +204,7 @@ neg_Q <- filter(disc_v2, Qcms<0)
 
 ## plot to see what new data look like
 disc_v2 %>% 
-  filter(Discharge_File_Name == "Rio Madeira_Q") %>%  
+  filter(Discharge_File_Name == "Loch_DailyQ") %>%  
   ggplot(aes(Date,Qcms)) +
   geom_point()
 
@@ -204,7 +212,9 @@ disc_v2 %>%
 name_table = QLog %>%
   select(LTER,Stream_Name,Discharge_File_Name)
 
+# join with reference table and remove missing date rows
 disc_v3 <- disc_v2 %>% 
+  filter(!is.na(Date)) %>% 
   left_join(y=name_table,by="Discharge_File_Name")
 
 #check this
@@ -218,6 +228,15 @@ disc_v2 %>% filter(Discharge_File_Name=="AAGEVEG_Q") %>% pull(Discharge_File_Nam
 #the number of rows should be the same, to make check discharge is added for multi-alias'd sites
 disc_v2 %>% filter(Discharge_File_Name=="AAGEVEG_Q") %>% nrow()
 disc_v3 %>% filter(Discharge_File_Name=="AAGEVEG_Q") %>% nrow()
+
+
+## Check date formats
+# Look at general date format per discharge file
+disc_v3 %>%
+  dplyr::group_by(Discharge_File_Name) %>%
+  dplyr::summarize(dates = paste(unique(Date), collapse = "; ")) %>%
+  tidyr::pivot_wider(names_from = Discharge_File_Name, values_from = dates) %>%
+  dplyr::glimpse()
 
 ####
 # plot all discharge and save to file
@@ -235,10 +254,17 @@ dev.off()
 
 #change date to reflect new file creation
 setwd("//home/shares/lter-si/WRTDS/discharge/discharge_tidy")
-write.csv(disc_v3, "20251014_masterdata_discharge.csv", row.names=FALSE)
 
-disc_filename = "20251014_masterdata_discharge.csv"
+# Grab today's date
+date <- gsub(pattern = "-", replacement = "", x = Sys.Date())
 
+# Generate a date-stamped file name for this file
+( disc_filename <- paste0(date, "_masterdata_discharge.csv") )
+
+# write locally
+write.csv(x = disc_v3, file = file.path(path2,"discharge_tidy", disc_filename), na = '', row.names = F)
+
+# write to google drive
 googledrive::drive_upload(media = file.path(path2,"discharge_tidy", disc_filename), overwrite = T,
                           path = googledrive::as_id("https://drive.google.com/drive/u/0/folders/1hbkUsTdo4WAEUnlPReOUuXdeeXm92mg-"))
 
