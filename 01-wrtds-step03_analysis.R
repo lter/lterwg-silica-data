@@ -39,7 +39,9 @@ purrr::walk2(.x = input_ids$name, .y = input_ids$id,
 discharge <- read.csv(file.path(path, "WRTDS Inputs", "WRTDS-input_discharge.csv"))
 chemistry <- read.csv(file.path(path, "WRTDS Inputs", "WRTDS-input_chemistry.csv"))
 information <- read.csv(file.path(path, "WRTDS Inputs", "WRTDS-input_information.csv"))
-crop <- read.csv(file.path(path,"WRTDS Inputs","WRTDS_data_cropping.csv"))
+crop <- read.csv(file.path(path,"WRTDS Inputs","WRTDS_Data_Cropping.csv"))
+
+reruns <- read.csv(file.path(path, "WRTDS Inputs", "WRTDS_rerun.csv"))
 
 # format cropping object to modify blankTime columns for running WRTDS
 crop_v1 <- crop |> 
@@ -61,6 +63,28 @@ crop_v1 <- crop |>
   dplyr::mutate(BlankTime_Start_Date = as.Date(paste0(BlankTime_Start,"-01","-01")),
                 BlankTime_End_Date = as.Date(paste0(BlankTime_End,"-01","-01")))
 
+
+# format rerun object
+reruns_v0 <- reruns %>% 
+  unite(col="Stream_ID", LTER:Stream_Name, sep="__") %>% 
+  unite(col="Stream_Element_ID", Stream_ID:variable, remove=FALSE, sep="_") %>% 
+  filter(Stream_Element_ID != "__WALK_DSi")
+
+chem_check <- chemistry %>% 
+  filter(Stream_Element_ID %in% reruns_v0$Stream_Element_ID)
+  
+length(unique(chem_check$Stream_Element_ID))
+anti_join(reruns_v0, chem_check, by="Stream_Element_ID")
+
+
+chem_check %>% 
+  filter(variable == "DSi") %>% 
+  ggplot(aes(as.Date(Date),value_mgL))+
+  geom_point()+
+  facet_wrap(~Stream_ID)
+
+
+
 ## ---------------------------------------------- ##
             # Diagnose Types of Sites ----
 ## ---------------------------------------------- ##
@@ -79,28 +103,35 @@ pa5_3 <- c(
   # ERRORS ----
 ## --------------------------------------------- ##
 
-fixed <- c()
-
 # Error in runSurvReg(SampleCrossV$DecYear[i], SampleCrossV$LogQ[i], DecLow,  : 
 # minNumUncen is greater than total number of samples
-few_data_cens <- c('NWT__ALBION_P',  # only three obs?
-              'USGS__Arkansas River at Murray Dam_NH4',
+few_data_cens <- c(
               'USGS__EAGLE RIVER NEAR MINTURN_P',
               'USGS__GORE CREEK UPPER STATION_P',
               'USGS__LITTLE RIVER_P',
               'USGS__PINE CREEK_P',
-              'HYBAM__Ciudad Bolivar_NO3',
               'USGS__GREEN RIVER_P',
               'USGS__ST. LAWRENCE_P',
-              'Walker Branch__WALK_P',
-              'MCM__Onyx River at Lake Vanda Weir_NH4',
               "HBR__ws7_P", 'HBR__ws8_P',
-              'LMP__LMP73_NH4', 'LMP__LMP73_P')
+              'USGS__Wild River_P',
+              "USGS__McDonalds Branch_P", 
+              "USGS__MERCED R_P","USGS__Merced River_P",
+              "USGS__Vallecito Creek_P",
+              "USGS__Wild River_NO3",
+              "Australia__PEEL RIVER AT UPSTREAM PARADISE WEIR_NO3",
+              'Australia__EDWARD RIVER AT DENILIQUIN_NOx',
+              'LMP__LMP73_NH4', 
+              'LMP__LMP73_P',
+              "ColoradoAlpine__loch_P")
+              #'USGS__Arkansas River at Murray Dam_NH4',
+              #'HYBAM__Ciudad Bolivar_NO3',
+              #''NWT__ALBION_P', need to adjust MDL
+              #'Walker Branch__WALK_P', seems OK
+              #'MCM__Onyx River at Lake Vanda Weir_NH4',)
 
 # Error in runSurvReg(estPtYear, estPtLogQ, DecLow, DecHigh, localSample,  : 
 # minNumObs is greater than total number of samples
-few_data_obs <- c( 'MD__Barr Creek_NOx', 
-                  'MD__Barr Creek_P') # issue in "Data cropping spreadsheet" cuts off everything before 2015) 
+few_data_obs <- c()
 
 ## Error in setupYears(paStart = paStart, paLong = paLong, localDaily = localDaily) : 
 ## Daily dataframe cannot have gaps in the data.
@@ -108,51 +139,39 @@ few_data_obs <- c( 'MD__Barr Creek_NOx',
 missing_q <- c() 
 
 # Set of problem rivers to drop from the loop (for reasons not specified above)
-bad_rivers <- c()
+bad_rivers <- c("USGS__YAMPA RIVER AT DEERLODGE PARK_P",
+                # name issue
+                "UK__EDEN AT PENSHURST / VEXOUR BRIDGE_NO3",
+                "UK__EDEN AT PENSHURST / VEXOUR BRIDGE_P",
+                "UK__MEDWAY AT TESTON / EAST FARLEIGH_NO3",
+                "UK__MEDWAY AT TESTON / EAST FARLEIGH_P",
+                "UK__EDEN AT PENSHURST / VEXOUR BRIDGE_DSi",
+                "UK__MEDWAY AT TESTON / EAST FARLEIGH_DSi")
 
 #Error in if (!(localUnits %in% allCaps)) { : the condition has length > 1
-odd_ones <- c('USGS__Wild River_DSi','USGS__Wild River_P')
+odd_ones <- c('USGS__Wild River_DSi')
 
-crash_rivers <- c("Australia__DARLING RIVER AT BOURKE TOWN_NO3",
-                  "Australia__DARLING RIVER AT BURTUNDY_NO3",
-                  "USGS__McDonalds Branch_P",
-                  "USGS__MERCED R_P","USGS__Merced River_P",
-                  "USGS__Vallecito Creek_P",
-                  "USGS__Wild River_NO3")
+crash_rivers <- c(#"Australia__DARLING RIVER AT BOURKE TOWN_NO3", adjusted cropping
+                  #"Australia__DARLING RIVER AT BURTUNDY_NO3", adjusted cropping 
+                  )
 
 # Vector for storing problem rivers identified in latest run of WRTDS
-new_bads <- c("UK__EDEN AT PENSHURST / VEXOUR BRIDGE_NO3",
-              "UK__EDEN AT PENSHURST / VEXOUR BRIDGE_P",
-              "UK__MEDWAY AT TESTON / EAST FARLEIGH_NO3",
-              "UK__MEDWAY AT TESTON / EAST FARLEIGH_P",
-              "UK__EDEN AT PENSHURST / VEXOUR BRIDGE_DSi",
-              "UK__MEDWAY AT TESTON / EAST FARLEIGH_DSi",
-              "USGS__YAMPA RIVER AT DEERLODGE PARK_P",
-              "Australia__PEEL RIVER AT UPSTREAM PARADISE WEIR_NO3",
-              ## as of 6/1/25
-              "USGS__Corral Gulch_P",
-              "Australia__DARLING RIVER AT BURTUNDY_NOx",                 
-              "Australia__DARLING RIVER AT BURTUNDY_P",
+new_bads <- c(# these don't have enough data and not successfully removed
+              'Australia__DARLING RIVER AT WILCANNIA MAIN CHANNEL_NOx',
               'Australia__DARLING RIVER AT WILCANNIA MAIN CHANNEL_NO3',
-              'Australia__EDWARD RIVER AT DENILIQUIN_DSi',
-              'Australia__EDWARD RIVER AT DENILIQUIN_NOx',
-              "Australia__EDWARD RIVER AT DENILIQUIN_P",
-              "Australia__PEEL RIVER AT UPSTREAM PARADISE WEIR_NOx",
-              'KRR__S65_NH4','LUQ__Q2_DSi','LUQ__Q2_NH4')
+              'Australia__DARLING RIVER AT WILCANNIA MAIN CHANNEL_P',
+              'KRR__S65_NH4')
+              #'LUQ__Q2_DSi', # I don't know why this doesn't work
+              #'LUQ__Q2_NH4')
 
-skipped <- c("ColoradoAlpine__loch_DSi",                                   
-             "ColoradoAlpine__loch_NH4",                                  
-             "ColoradoAlpine__loch_NO3",                                  
-             "ColoradoAlpine__loch_P",
-             "HBR__ws1_P",
-             "LUQ__Q2_NOx", "LUQ_Q2_P","LUQ__Q2_P",                                        
-                   "LUQ__RI_DSi",                                      
-                          "LUQ__RI_NH4",                                      
-                        "LUQ__RI_NOx",                                      
-                        "MCM__Onyx River at Lower Wright Weir_NH4", 
-             "USGS__SOPCHOPPY RIVER_NOx", "USGS__SOPCHOPPY RIVER_P")
-
-
+skipped <- c("ColoradoAlpine__loch_NH4",                                  
+             "HBR__ws1_P", # lines
+             #"LUQ__Q2_NOx", # added greater than 1990 to data cropping, will retry
+             #"LUQ__Q2_P",                                     
+            #"LUQ__RI_NH4","LUQ__RI_NOx","LUQ__RI_DSi",   
+            # these have minimal variation in values, but aren't removed prior to run, keeping here
+             "USGS__SOPCHOPPY RIVER_NOx", 
+             "USGS__SOPCHOPPY RIVER_P")
 
 ## ---------------------------------------------- ##
 # Analysis Workflow ----
@@ -174,12 +193,17 @@ done_rivers <- data.frame("file" = dir(path = file.path(path, "WRTDS Loop Diagno
 #rivers_to_do <- good_rivers
 
 rivers_to_do <- sort(setdiff(x = unique(good_rivers), 
-                          y = c(unique(done_rivers$river), new_bads)))
+                          y = c(unique(done_rivers$river), skipped)))
+
+rivers_to_rerun <- reruns_v0$Stream_Element_ID
 
 # What are the next few that will be processed and how many total left?
 rivers_to_do[1:5]; length(rivers_to_do)
 
-river <- rivers_to_do[3]
+rivers_to_do <- rivers_to_rerun
+
+rivers_to_do
+
 
 # Loop across rivers and elements to run WRTDS workflow!
 #for(river in rivers_to_do){ # actual loop
@@ -207,6 +231,9 @@ river <- rivers_to_do[3]
   # Subset chemistry
   river_chem <- chemistry %>%
     dplyr::filter(Stream_Element_ID == river) %>%
+    # adjust "zero" 
+    mutate(value_mgL = case_when(value_mgL == 0 ~ 0.001,
+                                 .default = value_mgL)) %>% 
     # Drop unneeded columns
     dplyr::select(-Stream_Element_ID, -Stream_ID, -variable)
   
