@@ -344,15 +344,21 @@ tidy_v1d <- tidy_v1c %>%
   filter(LTER != "DOE SFA East River") %>% 
   filter(LTER != "East River SFA")
 
+# change name of Catalina Jemez streams which contain "_" so doesn't cause problems later
+tidy_v1e <- tidy_v1d %>% 
+  mutate(Stream_Name = case_when(Stream_Name == "MG_WEIR" ~ "MGWEIR",
+                                 Stream_Name == "OR_low" ~ "ORlow",
+                                 .default = Stream_Name))
+
 # Check the structure of the remaining data
-dplyr::glimpse(tidy_v1d)
+dplyr::glimpse(tidy_v1e)
 
 ## -------------------------------------------- ##
                # Numeric Checks ----
 ## -------------------------------------------- ##
 
 # Before we can do units conversions we need to do numeric checks (quality control)
-tidy_v2a <- tidy_v1d %>%
+tidy_v2a <- tidy_v1e %>%
   # Add a row number column
   dplyr::mutate(row_num = 1:nrow(.), .before = dplyr::everything()) %>%
   # Reshape the data to get all numeric columns into long format
@@ -453,10 +459,12 @@ tidy_v3b <- tidy_v3a %>%
   # Conductivity (uS/cm) 
   dplyr::mutate(cond_actual = dplyr::coalesce(conduct_uS_cm,conductivity_uS_cm, cond_uscm_uS_cm,
                                               `conductivity_at_25°c_uS_cm`,fldcond_uscm_uS_cm,
-                                              labcond_uscm_uS_cm,conductivity_us_cm), 
+                                              labcond_uscm_uS_cm,conductivity_us_cm,ec_uS_cm,cond_uS_cm,
+                                              specificconductance_uS_cm), 
                 .after = conductivity_uS_cm) %>%
   dplyr::select(-conduct_uS_cm, -conductivity_uS_cm, -fldcond_uscm_uS_cm,-conductivity_us_cm,-cond_uscm_uS_cm,
-                -`conductivity_at_25°c_uS_cm`,-labcond_uscm_uS_cm) %>%
+                -`conductivity_at_25°c_uS_cm`,-labcond_uscm_uS_cm,-ec_uS_cm,-cond_uS_cm,
+                -specificconductance_uS_cm) %>%
   dplyr::rename(conductivity_uS_cm = cond_actual) %>%
   # Chl a 
   dplyr::mutate(chla_actual = dplyr::coalesce(chl_a_ug_L, chla_ug_L, suspended_chl_ug_L,chla_ugl_ug_L), .after = chla_ug_L) %>%
