@@ -25,8 +25,8 @@ dir.create(path = file.path(path, "WRTDS Inputs"), showWarnings = F)
 # Define the names of the Drive files we need
 file_names <- c("WRTDS_Reference_Table_with_Areas_DO_NOT_EDIT.csv", # No.1 Simplified ref table
                 "Site_Reference_Table", # No.2 Full ref table
-                "20251024_masterdata_discharge.csv", # No.3 Main discharge ## update this file with new discharge!!
-                "20251024_masterdata_chem.csv", # No.4 Main chemistry ## update this file with new chemistry!!
+                "20251222_masterdata_discharge.csv", # No.3 Main discharge ## update this file with new discharge!!
+                "20251124_masterdata_chem.csv", # No.4 Main chemistry ## update this file with new chemistry!!
                 "Data_Cropping_WRTDS", # No.5 Data cropping for chemistry (Si)
                 "Discharge_Cropping_WRTDS")  # No.6 Data cropping for discharge
 
@@ -72,21 +72,22 @@ ref_table <- ref_v0 %>%
   dplyr::mutate(Use_WRTDS = tolower(Use_WRTDS)) %>%
   # Drop non-unique rows
   dplyr::distinct() %>%
+  # Filter to only rivers where we *do* want to use WRTDS
+  dplyr::filter(Use_WRTDS == "yes") %>%
   # Attach areas
   dplyr::left_join(y = dplyr::select(areas, LTER, Discharge_File_Name, Stream_Name, drainSqKm),
                    by = c("LTER", "Discharge_File_Name", "Stream_Name")) %>%
-  # Filter to only rivers where we *do* want to use WRTDS
-  dplyr::filter(Use_WRTDS == "yes") %>%
+ 
   # Generate a 'stream ID' column that combines LTER and chemistry stream name
   dplyr::mutate(Stream_ID = paste0(LTER, "__", Stream_Name),
                 .before = dplyr::everything())
-  
+
 # Should be no missing areas
 ref_table %>%
   dplyr::filter(is.na(drainSqKm) | nchar(drainSqKm) == 0)
 
 # not sure why I had to assign this by hand for GRO Obidos, I think because of "areas" dataset
-ref_table[91,6] <- 4701550
+# ref_table[91,6] <- 4701550
 
 # Check structure
 dplyr::glimpse(ref_table)
@@ -163,7 +164,10 @@ chem_v1 <- chem_v0 %>%
   dplyr::select(-Use_WRTDS) %>% 
   # Generate a 'stream ID' column that combines LTER and chemistry stream name
   dplyr::mutate(Stream_ID = paste0(LTER, "__", Stream_Name),
-                .before = dplyr::everything())
+                .before = dplyr::everything()) %>% 
+  # filter Obidos data 
+  dplyr::filter((Dataset != "Amazon")) %>% 
+  dplyr::filter(!(Stream_Name == "Obidos" & date < "2000-01-01"))
 
 
 # check to see if all names included in chemistry and ref table again after updating Finnish names
@@ -468,6 +472,13 @@ dplyr::glimpse(disc_v4)
 supportR::diff_check(old = unique(disc_v3$Discharge_File_Name),
                      new = unique(disc_v4$Discharge_File_Name))
 
+# check lost streams 
+disc_v3 %>% 
+  filter(Discharge_File_Name == "WalkerBranch_Q") %>% 
+  ggplot(aes(Date,Qcms))+
+  geom_point()
+
+
 # Check for unintentionally lost columns
 supportR::diff_check(old = names(disc_v3), new = names(disc_v4))
 ## Change to discharge column name is fine
@@ -563,7 +574,7 @@ disc_v6 = do.call(rbind, Q_interp)
 glimpse(disc_v6)
   
 
-# Remove sites with limited data ## UNDER CONSTRUCTION ## ------------------------------------------
+# Remove sites with limited data  ------------------------------------------
 low_n <- chem_v4 |> 
   dplyr::mutate(Stream_Element_ID = paste0(Stream_ID, "_", variable),
                 .before = dplyr::everything()) %>% 
