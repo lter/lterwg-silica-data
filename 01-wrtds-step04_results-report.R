@@ -30,7 +30,10 @@ googledrive::drive_ls(googledrive::as_id("https://drive.google.com/drive/u/0/fol
 ref_table <- read.csv(file = file.path(path, "WRTDS Source Files", 
                                        "WRTDS_Reference_Table_with_Areas_DO_NOT_EDIT.csv")) %>%
   # Pare down to only needed columns
-  dplyr::select(LTER, stream = Stream_Name, drainSqKm)
+  dplyr::select(LTER, stream = Stream_Name, drainSqKm) %>% 
+  mutate(stream = case_when(stream == "OR_low" ~ "ORlow",
+                            stream == "MG_WEIR" ~ "MGWEIR",
+                            .default = stream))
 
 # Check it out
 dplyr::glimpse(ref_table)
@@ -61,8 +64,19 @@ done_boots <- data.frame("file" = dir(path = file.path(path, "WRTDS Bootstrap Di
 # List all files in "WRTDS Outputs"
 wrtds_outs_v0 <- dir(path = file.path(path, "WRTDS Outputs"))
 
+# remove files with wrong name for Catalina Jemez, need to delete from server
+remove_streams_v1 <- "MG_WEIR"
+
+# Remove items that match the pattern
+wrtds_outs_v1 <- str_subset(wrtds_outs_v0, pattern = remove_streams_v1, negate = TRUE)
+
+remove_streams_v2 <- "OR_low"
+
+# Remove items that match the pattern
+wrtds_outs_v2 <- str_subset(wrtds_outs_v1, pattern = remove_streams_v2, negate = TRUE)
+
 # Do some useful processing of that object
-wrtds_outs <- data.frame("file_name" = wrtds_outs_v0) %>%
+wrtds_outs <- data.frame("file_name" = wrtds_outs_v2) %>%
   # Split LTER off the file name
   tidyr::separate(col = file_name, into = c("LTER", "other_content"),
                   sep = "__", remove = FALSE, fill = "right", extra = "merge") %>%
@@ -85,7 +99,7 @@ dplyr::glimpse(wrtds_outs)
 # quantify how many of each element there are
 wrtds_outs %>% 
   group_by(Stream_Element_ID,chemical,stream) %>% 
-  summarise(n=n()) %>% 
+  dplyr::summarise(n=n()) %>% 
   aggregate(stream~chemical, FUN=length)
 
 # Create an empty list
@@ -653,7 +667,6 @@ kalman_annual <- out_list[["ResultsTable_Kalman_WRTDS.csv"]] %>%
 
 # Glimpse this as well
 dplyr::glimpse(kalman_annual)
-
 
 
 ## ---------------------------------------------- ##
