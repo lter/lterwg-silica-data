@@ -576,14 +576,14 @@ glimpse(disc_v6)
 
 # Remove sites with limited data  ------------------------------------------
 low_n <- chem_v4 |> 
-  dplyr::mutate(Stream_Element_ID = paste0(Stream_ID, "_", variable),
+  dplyr::mutate(Stream_Element_ID = paste0(Stream_ID, "___", variable),
                 .before = dplyr::everything()) %>% 
   dplyr::group_by(Stream_Element_ID) |> 
   dplyr::summarise(n=n()) |> 
   filter(n<45)
 
 high_cens <- chem_v4 |> 
-  dplyr::mutate(Stream_Element_ID = paste0(Stream_ID, "_", variable),
+  dplyr::mutate(Stream_Element_ID = paste0(Stream_ID, "___", variable),
                 .before = dplyr::everything()) %>% 
   mutate(remark_2 = ifelse(remarks == "<",1,0)) |> 
   dplyr::group_by(Stream_Element_ID,remark_2) |>
@@ -603,19 +603,19 @@ glimpse(high_cens_2)
 # combine low N and streams with a lot of censored values
 to_remove <- full_join(low_n,high_cens_2,by="Stream_Element_ID") %>% 
   separate(Stream_Element_ID,into=c("LTER","Stream_Element"), sep="__", remove=FALSE, extra="merge") %>% 
-  separate(Stream_Element, into=c("Stream_Name","Element"), sep="_",remove=FALSE, extra="merge")
+  separate(Stream_Element, into=c("Stream_Name","Element"), sep="___",remove=FALSE, extra="merge")
 
 # save to file for future reference
 write.csv(x=to_remove, file=file.path(path, "streams_removed_before_WRTDS.csv"))
 
 # no remove those streams from chemistry file
 chem_v5 <- chem_v4 |> 
-  dplyr::mutate(Stream_Element_ID = paste0(Stream_ID, "_", variable),
+  dplyr::mutate(Stream_Element_ID = paste0(Stream_ID, "___", variable),
                 .before = dplyr::everything()) %>% 
   filter(!Stream_Element_ID %in% to_remove$Stream_Element_ID)
 
 # check how many removed
-chem_v4 <- chem_v4 %>% dplyr::mutate(Stream_Element_ID = paste0(Stream_ID, "_", variable),
+chem_v4 <- chem_v4 %>% dplyr::mutate(Stream_Element_ID = paste0(Stream_ID, "___", variable),
               .before = dplyr::everything()) 
 
 # how many were removed?
@@ -648,7 +648,7 @@ chemistry <- chem_v5 %>%
   dplyr::filter(Stream_ID %in% incl_streams) %>%
   dplyr::select(-LTER, -Discharge_File_Name, -Stream_Name) %>%
   # Make a column for Stream_ID + Chemical
-  dplyr::mutate(Stream_Element_ID = paste0(Stream_ID, "_", variable),
+  dplyr::mutate(Stream_Element_ID = paste0(Stream_ID, "___", variable),
                 .before = dplyr::everything())
 
 # Check it
