@@ -47,7 +47,7 @@ reruns <- read.csv(file.path(path, "WRTDS Inputs", "WRTDS_rerun.csv"))
 crop_v1 <- crop |> 
   dplyr::mutate(Stream_ID = paste0(LTER, "__", Site),
                 .before = dplyr::everything(),keep="all") %>% 
-  dplyr::mutate(Stream_element_ID = paste0(Stream_ID,"_",variable),
+  dplyr::mutate(Stream_element_ID = paste0(Stream_ID,"___",variable),
                 .after = dplyr::everything(),.keep="all") |> 
   # drop unwanted columns
   dplyr::select(-dplyr::ends_with("_Than"),starts_with("X."),-LTER,-Site) %>% 
@@ -67,7 +67,7 @@ crop_v1 <- crop |>
 # format rerun object
 reruns_v0 <- reruns %>% 
   unite(col="Stream_ID", LTER:Stream_Name, sep="__") %>% 
-  unite(col="Stream_Element_ID", Stream_ID:variable, remove=FALSE, sep="_") %>% 
+  unite(col="Stream_Element_ID", Stream_ID:variable, remove=FALSE, sep="___") %>% 
   filter(Stream_Element_ID != "__WALK_DSi")
 
 chem_check <- chemistry %>% 
@@ -82,6 +82,13 @@ chem_check %>%
   ggplot(aes(as.Date(Date),value_mgL))+
   geom_point()+
   facet_wrap(~Stream_ID)
+
+# run just one LTER 
+east_river <- chemistry %>% 
+  separate(Stream_ID, into=c("LTER","Stream_Name"), sep="__") %>% 
+  filter(LTER == "EastRiverSFA")
+
+rivers_to_run <- unique(east_river$Stream_Element_ID)
 
 ## ---------------------------------------------- ##
             # Diagnose Types of Sites ----
@@ -198,10 +205,12 @@ rivers_to_rerun <- reruns_v0$Stream_Element_ID
 # What are the next few that will be processed and how many total left?
 rivers_to_do[1:5]; length(rivers_to_do)
 
-rivers_to_do <- rivers_to_rerun
+rivers_to_do <- rivers_to_run
 
 rivers_to_do
 
+
+river=rivers_to_do[1]
 
 # Loop across rivers and elements to run WRTDS workflow!
 #for(river in rivers_to_do){ # actual loop
@@ -224,7 +233,7 @@ rivers_to_do
     unique() %>%
     as.character()
   
-  stream_element_id <- paste0(stream_id,"_",element)
+  stream_element_id <- paste0(stream_id,"___",element)
   
   # Subset chemistry
   river_chem <- chemistry %>%
