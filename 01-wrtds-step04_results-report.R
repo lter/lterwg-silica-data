@@ -66,14 +66,13 @@ wrtds_outs_v0 <- dir(path = file.path(path, "WRTDS Outputs"))
 
 # remove files with wrong name for Catalina Jemez, need to delete from server
 remove_streams_v1 <- "MG_WEIR"
-
 # Remove items that match the pattern
 wrtds_outs_v1 <- str_subset(wrtds_outs_v0, pattern = remove_streams_v1, negate = TRUE)
-
 remove_streams_v2 <- "OR_low"
-
 # Remove items that match the pattern
 wrtds_outs_v2 <- str_subset(wrtds_outs_v1, pattern = remove_streams_v2, negate = TRUE)
+
+
 
 # Do some useful processing of that object
 wrtds_outs <- data.frame("file_name" = wrtds_outs_v2) %>%
@@ -84,7 +83,7 @@ wrtds_outs <- data.frame("file_name" = wrtds_outs_v2) %>%
   tidyr::separate(col = other_content, into = c("stream", "chemical", "data_type"),
                   sep = "_", remove = TRUE, fill = "right", extra = "merge") %>%
   # Recreate the "Stream_Element_ID" column
-  dplyr::mutate(Stream_Element_ID = paste0(LTER, "__", stream, "_", chemical)) %>%
+  dplyr::mutate(Stream_Element_ID = paste0(LTER, "__", stream, "___", chemical)) %>%
   # Remove the PDFs of exploratory graphs
   dplyr::filter(data_type != "WRTDS_output.pdf") %>%
   dplyr::filter(data_type != "WRTDS_kalman_output.pdf") %>%
@@ -721,7 +720,7 @@ pdf_outs <- data.frame("file_name" = wrtds_outs_v0) %>%
   tidyr::separate(col = other_content, into = c("stream", "chemical", "data_type"),
                   sep = "_", remove = TRUE, fill = "right", extra = "merge") %>%
   # Recreate the "Stream_Element_ID" column
-  dplyr::mutate(Stream_Element_ID = paste0(LTER, "__", stream, "_", chemical)) %>%
+  dplyr::mutate(Stream_Element_ID = paste0(LTER, "__", stream, "___", chemical)) %>%
   # Remove the PDFs of exploratory graphs
   dplyr::filter(data_type == "WRTDS_output.pdf") %>%
   # Remove unwanted chemicals that we have data for
@@ -741,7 +740,7 @@ kalman_pdf_outs <- data.frame("file_name" = wrtds_outs_v0) %>%
   tidyr::separate(col = other_content, into = c("stream", "chemical", "data_type"),
                   sep = "_", remove = TRUE, fill = "right", extra = "merge") %>%
   # Recreate the "Stream_Element_ID" column
-  dplyr::mutate(Stream_Element_ID = paste0(LTER, "__", stream, "_", chemical)) %>%
+  dplyr::mutate(Stream_Element_ID = paste0(LTER, "__", stream, "___", chemical)) %>%
   # Remove the PDFs of exploratory graphs
   dplyr::filter(data_type == "WRTDS_kalman_output.pdf") %>%
   # Remove unwanted chemicals that we have data for
@@ -793,7 +792,7 @@ boot_outs <- data.frame("file_name" = boot_outs_v0) %>%
   tidyr::separate(col = other_content, into = c("stream", "chemical", "data_type"),
                   sep = "_", remove = TRUE, fill = "right", extra = "merge") %>%
   # Recreate the "Stream_Element_ID" column
-  dplyr::mutate(Stream_Element_ID = paste0(LTER, "__", stream, "_", chemical)) %>%
+  dplyr::mutate(Stream_Element_ID = paste0(LTER, "__", stream, "___", chemical)) %>%
   # Keep only rivers that finish the whole workflow!
   dplyr::filter(Stream_Element_ID %in% done_boots)
 
