@@ -47,7 +47,7 @@ chemistry <- read.csv(file.path(path, "WRTDS Inputs", "WRTDS-input_chemistry.csv
 information <- read.csv(file.path(path, "WRTDS Inputs", "WRTDS-input_information.csv"))
 
 # Identify rivers that make it through the regular workflow
-good_rivers <- data.frame("file" = dir(path = file.path(path, "WRTDS Loop Diagnostic"))) %>%
+good_rivers <- data.frame("file" = dir(path = file.path(path, "WRTDS Loop Diagnostic_2025"))) %>%
   # Drop the file suffix part of the file name 
   dplyr::mutate(river = gsub(pattern = "\\_Loop\\_Diagnostic.csv", replacement = "", x = file)) %>%
   # Pull out just the river
