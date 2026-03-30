@@ -86,7 +86,8 @@ chem_check %>%
 # run just one LTER 
 east_river <- chemistry %>% 
   separate(Stream_ID, into=c("LTER","Stream_Name"), sep="__") %>% 
-  filter(LTER == "EastRiverSFA")
+  filter(LTER == "EastRiverSFA") %>% 
+  mutate(Date = as.Date(Date))
 
 rivers_to_run <- unique(east_river$Stream_Element_ID)
 
@@ -194,23 +195,23 @@ done_rivers <- data.frame("file" = dir(path = file.path(path, "WRTDS Loop Diagno
   dplyr::mutate(river = gsub(pattern = "\\_Loop\\_Diagnostic.csv", replacement = "", x = file))
 
 ## Final list of rivers to run
-#rivers_to_do <- rivers_aus
-#rivers_to_do <- good_rivers
+rivers_umr <- chemistry %>% 
+  separate(Stream_ID, into=c("LTER","Stream_Name"), sep="__", remove=FALSE) %>% 
+  filter(LTER == "UMR") %>% 
+  filter(variable == "NH4")
+
+rivers_to_do <- unique(rivers_umr$Stream_Element_ID)
 
 rivers_to_do <- sort(setdiff(x = unique(good_rivers), 
                           y = c(unique(done_rivers$river), skipped)))
 
 rivers_to_rerun <- reruns_v0$Stream_Element_ID
 
+
 # What are the next few that will be processed and how many total left?
 rivers_to_do[1:5]; length(rivers_to_do)
 
-rivers_to_do <- rivers_to_run
 
-rivers_to_do
-
-
-river=rivers_to_do[1]
 
 # Loop across rivers and elements to run WRTDS workflow!
 #for(river in rivers_to_do){ # actual loop
