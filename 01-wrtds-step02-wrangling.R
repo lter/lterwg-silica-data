@@ -138,7 +138,10 @@ setdiff(x = unique(ref_table$Stream_Name), y = unique(chem_v0$Stream_Name))
 # Wrangle chemistry as well
 chem_v1 <- chem_v0 %>%
   # Pare down to only particular solutes that we're interested in
-  dplyr::filter(variable %in% c("SRP", "PO4", "DSi", "NO3", "NOx", "NH4")) %>%
+  dplyr::filter(variable %in% c("SRP", "PO4", "DSi", "NO3", "NOx", "NH4","NHX")) %>%
+  # fix issue with UMR having NH4 and NHX for same streams
+  dplyr::mutate(variable = case_when(LTER == "UMR" & variable == "NHX" ~ "NH4", 
+                                     .default = variable)) %>% 
   # Drop old LTER column
   dplyr::select(-LTER) %>% 
   # rename some Finnish streams before joining
@@ -590,11 +593,11 @@ high_cens <- chem_v4 |>
   dplyr::summarise(cens_n = n()) |> 
   pivot_wider(names_from = "remark_2",values_from="cens_n")
 
-colnames(high_cens) <- c("Stream_Element_ID","no","yes")
+colnames(high_cens) <- c("Stream_Element_ID","Above_BDL","Below_BDL")
 
 # remove cases where censored values are greater than some proportion of total - here is 1/3
 high_cens_2 <- high_cens |> 
-  mutate(test = case_when((yes)/(yes+no) >= 0.33 ~ "remove",
+  mutate(test = case_when((Below_BDL)/(Below_BDL+Above_BDL) >= 0.33 ~ "remove",
                           .default = "keep")) |> 
   filter(test == "remove")
 
@@ -608,7 +611,7 @@ to_remove <- full_join(low_n,high_cens_2,by="Stream_Element_ID") %>%
 # save to file for future reference
 write.csv(x=to_remove, file=file.path(path, "streams_removed_before_WRTDS.csv"))
 
-# no remove those streams from chemistry file
+# now remove those streams from chemistry file
 chem_v5 <- chem_v4 |> 
   dplyr::mutate(Stream_Element_ID = paste0(Stream_ID, "___", variable),
                 .before = dplyr::everything()) %>% 
