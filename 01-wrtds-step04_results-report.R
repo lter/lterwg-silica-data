@@ -83,7 +83,7 @@ wrtds_outs <- data.frame("file_name" = wrtds_outs_v2) %>%
   tidyr::separate(col = other_content, into = c("stream", "chemical", "data_type"),
                   sep = "_", remove = TRUE, fill = "right", extra = "merge") %>%
   # Recreate the "Stream_Element_ID" column
-  dplyr::mutate(Stream_Element_ID = paste0(LTER, "__", stream, "___", chemical)) %>%
+  dplyr::mutate(Stream_Element_ID = paste0(LTER, "__", stream, "_", chemical)) %>%
   # Remove the PDFs of exploratory graphs
   dplyr::filter(data_type != "WRTDS_output.pdf") %>%
   dplyr::filter(data_type != "WRTDS_kalman_output.pdf") %>%
@@ -573,8 +573,8 @@ results_table <- out_list[["ResultsTable_GFN_WRTDS.csv"]] %>%
                 dplyr::ends_with("Conc_mgL"), dplyr::ends_with("Conc_uM"),
                 dplyr::ends_with("Flux_10_6kg_yr"), dplyr::ends_with("Flux_10_6kmol_yr")) %>%
   # Calculate yield for both units
-  dplyr::mutate(Yield = Flux_10_6kg_yr / drainSqKm,
-                FNYield = FNFlux_10_6kg_yr / drainSqKm,
+  dplyr::mutate(Yield_10_6kg_yr = Flux_10_6kg_yr / drainSqKm,
+                FNYield_10_6kg_yr = FNFlux_10_6kg_yr / drainSqKm,
                 Yield_10_6kmol_yr_km2 = Flux_10_6kmol_yr / drainSqKm,
                 FNYield_10_6kmol_yr_km2 = FNFlux_10_6kmol_yr / drainSqKm)%>% 
   dplyr::rename(Stream_Name = stream)
@@ -658,8 +658,8 @@ kalman_annual <- out_list[["ResultsTable_Kalman_WRTDS.csv"]] %>%
                 dplyr::ends_with("Conc_mgL"), dplyr::ends_with("Conc_uM"),
                 dplyr::ends_with("Flux_10_6kg_yr"), dplyr::ends_with("Flux_10_6kmol_yr")) %>%
   # Calculate yield for both units
-  dplyr::mutate(GenYield = GenFlux_10_6kg_yr / drainSqKm,
-                FNYield = FNFlux_10_6kg_yr / drainSqKm,
+  dplyr::mutate(GenYield_10_6kg_yr = GenFlux_10_6kg_yr / drainSqKm,
+                FNYield_10_6kg_yr = FNFlux_10_6kg_yr / drainSqKm,
                 GenYield_10_6kmol_yr_km2 = GenFlux_10_6kmol_yr / drainSqKm,
                 FNYield_10_6kmol_yr_km2 = FNFlux_10_6kmol_yr / drainSqKm)%>% 
   dplyr::rename(Stream_Name = stream)
@@ -686,6 +686,8 @@ export_list <- list("WRTDS_trends.csv" = trends_table,
                     ## Yearly
                     "WRTDS_annual.csv" = results_table,
                     "WRTDS_kalman_annual.csv" = kalman_annual)
+
+dest_url <- "https://drive.google.com/drive/u/1/folders/1YuRcqIKqjup3rRIc-riYJb70VK43uxAd"
 
 # Loop across the list to export locally and to GoogleDrive
 ## Note that the "GFN_WRTDS.csv" file is *huge* so it takes a few seconds to upload
