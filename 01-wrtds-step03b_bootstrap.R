@@ -139,23 +139,60 @@ potential_boots <- data.frame("x" = unique(good_rivers)) %>%
 done_boots <- data.frame("file" = dir(path = file.path(path, "WRTDS Bootstrap Diagnostic 2026"))) %>%
   # Drop the file suffix part of the file name 
   dplyr::mutate(river = gsub(pattern = "\\_Boot\\_Loop\\_Diagnostic.csv", replacement = "", x = file)) %>%
+  tidyr::separate(river, sep = "__", into = c("site", "river_name"), remove = F) %>%
+  # Drop any LTERs we aren't interested in
+  ## Virtually all Finnish sites threw an error when attempted
+  ## KRR sites crashed R without a specific warning message
+  dplyr::filter(!site %in% c("Finnish Environmental Institute", "KRR")) %>%
+  # old version of site names for Catalina Jemez, need to remove
+  dplyr::filter(!river_name %in% c("MG_WEIR_DSi","MG_WEIR_NO3","MG_WEIR_P",
+                                   "OR_low_DSi","OR_low_NO3","OR_low_P")) %>% 
+  tidyr::separate(river_name, sep = "_", into=c("stream_name","element"), extra="merge", remove=F) %>% 
+  # still an issue with hyphen in names for these two sites "Pont_So'o" and "Nsimi_outlet"
+  dplyr::filter(!element %in% c("So'o_DSi","So'o_NO3","outlet_DSi","outlet_NO3")) %>% 
+  # create matching Stream_Element_ID for pairing with chemistry dataset 
+  tidyr::unite(Stream_ID, c("site","stream_name"),sep="__",remove=F) %>% 
+  tidyr::unite(Stream_Element_ID, c("Stream_ID","element"),sep="___") %>% 
+  # Pull the full river names back out!
+  dplyr::pull(Stream_Element_ID) 
   # Pull out just that column
-  dplyr::pull(river)
+  #dplyr::pull(river)
 
-bad_boot_rivers <- c()
+bad_boot_rivers <- c("ARC__Imnavait Weir___DSi",                                               
+                     "ARC__Imnavait Weir___NH4",                                               
+                     "ARC__Imnavait Weir___NOx",                                               
+                     "ARC__Imnavait Weir___P",
+                     "Australia__BARWON RIVER AT DANGAR BRIDGE WALGETT___NO3",
+                     "Australia__BARWON RIVER AT MUNGINDI___NH4",
+                     "Australia__DARLING RIVER AT BURTUNDY___NH4",
+                     "Australia__DARLING RIVER AT MENINDEE UPSTREAM WEIR 32___NOx",
+                     "Australia__DARLING RIVER AT WILCANNIA MAIN CHANNEL___DSi",
+                     "Australia__MURRAY RIVER DOWNSTREAM YARRAWONGA WEIR___NH4",
+                     "Australia__MURRAY RIVER DOWNSTREAM YARRAWONGA WEIR___NOx",
+                     "Australia__NAMOI RIVER AT GOANGRA___NO3",
+                     "Australia__PEEL RIVER AT UPSTREAM PARADISE WEIR___NH4",
+                     "Cameroon__Mbalmayo___DSi",
+                     "Cameroon__Mbalmayo___NO3",
+                     "Cameroon__Messam___DSi",                                            
+                     "Cameroon__Messam___NO3",
+                     "Cameroon__Olama___DSi",                                              
+                     "Cameroon__Olama___NO3",
+                     "Catalina Jemez__MGWEIR___P",
+                     "Catalina Jemez__ORlow___DSi", "Catalina Jemez__ORlow___NO3","Catalina Jemez__ORlow___P",
+                     "GRO__Kolyma___NOx",
+                     "Guadeloupe__Capesterre, La Digue___DSi",
+                     "Guadeloupe__Ravine Quiock___DSi",
+                     "HBR__ws9___DSi"
+                     )
 
 
 # Identify rivers to do
-# need to modify name from "Loop Diagnostic File" to match Stream_Element_ID in chemistry
-
-
 # first time
-boot_to_do <- potential_boots
-
+#boot_to_do <- potential_boots
 boot_to_do <- setdiff(x = potential_boots, y = c(done_boots, bad_boot_rivers))
 
 ## For quick ID of next few rivers: 
-boot_to_do[1:5]
+boot_to_do[1:10]
 
 # test
 #river <- boot_to_do[853]
