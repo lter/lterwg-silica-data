@@ -389,8 +389,8 @@ monthly <- out_list[["Monthly_GFN_WRTDS.csv"]] %>%
                 dplyr::ends_with("Conc_mgL"), dplyr::ends_with("Conc_uM"),
                 dplyr::ends_with("Flux_kg_day"), dplyr::ends_with("Flux_kmol_day")) %>%
   # Calculate yield for both units
-  dplyr::mutate(Yield = Flux_kg_day / drainSqKm,
-                FNYield = FNFlux_kg_day / drainSqKm,
+  dplyr::mutate(Yield_kg_day_km2 = Flux_kg_day / drainSqKm,
+                FNYield_kg_day_km2 = FNFlux_kg_day / drainSqKm,
                 Yield_kmol_day_km2 = Flux_kmol_day / drainSqKm,
                 FNYield_kmol_day_km2 = FNFlux_kmol_day / drainSqKm)%>% 
   dplyr::rename(Stream_Name = stream)
@@ -489,8 +489,8 @@ kalman_monthly <- out_list[["Monthly_Kalman_WRTDS.csv"]] %>%
                 dplyr::ends_with("Conc_mgL"), dplyr::ends_with("Conc_uM"),
                 dplyr::ends_with("Flux_kg_day"), dplyr::ends_with("Flux_kmol_day")) %>%
   # Calculate yield for both units
-  dplyr::mutate(GenYield = GenFlux_kg_day / drainSqKm,
-                FNYield = FNFlux_kg_day / drainSqKm,
+  dplyr::mutate(GenYield_kg_day_km2 = GenFlux_kg_day / drainSqKm,
+                FNYield_kg_day_km2 = FNFlux_kg_day / drainSqKm,
                 GenYield_kmol_day_km2 = GenFlux_kmol_day / drainSqKm,
                 FNYield_kmol_day_km2 = FNFlux_kmol_day / drainSqKm)%>% 
   dplyr::rename(Stream_Name = stream)
@@ -573,8 +573,8 @@ results_table <- out_list[["ResultsTable_GFN_WRTDS.csv"]] %>%
                 dplyr::ends_with("Conc_mgL"), dplyr::ends_with("Conc_uM"),
                 dplyr::ends_with("Flux_10_6kg_yr"), dplyr::ends_with("Flux_10_6kmol_yr")) %>%
   # Calculate yield for both units
-  dplyr::mutate(Yield_10_6kg_yr = Flux_10_6kg_yr / drainSqKm,
-                FNYield_10_6kg_yr = FNFlux_10_6kg_yr / drainSqKm,
+  dplyr::mutate(Yield_10_6kg_yr_km2 = Flux_10_6kg_yr / drainSqKm,
+                FNYield_10_6kg_yr_km2 = FNFlux_10_6kg_yr / drainSqKm,
                 Yield_10_6kmol_yr_km2 = Flux_10_6kmol_yr / drainSqKm,
                 FNYield_10_6kmol_yr_km2 = FNFlux_10_6kmol_yr / drainSqKm)%>% 
   dplyr::rename(Stream_Name = stream)
@@ -658,8 +658,8 @@ kalman_annual <- out_list[["ResultsTable_Kalman_WRTDS.csv"]] %>%
                 dplyr::ends_with("Conc_mgL"), dplyr::ends_with("Conc_uM"),
                 dplyr::ends_with("Flux_10_6kg_yr"), dplyr::ends_with("Flux_10_6kmol_yr")) %>%
   # Calculate yield for both units
-  dplyr::mutate(GenYield_10_6kg_yr = GenFlux_10_6kg_yr / drainSqKm,
-                FNYield_10_6kg_yr = FNFlux_10_6kg_yr / drainSqKm,
+  dplyr::mutate(GenYield_10_6kg_yr_km2 = GenFlux_10_6kg_yr / drainSqKm,
+                FNYield_10_6kg_yr_km2 = FNFlux_10_6kg_yr / drainSqKm,
                 GenYield_10_6kmol_yr_km2 = GenFlux_10_6kmol_yr / drainSqKm,
                 FNYield_10_6kmol_yr_km2 = FNFlux_10_6kmol_yr / drainSqKm)%>% 
   dplyr::rename(Stream_Name = stream)
