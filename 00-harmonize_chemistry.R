@@ -80,6 +80,13 @@ purrr::walk2(.x = chem_drive_actual$id, .y = chem_drive_actual$name,
 # check what is in chemistry files folder 
 list.files(path = file.path(path,"chem_raw"))
 
+# site reference table
+ref_link <-"https://drive.google.com/file/d/1DQN_UMMOoAT2ff_6QNyBbYee3GX1Bdmx/view?usp=drive_link"
+ref_folder = drive_get(as_id(ref_link))
+ref <- drive_download(file = ref_folder$id, path = file.path(path,"Site_Reference_Table.csv"), overwrite = T)
+ref_table <-read_csv(ref$local_path)
+
+
 ## -------------------------------------------- ##
               # Data Harmonizing ----
 ## -------------------------------------------- ##
@@ -350,6 +357,7 @@ tidy_v1e <- tidy_v1d %>%
                                  Stream_Name == "OR_low" ~ "ORlow",
                                  .default = Stream_Name))
 
+
 # Check the structure of the remaining data
 dplyr::glimpse(tidy_v1e)
 
@@ -474,6 +482,7 @@ tidy_v3b <- tidy_v3a %>%
   dplyr::mutate(do_actual = dplyr::coalesce(do_mg_L, do_mg_O2_L,o2_mg_L), .after = do_mg_O2_L) %>%
   dplyr::select(-do_mg_L, -do_mg_O2_L,-o2_mg_L) %>%
   dplyr::rename(do_mg_L = do_actual) |> 
+  dplyr::rename(do_percent = do_pct_percent) %>% 
   # aluminum
   dplyr::rename(al_ug_L = al_ugl_ug_L) |> 
   # anc 
@@ -497,6 +506,10 @@ tidy_v3b <- tidy_v3a %>%
   dplyr::mutate(doc_actual = dplyr::coalesce(doc_mgl_mg_C_L,doc_mg_C_L,doc_mg_L,doc_mgl_mg_L)) %>%
   dplyr::select(-doc_mgl_mg_C_L,-doc_mg_C_L,-doc_mg_L,-doc_mgl_mg_L) %>%
   dplyr::rename(doc_mg_L = doc_actual) |>
+  # DIC
+  dplyr::mutate(dic_actual = dplyr::coalesce(dic_mg_C_L,dic_mg_L)) %>%
+  dplyr::select(-dic_mg_C_L,-dic_mg_L) %>%
+  dplyr::rename(dic_mg_L = dic_actual) |>
   # TOC
   dplyr::mutate(toc_actual = dplyr::coalesce(toc_mgl_mg_L,toc_mg_L,toc_mg_C_L)) %>%
   dplyr::select(-toc_mgl_mg_L,-toc_mg_L,-toc_mg_C_L) %>%
@@ -552,7 +565,7 @@ dplyr::mutate(nh4_actual = dplyr::coalesce(nh4_mgl_mg_L,nh4_mg_NH4_L)) %>%
   dplyr::rename(no3_uM = no3_actual_uM) |> 
   # NO3-N
   dplyr::rename(no3_mg_NO3N_L = "no3+no2___n_mg_NO3_N_L") %>% 
-  dplyr::mutate(no3_N_actual = dplyr::coalesce(no3_mgl_mg_NO3_N_L,no3_mg_NO3_N_L,no3_mg_NO3N_L )) %>%
+  dplyr::mutate(no3_N_actual = dplyr::coalesce(no3_mgl_mg_NO3_N_L,no3_mg_NO3_N_L,no3_mg_NO3N_L)) %>%
   dplyr::select(-no3_mg_NO3_N_L,-no3_mgl_mg_NO3_N_L,-no3_mg_NO3N_L ) %>%
   dplyr::rename(no3_mg_NO3_N_L = no3_N_actual) |>
   #NO2
@@ -593,7 +606,13 @@ dplyr::mutate(nh4_actual = dplyr::coalesce(nh4_mgl_mg_L,nh4_mg_NH4_L)) %>%
   dplyr::select(-temp_C,-temp_c_C,-`twater_(°c)_C`) %>%
   dplyr::rename(temp_C = temp_actual) |> 
   # total P
-  dplyr::rename(tp_ug_P_L = tp_ugl_ug_P_L) %>% 
+  dplyr::mutate(tp_actual = dplyr::coalesce(tp_mg_P_L)) %>%
+  dplyr::select(-tp_mg_P_L) %>%
+  dplyr::rename(tp_mg_P_L = tp_actual) %>% 
+  # turbidity
+  dplyr::mutate(turb_actual = dplyr::coalesce(turbidity_NTU,turb_NTU)) %>%
+  dplyr::select(-turbidity_NTU,-turb_NTU) %>%
+  dplyr::rename(turbidity_NTU = turb_actual) %>% 
   # temporary - need to remove this column not using
   select(-contains("nicb"))
 
@@ -646,10 +665,6 @@ tidy_v3c %>%
   dplyr::select(-Dataset:-date) %>%
   names() %>% sort()
   
-tidy_v3c %>%
-  dplyr::select(-Dataset:-date) %>%
-  names() %>% sort()
-
 # First, do any non-elemental unit conversions
 tidy_v4a <- tidy_v3c %>%
   # Alkalinity (uM)
@@ -662,8 +677,7 @@ tidy_v4a <- tidy_v3c %>%
                                             no = conductivity_uS_cm)) %>%
   dplyr::select(-conductivity_mS_m) %>%
   # Turbidity
-  dplyr::mutate(turbidity_NTU = dplyr::coalesce(turbidity_NTU, turb_NTU)) %>%
-  dplyr::select(-turb_NTU) %>% 
+  dplyr::mutate(turbidity_NTU = dplyr::coalesce(turbidity_NTU)) %>%
   # Relocate all of these columns to the left of the elemental columns
   dplyr::relocate(temp_C, alkalinity_uM, conductivity_uS_cm, 
                   specific_conductivity_uS_cm, turbidity_NTU,
@@ -743,10 +757,10 @@ tidy_v4b <- tidy_v4a %>%
   # Dissolved Inorganic Carbon
   dplyr::mutate(dic_uM = dplyr::case_when(
     !is.na(dic_uM) ~ dic_uM,
-    is.na(dic_uM) & !is.na(dic_mg_C_L) ~ (dic_mg_C_L / C_mw) * 10^3,
+    #is.na(dic_uM) & !is.na(dic_mg_C_L) ~ (dic_mg_C_L / C_mw) * 10^3,
     is.na(dic_uM) & !is.na(dic_mg_L) ~ (dic_mg_L / C_mw)*10^3,
     T ~ NA)) %>%
-  dplyr::select(-dic_mg_L,-dic_mg_C_L) %>%
+  dplyr::select(-dic_mg_L) %>%
   # Dissolved Oxygen
   dplyr::mutate(do_uM = (do_mg_L / (O_mw * 2)) * 10^3, 
                 .after = do_mg_L) %>%
@@ -917,9 +931,9 @@ tidy_v4b <- tidy_v4a %>%
     !is.na(tp_uM) ~ tp_uM,
     is.na(tp_uM) & !is.na(tp_mg_P_L) ~ tp_mg_P_L / P_mw * 10^3,
     is.na(tp_uM) & !is.na(tp_mg_L) ~ tp_mg_L / P_mw * 10^3,
-    is.na(tp_uM) & !is.na(tp_ug_P_L) ~ tp_ug_P_L / P_mw,
+    is.na(tp_uM) & !is.na(tp_ugl_ug_P_L) ~ tp_ugl_ug_P_L / P_mw,
     T ~ NA)) %>%
-  dplyr::select(-tp_mg_P_L, -tp_mg_L,-tp_ug_P_L) %>% 
+  dplyr::select(-tp_mg_P_L, -tp_mg_L,-tp_ugl_ug_P_L) %>% 
   # Total Dissolved Phosphorus (TDP)
   dplyr::mutate(tdp_uM = dplyr::case_when(
     !is.na(tdp_mg_L) ~ (tdp_mg_L / P_mw) * 10^3,
@@ -1180,7 +1194,7 @@ tidy_v7e <- tidy_v7d |>
     TRUE ~ Stream_Name)
   )
 
-# check conversions
+# check Finnish name conversions
 tidy_v7e |> 
   filter(LTER == "Finnish Environmental Institute") |> 
   group_by(Stream_Name,variable) |> 
@@ -1194,12 +1208,64 @@ tidy_v7e |>
   summarize(n=n()) |> 
   print(n=30)
 
+### Fix Sopchoppy River duplicate names and solutes
+
+## remove "Sopchoppy River" from USGS geogenic solutes dataset - SOPCHOPPY RIVER and Sopchoppy River have same data
+tidy_v7f <- tidy_v7e %>% 
+  filter(!(Stream_Name == "Sopchoppy River" & Raw_Filename == "USGS_geogenic_solutes.csv"))
+
+unique(filter(tidy_v7f, Raw_Filename == "USGS_geogenic_solutes.csv")$Stream_Name)
+nrow(tidy_v7e)-nrow(tidy_v7f)
+
+## remove "Sopchoppy River" from old masterdata dataset - SOPCHOPPY RIVER and Sopchoppy River have similar data for DSi, but SOPCHOPPY is longer
+tidy_v7g <- tidy_v7f %>% 
+  filter(!(Stream_Name == "Sopchoppy River" & Raw_Filename == "20221030_masterdata_chem_V2.csv"))
+
+unique(filter(tidy_v7g, Raw_Filename == "20221030_masterdata_chem_V2.csv")$Stream_Name)
+nrow(tidy_v7f)-nrow(tidy_v7g)
+
+## rename Sopchoppy  River to SOPCHOPPY RIVER in CAMELS dataset
+tidy_v7h <- tidy_v7g %>% 
+  mutate(Stream_Name = case_when(Raw_Filename == "CAMELS_USGS_N_P.csv" & Stream_Name == "Sopchoppy River" ~ "SOPCHOPPY RIVER", 
+                                 .default = Stream_Name))
+
+##  Remove duplicate solutes from masterdata and keep CAMELS/geogenic values
+tidy_v7i <- tidy_v7h %>% 
+  filter(!(Stream_Name == "SOPCHOPPY RIVER" & Raw_Filename == "20221030_masterdata_chem_V2.csv" & variable == "NOx")) %>% 
+  filter(!(Stream_Name == "SOPCHOPPY RIVER" & Raw_Filename == "20221030_masterdata_chem_V2.csv"& variable == "PO4")) %>% 
+  filter(!(Stream_Name == "SOPCHOPPY RIVER" & Raw_Filename == "20221030_masterdata_chem_V2.csv"& variable == "dissolved org C"))
+
+# check SOPCHOPPY vs Sopchoppy River
+tidy_v7i %>% 
+  filter(Stream_Name == "Sopchoppy River")
+
+tidy_v7i %>% 
+  filter(Stream_Name == "SOPCHOPPY RIVER") %>% 
+  ggplot(aes(as.Date(date),value))+
+  geom_point()+
+  facet_grid(Raw_Filename~variable)
+
+## remove "duplicates" and "replicates" from Boulder Creek CZO (BcCZO)
+tidy_v7j <- tidy_v7i %>% 
+  filter(!str_detect(Stream_Name, "FDUP|Fdup|DUP|BLANK|Blank|FLBK|FIELDBLANK|Duplicate|FBLK|FB"))
+
+# check what is still in there for Boulder Creek
+bc <- tidy_v7j %>% 
+  filter(LTER == "BcCZO") %>% 
+  distinct(Stream_Name)
+
+check <- tidy_v7j %>% 
+  filter(LTER == "BcCZO") %>% 
+  anti_join(ref_table, by="Stream_Name") %>% 
+  distinct(Stream_Name)
+
+
 ## -------------------------------------------- ##
                 # Wrangle Dates ----
 ## -------------------------------------------- ##
 
 # Check out current dates
-sort(unique(tidy_v7e$date))
+sort(unique(tidy_v7j$date))
 
 # Try to standardize date formatting a bit
 tidy_v8a <- tidy_v7e %>%
