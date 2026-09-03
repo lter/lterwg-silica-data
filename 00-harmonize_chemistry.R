@@ -29,6 +29,7 @@ dir.create(path = file.path(path, "keys"), showWarnings = F)
 
 # Create a folder for inputs & and outputs
 dir.create(path = file.path(path, "chem_raw"), showWarnings = F)
+dir.create(path = file.path(path, "chem_raw_subset"), showWarnings = F)
 dir.create(path = file.path(path, "tidy"), showWarnings = F)
 
 ## -------------------------------------------- ##
@@ -37,11 +38,15 @@ dir.create(path = file.path(path, "tidy"), showWarnings = F)
 
 # Identify and download the data key
 googledrive::drive_ls(path = googledrive::as_id("https://drive.google.com/drive/folders/1hbkUsTdo4WAEUnlPReOUuXdeeXm92mg-")) %>%
-  dplyr::filter(name == "SiSyn_Data_Key.xlsx") %>%
-  googledrive::drive_download(file = .$id, path = file.path(path, "keys", .$name), overwrite = T)
+  dplyr::filter(name == "SiSyn_Data_Key") %>%
+  googledrive::drive_download(file = .$id, path = file.path(path, "keys", .$name), overwrite = T, type="csv")
 
 # Read in the key
-key_v1 <- readxl::read_excel(path = file.path(path, "keys", "SiSyn_Data_Key.xlsx")) %>%
+#key_v2 <- readxl::read_excel(path = file.path(path, "keys", "SiSyn_Data_Key.xlsx")) %>%
+  # Subset to only chemistry data
+ #dplyr::filter(Data_type == "chemistry")
+
+key_v1 <- read.csv(file = file.path(path, "keys", paste0("SiSyn_Data_Key", ".csv"))) %>%
   # Subset to only chemistry data
   dplyr::filter(Data_type == "chemistry")
 
@@ -51,8 +56,8 @@ dplyr::glimpse(key_v1)
 # Identify and download the **units key** as well
 googledrive::drive_ls(path = googledrive::as_id("https://drive.google.com/drive/folders/1hbkUsTdo4WAEUnlPReOUuXdeeXm92mg-")) %>%
   dplyr::filter(name == "SiSyn_Chem_Units_Key") %>%
-  googledrive::drive_download(file = .$id, path = file.path(path, "keys", .$name), 
-                              overwrite = T, type = "csv")
+  googledrive::drive_download(file = .$id, path = file.path(path, "keys", .$name), overwrite = T, type = "csv")
+
 
 # Read it in
 units_key_v1 <- read.csv(file = file.path(path, "keys", paste0("SiSyn_Chem_Units_Key", ".csv"))) %>%
@@ -75,16 +80,17 @@ chem_drive_actual <- chem_drive %>%
 # Download these files
 purrr::walk2(.x = chem_drive_actual$id, .y = chem_drive_actual$name,
              .f = ~ googledrive::drive_download(file = .x, overwrite = T,
-                                                path = file.path(path, "chem_raw", .y)))
+                                                path = file.path(path, "chem_raw_subset", .y)))
 
 # check what is in chemistry files folder 
-list.files(path = file.path(path,"chem_raw"))
+list.files(path = file.path(path,"chem_raw_subset"))
 
 # site reference table
-ref_link <-"https://drive.google.com/file/d/1DQN_UMMOoAT2ff_6QNyBbYee3GX1Bdmx/view?usp=drive_link"
-ref_folder = drive_get(as_id(ref_link))
-ref <- drive_download(file = ref_folder$id, path = file.path(path,"Site_Reference_Table.csv"), overwrite = T)
-ref_table <-read_csv(ref$local_path)
+googledrive::drive_ls(path = googledrive::as_id("https://drive.google.com/drive/u/1/folders/0AIPkWhVuXjqFUk9PVA")) %>%
+  dplyr::filter(name == "Site_Reference_Table") %>%
+  googledrive::drive_download(file = .$id, path = file.path(path, "keys", .$name), overwrite = T, type="csv")
+
+ref_table <- read.csv(file = file.path(path, "keys", paste0("Site_Reference_Table", ".csv")))
 
 
 ## -------------------------------------------- ##
@@ -94,7 +100,7 @@ ref_table <-read_csv(ref$local_path)
 # Process the data key object as needed
 key <- key_v1 %>%
   # Drop unwanted columns
-  dplyr::select(-Data_type, -Notes,-"...10") %>%
+  dplyr::select(-Data_type, -Notes) %>%
   # Mangle raw column names as they will be by reading in the CSVs
   dplyr::mutate(Raw_Column_Name = gsub(pattern = " |\\+|\\(|\\)|\\/|\\-", replacement = ".",
                                        x = Raw_Column_Name))
@@ -111,10 +117,15 @@ units_key <- units_key_v1 %>%
 dplyr::glimpse(units_key)
 
 # Identify all downloaded files
-( raw_files <- dir(path = file.path(path, "chem_raw")) )
+( raw_files <- dir(path = file.path(path, "chem_raw_subset")) )
 
 # Make an empty list to store re-formatted raw data
-df_list <- list()
+df_list <- list() 
+
+
+
+rm(j)
+
 
 # For each raw file...
 for(j in 1:length(raw_files)){
@@ -126,14 +137,22 @@ for(j in 1:length(raw_files)){
   message("Harmonizing '", focal_raw, "' (file ",  j, " of ", length(raw_files), ")")
   
   # Subset the key object a bit
+  # there are values in some datasets ("Dataset" and "Raw_Filename" that I need to remove)
+  rows_to_remove <- c("Dataset","Raw_Filename")
+  
   key_sub <- key %>%
     # Only this file's section
+    dplyr::filter(!Standardized_Column_Name %in% rows_to_remove) %>% 
     dplyr::filter(Raw_Filename == focal_raw) %>%
     # And only columns that have a synonymized equivalent
     dplyr::filter(!is.na(Standardized_Column_Name) & nchar(Standardized_Column_Name) != 0)
   
+  # remove columns redundant with data key 
+  cols_to_remove <- c("Dataset","Raw_Filename")
+  
   # Load in that file
-  raw_df_v1 <- read.csv(file = file.path(path, "chem_raw", focal_raw))
+  raw_df_v1 <- read.csv(file = file.path(path, "chem_raw_subset", focal_raw)) %>% 
+    select(-any_of(cols_to_remove))
   
   # Process it to ready for integration with other raw files
   raw_df_v2 <- raw_df_v1 %>%
@@ -467,11 +486,11 @@ tidy_v3b <- tidy_v3a %>%
   # Conductivity (uS/cm) 
   dplyr::mutate(cond_actual = dplyr::coalesce(conduct_uS_cm,conductivity_uS_cm, cond_uscm_uS_cm,
                                               `conductivity_at_25°c_uS_cm`,fldcond_uscm_uS_cm,
-                                              labcond_uscm_uS_cm,conductivity_us_cm,ec_uS_cm,cond_uS_cm,
+                                              labcond_uscm_uS_cm,conductivity_us_cm,ec_uS_cm,
                                               specificconductance_uS_cm), 
                 .after = conductivity_uS_cm) %>%
   dplyr::select(-conduct_uS_cm, -conductivity_uS_cm, -fldcond_uscm_uS_cm,-conductivity_us_cm,-cond_uscm_uS_cm,
-                -`conductivity_at_25°c_uS_cm`,-labcond_uscm_uS_cm,-ec_uS_cm,-cond_uS_cm,
+                -`conductivity_at_25°c_uS_cm`,-labcond_uscm_uS_cm,-ec_uS_cm,
                 -specificconductance_uS_cm) %>%
   dplyr::rename(conductivity_uS_cm = cond_actual) %>%
   # Chl a 
@@ -479,8 +498,8 @@ tidy_v3b <- tidy_v3a %>%
   dplyr::select(-chl_a_ug_L, -chla_ug_L,-suspended_chl_ug_L,-chla_ugl_ug_L) %>%
   dplyr::rename(chla_ug_L = chla_actual) %>% 
   # DO 
-  dplyr::mutate(do_actual = dplyr::coalesce(do_mg_L, do_mg_O2_L,o2_mg_L), .after = do_mg_O2_L) %>%
-  dplyr::select(-do_mg_L, -do_mg_O2_L,-o2_mg_L) %>%
+  dplyr::mutate(do_actual = dplyr::coalesce(do_mg_L, do_mg_O2_L), .after = do_mg_O2_L) %>%
+  dplyr::select(-do_mg_L, -do_mg_O2_L) %>%
   dplyr::rename(do_mg_L = do_actual) |> 
   dplyr::rename(do_percent = do_pct_percent) %>% 
   # aluminum
@@ -606,9 +625,9 @@ dplyr::mutate(nh4_actual = dplyr::coalesce(nh4_mgl_mg_L,nh4_mg_NH4_L)) %>%
   dplyr::select(-temp_C,-temp_c_C,-`twater_(°c)_C`) %>%
   dplyr::rename(temp_C = temp_actual) |> 
   # total P
-  dplyr::mutate(tp_actual = dplyr::coalesce(tp_mg_P_L)) %>%
-  dplyr::select(-tp_mg_P_L) %>%
-  dplyr::rename(tp_mg_P_L = tp_actual) %>% 
+  dplyr::mutate(tp_actual = dplyr::coalesce(tp_ug_L,tp_ugl_ug_P_L)) %>%
+  dplyr::select(-tp_ug_L, -tp_ugl_ug_P_L) %>%
+  dplyr::rename(tp_ug_P_L = tp_actual) %>% 
   # turbidity
   dplyr::mutate(turb_actual = dplyr::coalesce(turbidity_NTU,turb_NTU)) %>%
   dplyr::select(-turbidity_NTU,-turb_NTU) %>%
@@ -669,6 +688,15 @@ tidy_v3c %>%
 tidy_v4a <- tidy_v3c %>%
   # Alkalinity (uM)
   ## Pretty sure 1 uEq/L == 1 uM
+  ## UPDATED ##
+  # dplyr::mutate(alkalinity_uM = dplyr::coalesce(alkalinity_uM, alkalinity_ueq_L)) %>%
+  # dplyr::select(-alkalinity_ueq_L) %>%
+  dplyr::mutate(alkalinity_uM = dplyr::coalesce(
+    alkalinity_uM,
+    alkalinity_ueq_L,
+    anc_ueq_L,
+    alkalinity_ug_L / 50.04345
+  )) %>%
   dplyr::mutate(alkalinity_uM = dplyr::coalesce(alkalinity_uM, alkalinity_ueq_L)) %>%
   dplyr::select(-alkalinity_ueq_L) %>%
   # Conductivity (uS/cm)
@@ -724,6 +752,7 @@ SO4_mw <- S_mw + (O_mw * 4)
 
 # Need to do unit conversions to get each metric into a single, desired unit
 tidy_v4b <- tidy_v4a %>%
+  # alumninum
   dplyr::mutate(al_uM = dplyr::case_when(
     !is.na(al_mg_L) ~ al_mg_L/Al_mw * 10^3,
     !is.na(al_ug_L) ~ al_ug_L / Al_mw,
@@ -766,16 +795,26 @@ tidy_v4b <- tidy_v4a %>%
                 .after = do_mg_L) %>%
   dplyr::select(-do_mg_L) %>%
   # Silica (!)
+  ## UPDATED ##
+  # dplyr::mutate(dsi_uM = dplyr::case_when(
+  #   !is.na(dsi_uM) ~ dsi_uM,
+  #   is.na(dsi_uM) & !is.na(dsi_mg_Si_L) ~ (dsi_mg_Si_L / Si_mw) * 10^3,
+  #   is.na(dsi_uM) & !is.na(dsi_ug_Si_L) ~ dsi_ug_Si_L / Si_mw,
+  #   is.na(dsi_uM) & !is.na(silicon_ug_L) ~ (silicon_ug_L / Si_mw),
+  #   is.na(dsi_uM) & !is.na(dsi_mg_SiO2_L) ~ (dsi_mg_SiO2_L / (Si_mw + (O_mw * 2))) * 10^3,
+  #   is.na(dsi_uM) & !is.na(sio2_ug_SiO2_L) ~ (sio2_ug_SiO2_L / (Si_mw+(O_mw*2))),
+  #   T ~ NA)) %>%
+  # dplyr::select(-dsi_mg_SiO2_L, -dsi_mg_Si_L,-dsi_ug_Si_L,-sio2_ug_SiO2_L,-silicon_ug_L) %>%
   dplyr::mutate(dsi_uM = dplyr::case_when(
     !is.na(dsi_uM) ~ dsi_uM,
     is.na(dsi_uM) & !is.na(dsi_mg_Si_L) ~ (dsi_mg_Si_L / Si_mw) * 10^3, 
     is.na(dsi_uM) & !is.na(dsi_ug_Si_L) ~ dsi_ug_Si_L / Si_mw,
+    is.na(dsi_uM) & !is.na(si_ug_L) ~ si_ug_L / Si_mw,
     is.na(dsi_uM) & !is.na(silicon_ug_L) ~ (silicon_ug_L / Si_mw),
     is.na(dsi_uM) & !is.na(dsi_mg_SiO2_L) ~ (dsi_mg_SiO2_L / (Si_mw + (O_mw * 2))) * 10^3,
     is.na(dsi_uM) & !is.na(sio2_ug_SiO2_L) ~ (sio2_ug_SiO2_L / (Si_mw+(O_mw*2))),
-    
     T ~ NA)) %>%
-  dplyr::select(-dsi_mg_SiO2_L, -dsi_mg_Si_L,-dsi_ug_Si_L,-sio2_ug_SiO2_L,-silicon_ug_L) %>%
+  dplyr::select(-dsi_mg_SiO2_L, -dsi_mg_Si_L,-dsi_ug_Si_L,-sio2_ug_SiO2_L,-silicon_ug_L,-si_ug_L) %>%
   # Fluorine
   dplyr::mutate(f_uM = ifelse(test = (is.na(f_uM) == T), # NOTE this is ifelse(), more than one needs case_when
                               yes = (f_mg_L / F_mw) * 10^3,
@@ -879,14 +918,23 @@ tidy_v4b <- tidy_v4a %>%
     T ~ NA)) %>%
   dplyr::select(-po4_mg_PO4_L,-po4_mg_P_L, -po4_ug_PO4_P_L,-po4_ug_PO4_P_L, -po4_p_ug_PO4_P_L) %>%
   # Sulfate (SO4)
+  ## UPDATED ##
+  # dplyr::mutate(so4_uM = dplyr::case_when(
+  #   !is.na(so4_uM) ~ so4_uM,
+  #   is.na(so4_uM) & !is.na(so4_ug_SO4_L) ~ (so4_ug_SO4_L / SO4_mw),
+  #   is.na(so4_uM) & !is.na(so4_ug_L) ~ (so4_ug_L / SO4_mw),
+  #   is.na(so4_uM) & !is.na(so4_mg_SO4_L) ~ (so4_mg_SO4_L / SO4_mw) * 10^3,
+  #   is.na(so4_uM) & !is.na(sulfates_mg_S_L) ~ (sulfates_mg_S_L/ S_mw) * 10^3,
+  #   T ~ NA)) %>%
+  # dplyr::select(-so4_mg_SO4_L,-so4_ug_SO4_L,-sulfates_mg_S_L,-so4_ug_L) %>%
   dplyr::mutate(so4_uM = dplyr::case_when(
     !is.na(so4_uM) ~ so4_uM,
-    is.na(so4_uM) & !is.na(so4_ug_SO4_L) ~ (so4_ug_SO4_L / SO4_mw),
     is.na(so4_uM) & !is.na(so4_ug_L) ~ (so4_ug_L / SO4_mw),
+    is.na(so4_uM) & !is.na(so4_ug_S_L) ~ (so4_ug_S_L / S_mw),
     is.na(so4_uM) & !is.na(so4_mg_SO4_L) ~ (so4_mg_SO4_L / SO4_mw) * 10^3,
     is.na(so4_uM) & !is.na(sulfates_mg_S_L) ~ (sulfates_mg_S_L/ S_mw) * 10^3, 
     T ~ NA)) %>%
-  dplyr::select(-so4_mg_SO4_L,-so4_ug_SO4_L,-sulfates_mg_S_L,-so4_ug_L) %>%
+  dplyr::select(-so4_mg_SO4_L, -so4_ug_L, -so4_ug_S_L, -sulfates_mg_S_L) %>%
   # Strontium (Sr)
   dplyr::mutate(sr_uM = (sr_mg_L / Sr_mw) * 10^3,
                 .before = sr_mg_L) %>%
@@ -910,11 +958,19 @@ tidy_v4b <- tidy_v4a %>%
   dplyr::mutate(tkn_uM = (tkn_mg_N_L / N_mw) * 10^3, 
                 .after = tkn_mg_N_L) %>%
   dplyr::select(-tkn_mg_N_L) %>%
-   # Total Nitrogen (TN)
-  dplyr::mutate(tn_uM = ifelse(test = is.na(tn_uM) == T,
-                               yes = (tn_mg_L / N_mw) * 10^3,
-                               no = tn_uM)) %>%
-  dplyr::select(-tn_mg_L) %>%
+  # Total Nitrogen (TN)
+  ## UPDATED ##
+  # dplyr::mutate(tn_uM = ifelse(test = is.na(tn_uM) == T,
+  #                              yes = (tn_mg_L / N_mw) * 10^3,
+  #                              no = tn_uM)) %>%
+  # dplyr::select(-tn_mg_L) %>%
+  dplyr::mutate(tn_uM = dplyr::case_when(
+    !is.na(tn_uM) ~ tn_uM,
+    !is.na(tn_mg_L) ~ (tn_mg_L / N_mw) * 10^3,
+    !is.na(tn_ug_L) ~ tn_ug_L / N_mw,
+    T ~ NA_real_
+  )) %>%
+  dplyr::select(-tn_mg_L,-tn_ug_L) %>%
   # Dissolved Organic Nitrogen (TON)
   dplyr::mutate(don_uM = (don_mg_L / N_mw) * 10^3, 
                 .after = don_mg_L) %>%
@@ -927,13 +983,22 @@ tidy_v4b <- tidy_v4a %>%
     T ~ NA)) %>%
   dplyr::select(-toc_mg_L) %>%
   # Total Phosphorus (TP)
+  ## UPDATED ##
+  # dplyr::mutate(tp_uM = dplyr::case_when(
+  #   !is.na(tp_uM) ~ tp_uM,
+  #   is.na(tp_uM) & !is.na(tp_mg_P_L) ~ tp_mg_P_L / P_mw * 10^3,
+  #   is.na(tp_uM) & !is.na(tp_mg_L) ~ tp_mg_L / P_mw * 10^3,
+  #   is.na(tp_uM) & !is.na(tp_ug_P_L) ~ tp_ug_P_L / P_mw,
+  #   T ~ NA)) %>%
+  # dplyr::select(-tp_mg_P_L, -tp_mg_L,-tp_ug_P_L) %>%
   dplyr::mutate(tp_uM = dplyr::case_when(
     !is.na(tp_uM) ~ tp_uM,
     is.na(tp_uM) & !is.na(tp_mg_P_L) ~ tp_mg_P_L / P_mw * 10^3,
     is.na(tp_uM) & !is.na(tp_mg_L) ~ tp_mg_L / P_mw * 10^3,
-    is.na(tp_uM) & !is.na(tp_ugl_ug_P_L) ~ tp_ugl_ug_P_L / P_mw,
-    T ~ NA)) %>%
-  dplyr::select(-tp_mg_P_L, -tp_mg_L,-tp_ugl_ug_P_L) %>% 
+    is.na(tp_uM) & !is.na(tp_ug_P_L) ~ tp_ug_P_L / P_mw,
+    #is.na(tp_uM) & !is.na(tp_ug_L) ~ tp_ug_L / P_mw,
+    T ~ NA)) %>% 
+  dplyr::select(-tp_mg_P_L, -tp_mg_L,-tp_ug_P_L) %>%
   # Total Dissolved Phosphorus (TDP)
   dplyr::mutate(tdp_uM = dplyr::case_when(
     !is.na(tdp_mg_L) ~ (tdp_mg_L / P_mw) * 10^3,
@@ -1072,7 +1137,7 @@ sort(unique(tidy_v6$units))
 dplyr::glimpse(tidy_v6)
 
 ## -------------------------------------------- ##
-      # Handle Outliers and remove duplicates ----
+      # Handle Outliers, Variables Names ----
 ## -------------------------------------------- ##
 
 # Now we need to identify / handle outlier values
@@ -1125,11 +1190,20 @@ tidy_v7c <- tidy_v7b %>%
     Stream_Name == "Flat Brook" & variable == "NO3"~ NA,
     Stream_Name == "Choptank River" & variable == "NO3" ~ NA,
     Stream_Name == "Green River" & variable == "NO3" ~ NA,
-    Stream_Name == "North Slyamore Creek" & variable == "NO3" ~ NA,
+    ## UPDATED ##
+    # Stream_Name == "North Slyamore Creek" & variable == "NO3" ~ NA,
+    Raw_Filename == "CAMELS_USGS_N_P.csv" &
+      Stream_Name == "North Slyamore Creek" & variable == "NO3" ~ NA,
     Stream_Name == "Smith Creek" & variable == "NO3" ~ NA,
     Stream_Name == "Sopchoppy River" & variable == "NO3" ~ NA,
-    Stream_Name == "Vallecito Creek" & variable == "NO3" ~ NA,
-    Stream_Name == "West Clear Creek" & variable == "NO3" ~ NA,
+    ## UPDATED ##
+    # Stream_Name == "Vallecito Creek" & variable == "NO3" ~ NA,
+    Raw_Filename == "CAMELS_USGS_N_P.csv" &
+      Stream_Name == "Vallecito Creek" & variable == "NO3" ~ NA,
+    ## UPDATED ##
+    # Stream_Name == "West Clear Creek" & variable == "NO3" ~ NA,
+    Raw_Filename == "CAMELS_USGS_N_P.csv" &
+      Stream_Name == "West Clear Creek" & variable == "NO3" ~ NA,
     .default = value
   ))
 
@@ -1142,11 +1216,14 @@ tidy_v7d <- tidy_v7c %>%
     .default = value
   ))
 
-# fix Finnish names
+## -------------------------------------------- ##
+# Fix duplicate stream names ----
+## -------------------------------------------- ##
 
-# Condense Finnish site synonym names
+
+### Condense Finnish site synonym names ###
 ## A given site has one name for silica and a diff name for all other chemicals
-tidy_v7e <- tidy_v7d |> 
+tidy_v8a <- tidy_v7d |> 
   dplyr::mutate(Stream_Name = dplyr::case_when(
   Stream_Name == "Site 1069" ~ "Mustionjoki 4,9  15500",
   Stream_Name == "Site 11310" ~ "Virojoki 006 3020",
@@ -1195,69 +1272,112 @@ tidy_v7e <- tidy_v7d |>
   )
 
 # check Finnish name conversions
-tidy_v7e |> 
-  filter(LTER == "Finnish Environmental Institute") |> 
-  group_by(Stream_Name,variable) |> 
-  summarize(n=n()) |> 
-  print(n=50)
-
-tidy_v7e |> 
+tidy_v8a |> 
   filter(LTER == "Finnish Environmental Institute") |> 
   filter(variable == "DSi") |> 
   group_by(Stream_Name) |> 
   summarize(n=n()) |> 
   print(n=30)
 
-### Fix Sopchoppy River duplicate names and solutes
+### Fix Sopchoppy River duplicate names and solutes ###
 
 ## remove "Sopchoppy River" from USGS geogenic solutes dataset - SOPCHOPPY RIVER and Sopchoppy River have same data
-tidy_v7f <- tidy_v7e %>% 
+tidy_v8b <- tidy_v8a %>% 
   filter(!(Stream_Name == "Sopchoppy River" & Raw_Filename == "USGS_geogenic_solutes.csv"))
 
-unique(filter(tidy_v7f, Raw_Filename == "USGS_geogenic_solutes.csv")$Stream_Name)
-nrow(tidy_v7e)-nrow(tidy_v7f)
+unique(filter(tidy_v8b, Raw_Filename == "USGS_geogenic_solutes.csv")$Stream_Name)
+nrow(tidy_v8a)-nrow(tidy_v8b)
 
 ## remove "Sopchoppy River" from old masterdata dataset - SOPCHOPPY RIVER and Sopchoppy River have similar data for DSi, but SOPCHOPPY is longer
-tidy_v7g <- tidy_v7f %>% 
+tidy_v8c <- tidy_v8b %>% 
   filter(!(Stream_Name == "Sopchoppy River" & Raw_Filename == "20221030_masterdata_chem_V2.csv"))
 
-unique(filter(tidy_v7g, Raw_Filename == "20221030_masterdata_chem_V2.csv")$Stream_Name)
-nrow(tidy_v7f)-nrow(tidy_v7g)
+unique(filter(tidy_v8c, Raw_Filename == "20221030_masterdata_chem_V2.csv")$Stream_Name)
+nrow(tidy_v8b)-nrow(tidy_v8c)
 
 ## rename Sopchoppy  River to SOPCHOPPY RIVER in CAMELS dataset
-tidy_v7h <- tidy_v7g %>% 
+tidy_v8d <- tidy_v8c %>% 
   mutate(Stream_Name = case_when(Raw_Filename == "CAMELS_USGS_N_P.csv" & Stream_Name == "Sopchoppy River" ~ "SOPCHOPPY RIVER", 
                                  .default = Stream_Name))
 
 ##  Remove duplicate solutes from masterdata and keep CAMELS/geogenic values
-tidy_v7i <- tidy_v7h %>% 
+tidy_v8e <- tidy_v8d %>% 
   filter(!(Stream_Name == "SOPCHOPPY RIVER" & Raw_Filename == "20221030_masterdata_chem_V2.csv" & variable == "NOx")) %>% 
   filter(!(Stream_Name == "SOPCHOPPY RIVER" & Raw_Filename == "20221030_masterdata_chem_V2.csv"& variable == "PO4")) %>% 
   filter(!(Stream_Name == "SOPCHOPPY RIVER" & Raw_Filename == "20221030_masterdata_chem_V2.csv"& variable == "dissolved org C"))
 
 # check SOPCHOPPY vs Sopchoppy River
-tidy_v7i %>% 
+tidy_v8e %>% 
   filter(Stream_Name == "Sopchoppy River")
 
-tidy_v7i %>% 
-  filter(Stream_Name == "SOPCHOPPY RIVER") %>% 
-  ggplot(aes(as.Date(date),value))+
-  geom_point()+
-  facet_grid(Raw_Filename~variable)
+### Filter to only what sites are in the Site Reference Table ###
+tidy_v8f <- tidy_v8e %>% 
+  filter(Stream_Name %in% ref_table$Stream_Name)
 
-## remove "duplicates" and "replicates" from Boulder Creek CZO (BcCZO)
-tidy_v7j <- tidy_v7i %>% 
-  filter(!str_detect(Stream_Name, "FDUP|Fdup|DUP|BLANK|Blank|FLBK|FIELDBLANK|Duplicate|FBLK|FB"))
+# check how many sites removed
+length(unique(tidy_v8e$Stream_Name))-length(unique(tidy_v8f$Stream_Name))
 
-# check what is still in there for Boulder Creek
-bc <- tidy_v7j %>% 
-  filter(LTER == "BcCZO") %>% 
-  distinct(Stream_Name)
 
-check <- tidy_v7j %>% 
-  filter(LTER == "BcCZO") %>% 
-  anti_join(ref_table, by="Stream_Name") %>% 
-  distinct(Stream_Name)
+
+
+### Replace larger dataset values with values from "deduplicated sites ###
+
+# Load data ----------------------------------------------------
+
+master <- tidy_v8f %>% 
+  filter(Raw_Filename != "Deduplicated_Sites_AllSites_chemistry.csv")
+
+dedup <- tidy_v8f %>% 
+  filter(Raw_Filename ==  "Deduplicated_Sites_AllSites_chemistry.csv")
+
+required_cols <- c("Dataset", "Raw_Filename", "LTER", "Stream_Name",
+                   "date", "variable", "units", "value")
+
+stopifnot(all(required_cols %in% names(master)))
+stopifnot(all(required_cols %in% names(dedup)))
+
+# Normalize keys for matching -----------------------------------
+# (trims whitespace so " Ca" and "Ca" are treated as the same match)
+norm <- function(x) trimws(as.character(x))
+
+master <- master %>%
+  mutate(.match_key = paste(norm(Stream_Name), norm(variable), sep = "||"))
+
+dedup <- dedup %>%
+  mutate(.match_key = paste(norm(Stream_Name), norm(variable), sep = "||"))
+
+dedup_keys <- unique(dedup$.match_key)
+
+# Split master into kept vs. removed ----------------------------
+master_kept    <- master %>% filter(!(.match_key %in% dedup_keys))
+master_removed <- master %>% filter(.match_key %in% dedup_keys)
+
+# Combine kept master rows with all dedup rows -------------------
+merged <- bind_rows(
+  master_kept %>% select(all_of(required_cols)),
+  dedup       %>% select(all_of(required_cols))
+)
+
+# --- 5. Diagnostics (prints a summary, mirrors the checks done earlier) -
+cat("Master rows (total):           ", nrow(master), "\n")
+cat("Master rows removed (matched): ", nrow(master_removed), "\n")
+cat("Master rows kept (unmatched):  ", nrow(master_kept), "\n")
+cat("Dedup rows inserted:           ", nrow(dedup), "\n")
+cat("Final merged row count:        ", nrow(merged), "\n")
+
+new_pairs <- setdiff(dedup_keys, unique(master$.match_key))
+cat("Dedup pairs with no match in master (net-new, still inserted):",
+    length(new_pairs), "\n")
+
+tidy_v8g <- merged
+
+
+# remove totally duplicated rows
+
+n_dup <- sum(duplicated(tidy_v8g)) # >12,000 rows were duplicated?!
+
+tidy_v8h <- tidy_v8g %>% 
+  distinct()
 
 
 ## -------------------------------------------- ##
@@ -1265,10 +1385,10 @@ check <- tidy_v7j %>%
 ## -------------------------------------------- ##
 
 # Check out current dates
-sort(unique(tidy_v7j$date))
+sort(unique(tidy_v8h$date))
 
 # Try to standardize date formatting a bit
-tidy_v8a <- tidy_v7e %>%
+tidy_v9a <- tidy_v8h %>%
   # Remove time stamps where present
   dplyr::mutate(date_v2 = gsub(pattern = " [[:digit:]]{1,2}\\:[[:digit:]]{1,2}",
                                replacement = "", x = date),
@@ -1283,14 +1403,14 @@ tidy_v8a <- tidy_v7e %>%
   dplyr::rename(date_v1 = date)
 
 # Look at general date format per LTER
-tidy_v8a %>%
+tidy_v9a %>%
   dplyr::group_by(Raw_Filename) %>%
   dplyr::summarize(dates = paste(unique(date_v4), collapse = "; ")) %>%
   tidyr::pivot_wider(names_from = Raw_Filename, values_from = dates) %>%
   dplyr::glimpse()
 
 # Identify format for each file name based on **human eye/judgement**
-tidy_v8b <- tidy_v8a %>%
+tidy_v9b <- tidy_v9a %>%
   dplyr::mutate(date_format = dplyr::case_when(
     Raw_Filename == "20221030_masterdata_chem_V2.csv" ~ "ymd",
     # I think this one from PJulian might be obselete
@@ -1334,19 +1454,30 @@ tidy_v8b <- tidy_v8a %>%
     Raw_Filename == "yzeron_v3015810_chem.csv" ~ "ymd",
     Raw_Filename == "Krycklan_Cation_Clean.csv" ~ "mdy",
     Raw_Filename == "GRO_Obidos.csv" ~ "ymd",
-    Raw_Filename == "WesternAus_AllSites_Filtered.csv" ~ "ymd",
+    Raw_Filename == "WesternAus_AllSites_Filtered_v2.csv" ~ "ymd",
     Raw_Filename == "EastRiverSFA_chem.csv" ~ "ymd",
     Raw_Filename == "Como_Creek_chem.csv" ~ "ymd",
+    Raw_Filename %in% c(
+      "Canada_ECCC_AllSites_chemistry.csv",
+      "Chile_DGA_AllSites_chemistry.csv",
+      "danube_dsi_ready_v1.csv",
+      "Deduplicated_Sites_AllSites_chemistry.csv",
+      "gems_dsi_ready_v1.csv",
+      "Japan_MLIT_AllSites_chemistry.csv",
+      "Netherlands_RWS_AllSites_chemistry.csv",
+      "Switzerland_CAMELS_CH_AllSites_chemistry.csv",
+      "WesternAus_AllSites_Filtered_v2.csv"
+    ) ~ "ymd",
     # Raw_Filename == "" ~ "",
     T ~ "UNKNOWN"))
 
 # Check remaining date formats
-tidy_v8b %>%
+tidy_v9b %>%
   dplyr::group_by(date_format) %>%
   dplyr::summarize(files = paste(unique(Raw_Filename), collapse = "; "))
 
 # Let's do the last (hopefully) little bit of date wrangling
-tidy_v8c <- tidy_v8b %>%
+tidy_v9c <- tidy_v9b %>%
   # Break apart the date information
   tidyr::separate_wider_delim(cols = date_v4, delim = "/", names = c("date1", "date2", "date3"),
                               too_few = "align_start", too_many = "merge", cols_remove = F) %>%
@@ -1370,14 +1501,14 @@ tidy_v8c <- tidy_v8b %>%
                               .fns = as.numeric))
 
 # Any non 4-digit years remaining?
-tidy_v8c %>%
+tidy_v9c %>%
   dplyr::filter((date_format == "ymd" & nchar(date1) != 4) | 
                   (date_format == "mdy" & nchar(date3) != 4)) %>%
   dplyr::glimpse()
 
 
 # Use formats identified above to determine day, month, and year
-tidy_v8d <- tidy_v8c %>% 
+tidy_v9d <- tidy_v9c %>% 
   dplyr::mutate(
     ## Days
     day = dplyr::case_when(
@@ -1400,10 +1531,10 @@ tidy_v8d <- tidy_v8c %>%
     .after = date_v4)
 
 # How's that look?
-dplyr::glimpse(tidy_v8d)
+dplyr::glimpse(tidy_v9d)
 
 # Assemble back into a real date
-tidy_v8e <- tidy_v8d %>% 
+tidy_v9e <- tidy_v9d %>% 
   dplyr::mutate(date_v5 = paste(day, month, year, sep = "-"),
                 .after = date_v4) %>%
   # Make it truly a date
@@ -1411,13 +1542,13 @@ tidy_v8e <- tidy_v8d %>%
                 .after = date_v5)
 
 # Glimpse it
-dplyr::glimpse(tidy_v8e)
+dplyr::glimpse(tidy_v9e)
 
 # Check date range quickly
-range(tidy_v8e$date_actual, na.rm = T)
+range(tidy_v9e$date_actual, na.rm = T)
 
 # Final (actually this time) date wrangling
-tidy_v8f <- tidy_v8e %>%
+tidy_v9f <- tidy_v9e %>%
   # Rename final date column
   dplyr::rename(date = date_actual) %>%
   # Drop all intermediary columns
@@ -1425,14 +1556,14 @@ tidy_v8f <- tidy_v8e %>%
                 -dplyr::starts_with("date_"))
 
 # Check structure
-dplyr::glimpse(tidy_v8f)
+dplyr::glimpse(tidy_v9f)
 
 ## -------------------------------------------- ##
                   # Export ----
 ## -------------------------------------------- ##
 
 # Create one final tidy object
-tidy_final <- tidy_v8f
+tidy_final <- tidy_v9f
 
 # Check structure
 dplyr::glimpse(tidy_final)
