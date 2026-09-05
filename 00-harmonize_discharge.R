@@ -17,6 +17,9 @@ library(supportR)
 
 rm(list = ls())
 
+
+# Set up paths and import data --------------------------------------------
+
 # set up path to store files
 (path <- scicomptools::wd_loc(local = FALSE, remote_path = file.path('/', "home", "shares", "lter-si", "WRTDS")))
 
@@ -29,16 +32,23 @@ dir.create(path = file.path(path, "discharge"), showWarnings = F)
 dir.create(path = file.path(path2,"discharge_raw"), showWarnings = F)
 dir.create(path = file.path(path2,"discharge_tidy"), showWarnings = F)
 
-#read in reference table - you might need to change this link
-ref_table_link<-"https://docs.google.com/spreadsheets/d/11t9YYTzN_T12VAQhHuY5TpVjGS50ymNmKznJK4rKTIU"
+### read in reference table - you might need to change this link
+#ref_table_link<-"https://docs.google.com/spreadsheets/d/11t9YYTzN_T12VAQhHuY5TpVjGS50ymNmKznJK4rKTIU"
+#ref_table_folder = drive_get(as_id(ref_table_link))
+#ref_table<-drive_download(ref_table_folder$drive_resource, overwrite = T)
+#ref_table <- drive_download(file = ref_table_folder$id, path = file.path(path2,"Site_Reference_Table"), overwrite = T)
+#QLog<-read_xlsx(ref_table$local_path)
 
-ref_table_folder = drive_get(as_id(ref_table_link))
+# site reference table
+googledrive::drive_ls(path = googledrive::as_id("https://drive.google.com/drive/u/1/folders/0AIPkWhVuXjqFUk9PVA")) %>%
+  dplyr::filter(name == "Site_Reference_Table") %>%
+  googledrive::drive_download(file = .$id, path = file.path(path, "keys", .$name), overwrite = T, type="csv")
 
-ref_table<-drive_download(ref_table_folder$drive_resource, overwrite = T)
+ref_table <- read.csv(file = file.path(path, "keys", paste0("Site_Reference_Table", ".csv")))
 
-ref_table <- drive_download(file = ref_table_folder$id, path = file.path(path2,"Site_Reference_Table"), overwrite = T)
+QLog<-ref_table
 
-QLog<-read_xlsx(ref_table$local_path)
+# Download files ----------------------------------------------------------
 
 ### Create list of files to download and data download
 #get folder URL from google drive with discharge data - "Discharge_files"
@@ -75,8 +85,8 @@ csv_files_remove <- c( "andrsn_h1_Q.csv",
 csv_files_download <- csv_files %>% 
   filter(!name %in% csv_files_remove)
 
-#######################################################################################
-#### Download files from Google Drive to store locally
+
+# Download files from Google Drive to store locally
 # check working directory where files will be stored locally; separate folder within project folder
 
 #setwd("~/Documents/Work/Silica/Data/Discharge/discharge_raw")
@@ -87,8 +97,8 @@ for (i in 1:length(csv_files_download$drive_resource)) {
   drive_download(csv_files_download$drive_resource[i],  overwrite=T)
 }
 
-###############################################################################################
-### Prep for loop to concatentate discharge files
+
+# Prep loop and check match with reference table --------------------------
 
 # get list of files downloaded
 discharge_files = list.files(path=file.path(path2, "discharge_raw"), pattern = ".csv")
@@ -99,7 +109,16 @@ discharge_files<-discharge_files[!(discharge_files %like% "Discharge_master")]
 remove_these<-setdiff(csv_files$name,discharge_files)
 discharge_files<-discharge_files[!(discharge_files %in% remove_these)]
 
-check <- as.data.frame(discharge_files)
+# Do all the streams have representatives in the Site Reference Table?
+check_files <- as.data.frame(discharge_files) %>% 
+  # remove csv for matching
+  mutate(Discharge_File_Name_nocsv = substr(discharge_files,start=1,stop=nchar(discharge_files)-4)) %>% 
+  # filter out those that are NOT in the Site Reference Table
+  filter(!Discharge_File_Name_nocsv  %in% ref_table$Discharge_File_Name)
+
+
+
+# Combine discharge files with loop ---------------------------------------
 
 # set working directory where discharge files stored locally
 setwd("//home/shares/lter-si/WRTDS/discharge/discharge_raw")
@@ -115,15 +134,17 @@ DischargeList<-c("MEAN_Q", "Discharge", "InstantQ", "Q_m3sec", "discharge", "Q",
                  "Q_cms","Flow","var", "Value", "valeur",
                  "AVG_DISCHARGE","dailyQ","Discharge.m3.s.","Discharge(m3/s)", 
                  "Mean Daily", "Mean_Daily_Discharge","mean_daily_Q", "Daily_Mean_Q",
-                 "CC_Q_cms")
+                 "CC_Q_cms","Qcms")
 DateList<-c("Date", "dateTime", "dates", "date", "datetime", "DATE_TIME",
             "Sampling Date", "Dates","DateTime")
 
-i=i
+
+## need to assign discharge file names to ones with alot of NAs!
 
 
 #loop through each discharge file
 #rename columns, convert units, keep only important columns
+
 
 for (i in 1:length(discharge_files)) {
   file_name_nocsv<-substr(discharge_files[i],start=1,stop=nchar(discharge_files[i])-4)
@@ -146,6 +167,8 @@ for (i in 1:length(discharge_files)) {
                                ifelse(d$Units=="cmd", d$Q*1.15741e-5, "")))))
   
   d<-d[,c("Qcms", "Date", "Discharge_File_Name")]
+  
+  d$Qcms <- as.numeric(d$Qcms)
   
   #convert date to date format
   if(is.Date(d$Date)){
@@ -175,10 +198,19 @@ for (i in 1:length(discharge_files)) {
 # should have 3 columns: date, site, discharge
 disc_v1 = bind_rows(data_list)
 
-#####################################################
-## checks on discharge, dates
+
+# QA/QC of combined file --------------------------------------------------
+
 # checking files where dates got converted to NA
 na_dates = filter(disc_v1, is.na(Date))
+
+## checking na values for discharge
+na_q <- filter(disc_v1, is.na(Qcms)) %>% 
+  group_by(Discharge_File_Name) %>% 
+  dplyr::summarise(n=n())
+
+na_q_ref <- na_q %>% 
+  filter(Discharge_File_Name %in% ref_table$Discharge_File_Name)
 
 # checking which files have negative discharge values
 neg_Q = filter(disc_v1, Qcms<0)
@@ -221,7 +253,7 @@ disc_v3 <- disc_v2 %>%
 glimpse(disc_v3)
 
 #check the many-to-many warnings
-name_table %>% filter(Discharge_File_Name=="ARC_Imnavait_fill_Q")
+name_table %>% filter(Discharge_File_Name=="3080660_Q")
 disc_v2 %>% filter(Discharge_File_Name=="AAGEVEG_Q") %>% pull(Discharge_File_Name) %>% unique()
 #pull() makes a column and returns it as a vector
 
@@ -238,7 +270,11 @@ disc_v3 %>%
   tidyr::pivot_wider(names_from = Discharge_File_Name, values_from = dates) %>%
   dplyr::glimpse()
 
-####
+
+
+# Plot discharge data and save to file for review -------------------------
+
+
 # plot all discharge and save to file
 p = ggplot(data = disc_v3, aes(x = Date, y = Qcms)) + 
   geom_point()
@@ -251,6 +287,9 @@ setwd("//home/shares/lter-si/WRTDS/discharge")
 pdf()
 plots$plots
 dev.off()
+
+
+# Export Data to file and Google Drive ------------------------------------
 
 #change date to reflect new file creation
 setwd("//home/shares/lter-si/WRTDS/discharge/discharge_tidy")
@@ -269,6 +308,19 @@ googledrive::drive_upload(media = file.path(path2,"discharge_tidy", disc_filenam
                           path = googledrive::as_id("https://drive.google.com/drive/u/0/folders/1hbkUsTdo4WAEUnlPReOUuXdeeXm92mg-"))
 
 ########################################################################
+
+# Generate a date-stamped file name for this file
+( filename <- paste0(date, "_check_discharge_file_names.csv") )
+
+# write locally
+write.csv(x = check_files, file = file.path(path2,"discharge_tidy", filename), na = '', row.names = F)
+
+# write to google drive
+googledrive::drive_upload(media = file.path(path2,"discharge_tidy", filename), overwrite = T,
+                          path = googledrive::as_id("https://drive.google.com/drive/u/0/folders/1hbkUsTdo4WAEUnlPReOUuXdeeXm92mg-"))
+
+
+
 ### reviewing files
 filter(all_discharge_save, DischargeFileName == "AL02.3M_Q")
 
