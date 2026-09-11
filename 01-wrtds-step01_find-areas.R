@@ -1,109 +1,109 @@
-## ------------------------------------------------------- ##
-                # WRTDS - Find Watershed Area
-## ------------------------------------------------------- ##
-# Written by:
-## Nick J Lyon
+# ---- ## ----
+# wrtds - find watershed area
+# ---- ## ----
+# written by:
+# ---- nick j lyon ----
 
-# Purpose:
-## Find area of drainage basins for sites where that is not known from expert sources
+# purpose:
+# ---- find area of drainage basins for sites where that is not known from expert sources ----
 
-## ---------------------------------------------- ##
-                  # Housekeeping ----
-## ---------------------------------------------- ##
-# Read needed libraries
+# ---- ## ----
+# ---- housekeeping ----
+# ---- ## ----
+# read needed libraries
 # install.packages("librarian")
 librarian::shelf(tidyverse, sf, terra, nngeo, scicomptools, googledrive, readxl)
 
-# Clear environment
+# clear environment
 rm(list = ls())
 
-# Identify path to location of shared data
-(path <- scicomptools::wd_loc(local = F, remote_path = file.path('/', "home", "shares", "lter-si", "si-watershed-extract")))
-(path2 <- scicomptools::wd_loc(local = FALSE, remote_path = file.path('/', "home", "shares", "lter-si", "WRTDS")))
+# identify path to location of shared data
+(path <- scicomptools::wd_loc(local = F, remote_path = file.path("/", "home", "shares", "lter-si", "si-watershed-extract")))
+(path2 <- scicomptools::wd_loc(local = FALSE, remote_path = file.path("/", "home", "shares", "lter-si", "WRTDS")))
 
-## ---------------------------------------------- ##
-        # Site Coordinate Preparation ----
-## ---------------------------------------------- ##
+# ---- ## ----
+# ---- site coordinate preparation ----
+# ---- ## ----
 
-# If you've never used the `googledrive` R package, you'll need to "authorize" it
-## 1) Run the below line with your Google email that has access to the needed folders
+# if you've never used the `googledrive` r package, you'll need to "authorize" it
+# ---- run the below line with your google email that has access to the needed folders ----
 # googledrive::drive_auth(email = "...@gmail.com")
-## 1B) Choose which Google account to proceed with
-## 2) Check the "see, edit, create, and ..." box
-## 3) Click "Continue" at the bottom
-## 4) Copy the "authorization code"
-## 5) Paste it into the field in the Console
+# ---- 1b) choose which google account to proceed with ----
+# ---- check the "see, edit, create, and ..." box ----
+# ---- click "continue" at the bottom ----
+# ---- copy the "authorization code" ----
+# ---- paste it into the field in the console ----
 
-#read in reference table - you might need to change this link
-ref_table_link<-"https://docs.google.com/spreadsheets/d/11t9YYTzN_T12VAQhHuY5TpVjGS50ymNmKznJK4rKTIU"
+# read in reference table - you might need to change this link
+ref_table_link <- "https://docs.google.com/spreadsheets/d/11t9YYTzN_T12VAQhHuY5TpVjGS50ymNmKznJK4rKTIU"
 
-ref_table_folder = drive_get(as_id(ref_table_link))
+ref_table_folder <- drive_get(as_id(ref_table_link))
 
-ref_table<-drive_download(ref_table_folder$drive_resource, overwrite = T)
+ref_table <- drive_download(ref_table_folder$drive_resource, overwrite = T)
 
-ref_table <- drive_download(file = ref_table_folder$id, path = file.path(path2,"Site_Reference_Table"), overwrite = T)
+ref_table <- drive_download(file = ref_table_folder$id, path = file.path(path2, "Site_Reference_Table"), overwrite = T)
 
-# Read in reference table of all sites
+# read in reference table of all sites
 sites_v0 <- readxl::read_excel(path = file.path(path2, "Site_Reference_Table.xlsx"))
 
-# Do some pre-processing to pare down to only desired information
+# do some pre-processing to pare down to only desired information
 sites_v1 <- sites_v0 %>%
-  # Filter out sites not used in WRTDS
+  # filter out sites not used in wrtds
   dplyr::filter(tolower(Use_WRTDS) != "no") %>%
-  # Drop the WRTDS column now that we've subsetted by it
+  # drop the wrtds column now that we've subsetted by it
   dplyr::select(-Use_WRTDS) %>%
   # Make a uniqueID column
-  dplyr::mutate(uniqueID = paste0(LTER, "_", Stream_Name), 
-                .before = dplyr::everything()) %>%
-  # Make lat/long truly numeric
+  dplyr::mutate(uniqueID = paste0(LTER, "_", Stream_Name),
+    .before = dplyr::everything()) %>%
+  # make lat/long truly numeric
   dplyr::mutate(Latitude = as.numeric(Latitude),
-                Longitude = as.numeric(Longitude))
+    Longitude = as.numeric(Longitude))
 
-# Glimpse that
+# glimpse that
 dplyr::glimpse(sites_v1)
 
-# Split off sites where drainage basin area is known
+# split off sites where drainage basin area is known
 known_area <- sites_v1 %>%
   dplyr::filter(is.na(drainSqKm) == F)
 
-# Split off where area is NOT known
+# split off where area is not known
 unk_area <- sites_v1 %>%
   dplyr::filter(is.na(drainSqKm) == T)
 
-# Should be all of the data in either one or the other
+# should be all of the data in either one or the other
 nrow(known_area) + nrow(unk_area)
 nrow(sites_v1)
 
-# If we don't know area, we need coordinates in lat / long!
-unk_area %>% 
+# if we don't know area, we need coordinates in lat / long!
+unk_area %>%
   dplyr::filter(is.na(Latitude) | is.na(Longitude) |
-                  abs(Latitude) > 90 | abs(Longitude) > 180) %>%
+    abs(Latitude) > 90 | abs(Longitude) > 180) %>%
   dplyr::pull(uniqueID)
 
-## Anything here needs to have areas OR coordinates added _in the reference table_
-## If MCM, needs area *directly*
+# ---- anything here needs to have areas or coordinates added _in the reference table_ ----
+# ---- if mcm, needs area *directly* ----
 
-# Drop malformed coordinates
+# drop malformed coordinates
 unk_v2 <- unk_area %>%
   dplyr::filter(abs(Latitude) <= 90 & abs(Longitude) <= 180)
 
-# What sites had bad coordinates?
+# what sites had bad coordinates?
 setdiff(unk_area$uniqueID, unk_v2$uniqueID)
 
-# Get an explicitly spatial version
+# get an explicitly spatial version
 sites_spatial <- sf::st_as_sf(unk_v2, coords = c("Longitude", "Latitude"), crs = 4326)
 
-# Check it out
+# check it out
 str(sites_spatial)
 
-## ---------------------------------------------- ##
-      # Load HydroSHEDS Basin Delineations ----
-## ---------------------------------------------- ##
+# ---- ## ----
+# ---- load hydrosheds basin delineations ----
+# ---- ## ----
 
 # See HydroSHEDS website (link below) for download links & tech documentation
-## https://www.hydrosheds.org/page/hydrobasins
+# ---- https://www.hydrosheds.org/page/hydrobasins ----
 
-# Load in relevant files
+# load in relevant files
 arctic <- sf::st_read(file.path(path, "hydrosheds-raw", "hybas_ar_lev00_v1c.shp"))
 # xmin: -180       ymin: 51.20833   xmax: -61.09936   ymax: 83.21723
 asia <- sf::st_read(file.path(path, "hydrosheds-raw", "hybas_as_lev00_v1c.shp"))
@@ -123,61 +123,61 @@ africa <- sf::st_read(file.path(path, "hydrosheds-raw", "hybas_af_lev00_v1c.shp"
 europe <- sf::st_read(file.path(path, "hydrosheds-raw", "hybas_eu_lev00_v1c.shp"))
 # xmin: -24.5423   ymin: 69.5545    xmax: 12.5913     ymax: 81.8589
 
-# Antarctica is not supported by this product so we just want everything else
+# antarctica is not supported by this product so we just want everything else
 # (the minimum latitude is -55.2° for any of the slices)
 
-# Examine structure of one for greater detail
+# examine structure of one for greater detail
 str(europe)
 # page 6 of the technical documentation contains an attribute table that defines these fields
 # PFAF_[number] refers to the level of specificity in the basin delineation
-## PFAF_1 = separates continents from one another
-## PFAF_# + N = progressively finer separation
+# ---- pfaf_1 = separates continents from one another ----
+# ---- pfaf_# + n = progressively finer separation ----
 
-# Bind our files into a single (admittedly giant) object
+# bind our files into a single (admittedly giant) object
 all_basins <- rbind(arctic, asia, oceania, greenland, north_am,
-                    south_am, siberia, africa, europe)
+  south_am, siberia, africa, europe)
 
 # For ease of manipulation get just the HYBAS_ID
-# These uniquely identify the most specific level so they work upstream too (no pun intended)
+# these uniquely identify the most specific level so they work upstream too (no pun intended)
 basin_simp <- all_basins %>%
   dplyr::select(HYBAS_ID, NEXT_DOWN, NEXT_SINK, SUB_AREA)
 
-# Re-check structure
+# re-check structure
 str(basin_simp)
 
-## ---------------------------------------------- ##
-            # Identify Focal Polygon ----
-## ---------------------------------------------- ##
+# ---- ## ----
+# ---- identify focal polygon ----
+# ---- ## ----
 
-# Pre-emptively resolve an error with 'invalid spherical geometry'
+# pre-emptively resolve an error with 'invalid spherical geometry'
 sf::sf_use_s2(F)
-## s2 processing assumes that two points lie on a sphere
-## earlier form of processing assumes two points lie on a plane
+# ---- s2 processing assumes that two points lie on a sphere ----
+# ---- earlier form of processing assumes two points lie on a plane ----
 
 # Pull out HYBAS_IDs at site coordinates
 sites_actual <- sites_spatial %>%
   dplyr::mutate(
-    # Find the interaction points as integers
+    # find the interaction points as integers
     ixn = as.integer(sf::st_intersects(geometry, basin_simp)),
-    # If a given interaction is not NA (meaning it does overlap)...
+    # if a given interaction is not na (meaning it does overlap)
     HYBAS_ID = ifelse(test = !is.na(ixn),
-                      # ...retain the HYBAS_ID of that interaction...
-                      yes = basin_simp$HYBAS_ID[ixn],
-                      #...if not, retain nothing
-                      no = '') ) %>%
-  # And handle a missing HYBAS ID manually
-  dplyr::mutate(HYBAS_ID = ifelse(test = LTER == "Finnish Environmental Institute" & 
-                                    Discharge_File_Name == "Site28208_Q",
-                                  # This ID is from a *very* close neighboring site
-                                  yes = "2000029960",
-                                  no = HYBAS_ID))
+      # ...retain the HYBAS_ID of that interaction...
+      yes = basin_simp$HYBAS_ID[ixn],
+      # ...if not, retain nothing
+      no = "")) %>%
+  # and handle a missing hybas id manually
+  dplyr::mutate(HYBAS_ID = ifelse(test = LTER == "Finnish Environmental Institute" &
+    Discharge_File_Name == "Site28208_Q",
+  # this id is from a *very* close neighboring site
+  yes = "2000029960",
+  no = HYBAS_ID))
 
-# And to make our lives easier, check out which continents we actually need
+# and to make our lives easier, check out which continents we actually need
 sort(unique(stringr::str_sub(sites_actual$HYBAS_ID, 1, 1)))
-## 1 = Africa; 2 = Europe; 3 = Siberia; 4 = Asia; 5 = Australia
-## 6 = South America; 7 = North America; 8 = Arctic (North America); 9 = Greenland 
+# ---- 1 = africa; 2 = europe; 3 = siberia; 4 = asia; 5 = australia ----
+# ---- 6 = south america; 7 = north america; 8 = arctic (north america); 9 = greenland ----
 
-# The missing IDs are Antarctica streams
+# the missing ids are antarctica streams
 sites_actual %>%
   dplyr::filter(nchar(stringr::str_sub(sites_actual$HYBAS_ID, 1, 1)) == 0) %>%
   dplyr::select(LTER) %>%
@@ -188,225 +188,225 @@ sites_actual %>%
 basin_needs <- rbind(africa, north_am, oceania, europe)
 basin_needs$HYBAS_ID <- as.character(basin_needs$HYBAS_ID)
 
-# Get area for our focal polygons
+# get area for our focal polygons
 sites_actual$SUB_AREA <- basin_needs$SUB_AREA[match(sites_actual$HYBAS_ID, basin_needs$HYBAS_ID)]
 
-# Check the object again
+# check the object again
 dplyr::glimpse(sites_actual)
-## This object has polygons defined at the finest possible level
-## We may want to visualize aggregated basins so let's go that direction now
+# ---- this object has polygons defined at the finest possible level ----
+# ---- we may want to visualize aggregated basins so let's go that direction now ----
 
-# Drop the individual regional/continental objects
-# Clean up environment to have less data stored as we move forward
-rm(list = c("arctic", "asia", "oceania", "greenland", "north_am", 
-            "south_am", "siberia", "africa", "europe"))
+# drop the individual regional/continental objects
+# clean up environment to have less data stored as we move forward
+rm(list = c("arctic", "asia", "oceania", "greenland", "north_am",
+  "south_am", "siberia", "africa", "europe"))
 
-## ---------------------------------------------- ##
-      # Load Modified HydroSHEDS Functions ----
-## ---------------------------------------------- ##
+# ---- ## ----
+# ---- load modified hydrosheds functions ----
+# ---- ## ----
 
 # These are modified from someone's GitHub functions to accept non-S4 objects
 # Link to originals here: https://rdrr.io/github/ECCC-MSC/Basin-Delineation/
 
-# First function finds just the next upstream polygon(s)
-find_next_up <- function(HYBAS, HYBAS.ID, ignore.endorheic = F){
-  
-  # Process sf object into a regular dataframe
+# first function finds just the next upstream polygon(s)
+find_next_up <- function(HYBAS, HYBAS.ID, ignore.endorheic = F) {
+  # process sf object into a regular dataframe
   HYBAS_df <- HYBAS
-  
-  # Find next upstream polygon(s) as character
+
+  # find next upstream polygon(s) as character
   upstream.ab <- HYBAS_df[HYBAS_df$NEXT_DOWN == HYBAS.ID, c("HYBAS_ID", "ENDO")]
-  
-  if (ignore.endorheic){
+
+  if (ignore.endorheic) {
     upstream.ab <- upstream.ab[upstream.ab$ENDO != 2, ]
   }
   return(as.character(upstream.ab$HYBAS_ID))
 }
 
-# Second function iteratively runs through the first one to find all of the upstream polygons
-find_all_up <- function(HYBAS, HYBAS.ID, ignore.endorheic = F, split = F){
-  
+# second function iteratively runs through the first one to find all of the upstream polygons
+find_all_up <- function(HYBAS, HYBAS.ID, ignore.endorheic = F, split = F) {
   # make containers
   HYBAS.ID <- as.character(HYBAS.ID)
   HYBAS.ID.master <- list()
-  
-  #Get the possible upstream 'branches'
+
+  # get the possible upstream 'branches'
   direct.upstream <- find_next_up(HYBAS = HYBAS, HYBAS.ID = HYBAS.ID,
-                                  ignore.endorheic = ignore.endorheic)
-  
+    ignore.endorheic = ignore.endorheic)
+
   # for each branch iterate upstream until only returning empty results
-  for (i in direct.upstream){
+  for (i in direct.upstream) {
     run <- T
     HYBAS.ID.list <- i
     sub.basins <- i # this is the object that gets passed to find_next_up in each iteration
-    while (run){
+    while (run) {
       result.i <- unlist(lapply(sub.basins, find_next_up,
-                                HYBAS = HYBAS, ignore.endorheic = ignore.endorheic))
-      
-      if (length(result.i) == 0){ run <- F } # Stopping criterion
+        HYBAS = HYBAS, ignore.endorheic = ignore.endorheic))
+
+      if (length(result.i) == 0) {
+        run <- F
+      } # stopping criterion
       HYBAS.ID.list <- c(HYBAS.ID.list, result.i)
       sub.basins <- result.i
     }
     HYBAS.ID.master[[i]] <- HYBAS.ID.list
   }
-  
-  if (!split){ HYBAS.ID.master <- as.character(unlist(HYBAS.ID.master)) }
-  
+
+  if (!split) {
+    HYBAS.ID.master <- as.character(unlist(HYBAS.ID.master))
+  }
+
   return(HYBAS.ID.master)
 }
 
-## ---------------------------------------------- ##
-          # Identify Upstream Polygons ----
-## ---------------------------------------------- ##
+# ---- ## ----
+# ---- identify upstream polygons ----
+# ---- ## ----
 
 # Because some sites fall into the same focal HydroSHEDS polygon,
-# It makes sense to identify areas / polygons based on that focal polygon
+# it makes sense to identify areas / polygons based on that focal polygon
 # rather than stream name to save on computation time
 
 # Drop geometry information for HydroSHEDS basins
 basin_df <- basin_needs %>%
   sf::st_drop_geometry()
 
-# Create an empty list
+# create an empty list
 id_list <- list()
 
-# Identify area for sites where we don't know it already
-for(focal_poly in unique(sites_actual$HYBAS_ID)){
+# identify area for sites where we don't know it already
+for (focal_poly in unique(sites_actual$HYBAS_ID)) {
   # for(focal_poly in "7000073120"){
-  
-  # Create/identify name and path of file
-  poly_file <- file.path(path, 'hydrosheds-basin-ids',
-                         paste0(focal_poly, '_Upstream_IDs.csv'))
-  
-  # If we've already found this polygon's upstream polygons:
-  if (fs::file_exists(poly_file) == TRUE) {
-    
-    # Read the CSV
-    hydro_df <- read.csv(file = poly_file)
-    
-    # Add to the list
-    id_list[[as.character(focal_poly)]] <- hydro_df
-    
-    # Message outcome
-    message("Upstream HydroSheds IDs for HYBAS ID '", focal_poly, "' already identified.")
-    
-    # If we *don't* have the polygon, continue!
-  } else {
-    
-    # Print start-up message
-    message( "Processing for HYBAS ID '", focal_poly, "' begun at ", Sys.time())
-    
-    # Identify all upstream shapes
-    fxn_out <- find_all_up(HYBAS = basin_df, HYBAS.ID = focal_poly)
-    
-    # Make a dataframe of this
-    hydro_df <- data.frame(focal_poly = as.character(rep(focal_poly, (length(fxn_out) + 1))),
-                           hybas_id = c(focal_poly, fxn_out))
-    
-    # Save this out
-    write.csv(x = hydro_df, file = poly_file, na = '', row.names = F)
-    
-    # And add it to the list
-    id_list[[as.character(focal_poly)]] <- hydro_df
-    
-    # Print finishing message
-    message( "Processing for HYBAS ID '", focal_poly, "' finished at ", Sys.time())
-    
-  } # Close `else` clause
-} # Close `loop`
 
-# Unlist the list
+  # create/identify name and path of file
+  poly_file <- file.path(path, "hydrosheds-basin-ids",
+    paste0(focal_poly, "_Upstream_IDs.csv"))
+
+  # if we've already found this polygon's upstream polygons:
+  if (fs::file_exists(poly_file) == TRUE) {
+    # read the csv
+    hydro_df <- read.csv(file = poly_file)
+
+    # add to the list
+    id_list[[as.character(focal_poly)]] <- hydro_df
+
+    # message outcome
+    message("Upstream HydroSheds IDs for HYBAS ID '", focal_poly, "' already identified.")
+
+    # if we *don't* have the polygon, continue!
+  } else {
+    # print start-up message
+    message("Processing for HYBAS ID '", focal_poly, "' begun at ", Sys.time())
+
+    # identify all upstream shapes
+    fxn_out <- find_all_up(HYBAS = basin_df, HYBAS.ID = focal_poly)
+
+    # make a dataframe of this
+    hydro_df <- data.frame(focal_poly = as.character(rep(focal_poly, (length(fxn_out) + 1))),
+      hybas_id = c(focal_poly, fxn_out))
+
+    # save this out
+    write.csv(x = hydro_df, file = poly_file, na = "", row.names = F)
+
+    # and add it to the list
+    id_list[[as.character(focal_poly)]] <- hydro_df
+
+    # print finishing message
+    message("Processing for HYBAS ID '", focal_poly, "' finished at ", Sys.time())
+
+  } # close `else` clause
+} # close `loop`
+
+# unlist the list
 hydro_out <- id_list %>%
   purrr::list_rbind(x = .) %>%
   dplyr::filter(!is.na(focal_poly))
 
-# Check the structure
+# check the structure
 dplyr::glimpse(hydro_out)
 
-## ---------------------------------------------- ##
-                # Wrangle Output -----
-## ---------------------------------------------- ##
+# ---- ## ----
+# ---- wrangle output ----
+# ---- ## ----
 
-# Pre-emptively resolve an error with 'invalid spherical geometry'
+# pre-emptively resolve an error with 'invalid spherical geometry'
 sf::sf_use_s2(F)
 
 # change value to numeric to match across datasets
 basin_needs$HYBAS_ID <- as.numeric(basin_needs$HYBAS_ID)
 
-# Strip the polygons that correspond to those IDs - STOPPED HERE!
+# strip the polygons that correspond to those ids - stopped here!
 hydro_poly_df <- hydro_out %>%
   # Make the HydroBasins ID column have an identical name between the df and sf objects
   dplyr::rename(HYBAS_ID = hybas_id) %>%
-  # Attach everything in the polygon variant
-  ## Necessary because of some polygons are found in >1 uniqueID
-  dplyr::left_join(basin_needs, by = 'HYBAS_ID') %>%
+  # attach everything in the polygon variant
+  # ---- necessary because of some polygons are found in >1 uniqueid ----
+  dplyr::left_join(basin_needs, by = "HYBAS_ID") %>%
   # Within uniqueID...
   dplyr::group_by(focal_poly) %>%
   # ...sum sub-polygon areas and combine sub-polygon geometries
   dplyr::summarise(drainSqKm = sum(SUB_AREA, na.rm = TRUE),
-                   geometry = sf::st_union(geometry)) %>%
-  # Need to make the class officially sf again before continuing
+    geometry = sf::st_union(geometry)) %>%
+  # need to make the class officially sf again before continuing
   sf::st_as_sf() %>%
-  # Then drop geometry
+  # then drop geometry
   sf::st_drop_geometry() %>%
-  # Get a character version of the HYBAS ID and drop the old one
-  dplyr::mutate(HYBAS_ID = as.character(focal_poly), 
-                .before = dplyr::everything()) %>%
+  # get a character version of the hybas id and drop the old one
+  dplyr::mutate(HYBAS_ID = as.character(focal_poly),
+    .before = dplyr::everything()) %>%
   dplyr::select(-focal_poly)
 
-# Check structure
+# check structure
 dplyr::glimpse(hydro_poly_df)
 
-# Combine polygon IDs with the unknown areas dataframe
+# combine polygon ids with the unknown areas dataframe
 unk_actual <- sites_actual %>%
-  # Drop old (and empty) drainage area column
+  # drop old (and empty) drainage area column
   dplyr::select(-drainSqKm) %>%
-  # Drop geometry
+  # drop geometry
   sf::st_drop_geometry() %>%
-  # Make HYBAS ID into a character
+  # make hybas id into a character
   dplyr::mutate(HYBAS_ID = as.character(HYBAS_ID)) %>%
-  # Join on newly identified areas
+  # join on newly identified areas
   dplyr::left_join(y = hydro_poly_df, by = c("HYBAS_ID"))
 
-# Glimpse this too
+# glimpse this too
 dplyr::glimpse(unk_actual)
 
-# Then recombine the known and unknown areas files
+# then recombine the known and unknown areas files
 ref_table_actual <- known_area %>%
   # Use bind_rows to get the correct column order back
   dplyr::bind_rows(unk_actual) %>%
-  # Drop geometry
+  # drop geometry
   sf::st_drop_geometry() %>%
-  # Remove some unneeded columns
+  # remove some unneeded columns
   dplyr::select(-uniqueID, -ixn, -HYBAS_ID, -SUB_AREA)
 
-# Glimpse it
+# glimpse it
 dplyr::glimpse(ref_table_actual)
 # view(ref_table_actual)
 
-# Make sure that no drainage areas are missing
+# make sure that no drainage areas are missing
 nrow(filter(ref_table_actual, is.na(drainSqKm)))
 nrow(filter(ref_table_actual, nchar(drainSqKm) == 0))
-## Both above should return "0"
+# ---- both above should return "0" ----
 
-# Drop any that occur
+# drop any that occur
 ref_table_final <- ref_table_actual %>%
   dplyr::filter(!is.na(drainSqKm)) %>%
   dplyr::filter(drainSqKm != 0)
 
-# How many areas do we gain by doing this operation?
+# how many areas do we gain by doing this operation?
 sites_v1 %>% dplyr::filter(is.na(drainSqKm)) %>% nrow()
 ref_table_final %>% dplyr::filter(is.na(drainSqKm)) %>% nrow()
 
-# Define name/path of this file
-out_name <- file.path(path2,"WRTDS Source Files", "WRTDS_Reference_Table_with_Areas_DO_NOT_EDIT.csv")
+# define name/path of this file
+out_name <- file.path(path2, "WRTDS Source Files", "WRTDS_Reference_Table_with_Areas_DO_NOT_EDIT.csv")
 
-# Save this locally
-write.csv(x = ref_table_final, file = file.path(path2,"WRTDS Source Files", "WRTDS_Reference_Table_with_Areas_DO_NOT_EDIT.csv"), na = '', row.names = F)
-#write.csv(x = ref_table_final, na = "", row.names = F, file = out_name)
+# save this locally
+write.csv(x = ref_table_final, file = file.path(path2, "WRTDS Source Files", "WRTDS_Reference_Table_with_Areas_DO_NOT_EDIT.csv"), na = "", row.names = F)
+# write.csv(x = ref_table_final, na = "", row.names = F, file = out_name)
 
-# Export to Drive
+# export to drive
 googledrive::drive_upload(media = out_name, overwrite = T,
-                          path = googledrive::as_id("https://drive.google.com/drive/u/0/folders/15FEoe2vu3OAqMQHqdQ9XKpFboR4DvS9M"))
+  path = googledrive::as_id("https://drive.google.com/drive/u/0/folders/15FEoe2vu3OAqMQHqdQ9XKpFboR4DvS9M"))
 
-# End ----
+# ---- end ----
