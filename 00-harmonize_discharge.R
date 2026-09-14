@@ -48,7 +48,7 @@ ref_table <- read.csv(file = file.path(path, "keys", paste0("Site_Reference_Tabl
 
 QLog<-ref_table
 
-# Download files ----------------------------------------------------------
+# Identify and Download files ----------------------------------------------------------
 
 ### Create list of files to download and data download
 #get folder URL from google drive with discharge data - "Discharge_files"
@@ -145,6 +145,8 @@ DateList<-c("Date", "dateTime", "dates", "date", "datetime", "DATE_TIME",
 #loop through each discharge file
 #rename columns, convert units, keep only important columns
 
+discharge_files[1]
+
 
 for (i in 1:length(discharge_files)) {
   file_name_nocsv<-substr(discharge_files[i],start=1,stop=nchar(discharge_files[i])-4)
@@ -236,7 +238,7 @@ neg_Q <- filter(disc_v2, Qcms<0)
 
 ## plot to see what new data look like
 disc_v2 %>% 
-  filter(Discharge_File_Name == "Loch_DailyQ") %>%  
+  filter(Discharge_File_Name == "SHINGLE_CREEK_Q") %>%  
   ggplot(aes(Date,Qcms)) +
   geom_point()
 
