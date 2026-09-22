@@ -1428,79 +1428,6 @@ tidy_v9a <- tidy_v8h %>%
   dplyr::rename(date_v1 = date)
 
 
-### SKIP #### 
-# Look at general date format per LTER
-tidy_v9a %>%
-  dplyr::group_by(Raw_Filename) %>%
-  dplyr::summarize(dates = paste(unique(date_v4), collapse = "; ")) %>%
-  tidyr::pivot_wider(names_from = Raw_Filename, values_from = dates) %>%
-  dplyr::glimpse()
-
-# Identify format for each file name based on **human eye/judgement**
-tidy_v9b <- tidy_v9a %>%
-  dplyr::mutate(date_format = dplyr::case_when(
-    Raw_Filename == "20221030_masterdata_chem_V2.csv" ~ "ymd",
-    # I think this one from PJulian might be obselete
-    Raw_Filename == "Australia_MurrayBasin_PJulian_071723.csv" ~ "ymd",
-    Raw_Filename == "CAMELS_USGS_N_P.csv" ~ "ymd",
-    Raw_Filename == "CAMREX_filled_template.csv" ~ "mdy",
-    Raw_Filename == "Canada_WQ_dat.csv" ~ "ymd",
-    Raw_Filename == "Chem_Cameroon.csv" ~ "mdy",
-    Raw_Filename == "Chem_HYBAM.csv" ~ "mdy",
-    Raw_Filename == "ElbeRiverChem.csv" ~ "dmy",
-    Raw_Filename == "Krycklan_NP.csv" ~ "mdy",
-    Raw_Filename == "MCM_Chem_clean.csv" ~ "mdy",
-    Raw_Filename == "MurrayDarlingChem_Merged.csv" ~ "ymd",
-    Raw_Filename == "NIVA_Water_chemistry.csv" ~ "mdy",
-    Raw_Filename == "NT_NSW_Chem_Cleaned.csv" ~ "dmy",
-    Raw_Filename == "NigerRiver.csv" ~ "mdy",
-    Raw_Filename == "SiSyn_DataTemplate_Sweden_102423.csv" ~ "mdy",
-    Raw_Filename == "UK_Si.csv" ~ "dmy",
-    Raw_Filename == "UK_nonSi_solutes.csv" ~ "ymd",
-    Raw_Filename == "UMR_si_new_sites.csv" ~ "ymd",
-    Raw_Filename == "UMR_si_update_existing_sites.csv" ~ "ymd",
-    Raw_Filename == "USGS_NWQA_Chemistry_MissRiverSites.csv" ~ "ymd",
-    Raw_Filename == "USGS_geogenic_solutes.csv" ~ "ymd",
-    #Raw_Filename == "NEON_Chem.csv" ~"ymd",
-    Raw_Filename == "WalkerBranch_Chem.csv" ~"ymd",
-    Raw_Filename == "CatalinaJemez_chemistry_2009-2019_V2.csv"~ "mdy",
-    Raw_Filename == "Alpine_Clean.csv"~ "ymd",
-    Raw_Filename == "Finnish_riverine_data_07032025.csv"~ "mdy",
-    Raw_Filename == "NIVA_geogenic_clean.csv" ~ "ymd",
-    Raw_Filename == "Cleaned_Seine_Data.csv"~ "mdy",
-    Raw_Filename == "Seine_baseGeo_Naides.csv" ~ "ymd",
-    Raw_Filename == "Swedish_Geo_Updated_10062025.csv"~ "ymd",
-    Raw_Filename == "guadeloupe_GRCBDMDF_chem.csv" ~ "ymd",
-    Raw_Filename == "guadeloupe_GRCBDPBD_chem.csv" ~ "ymd",
-    Raw_Filename == "guadeloupe_GRCBDQCK_chem.csv" ~ "ymd",
-    Raw_Filename == "guadeloupe_GRCCEDIG_chem.csv" ~ "ymd",
-    Raw_Filename == "guadeloupe_GRCVHBAR_chem.csv" ~ "ymd",
-    Raw_Filename == "guadeloupe_GRCVHSAV_chem.csv" ~ "ymd",
-    Raw_Filename == "yzeron_301502401_chem.csv"~ "ymd",
-    Raw_Filename == "yzeron_v301502402_chem.csv" ~ "ymd",
-    Raw_Filename == "yzeron_v3015810_chem.csv" ~ "ymd",
-    Raw_Filename == "Krycklan_Cation_Clean.csv" ~ "mdy",
-    Raw_Filename == "GRO_Obidos.csv" ~ "ymd",
-    Raw_Filename == "WesternAus_AllSites_Filtered_v2.csv" ~ "ymd",
-    Raw_Filename == "EastRiverSFA_chem.csv" ~ "ymd",
-    Raw_Filename == "Como_Creek_chem.csv" ~ "ymd",
-    Raw_Filename %in% c(
-      "Canada_ECCC_AllSites_chemistry.csv",
-      "Chile_DGA_AllSites_chemistry.csv",
-      "danube_dsi_ready_v1.csv",
-      "Deduplicated_Sites_AllSites_chemistry.csv",
-      "gems_dsi_ready_v1.csv",
-      "Japan_MLIT_AllSites_chemistry.csv",
-      "Netherlands_RWS_AllSites_chemistry.csv",
-      "Switzerland_CAMELS_CH_AllSites_chemistry.csv",
-      "WesternAus_AllSites_Filtered_v2.csv"
-    ) ~ "ymd",
-    # Raw_Filename == "" ~ "",
-    T ~ "UNKNOWN"))
-
-######
-
-
 ## function to automate date detection in by raw filename
 detect_date_format <- function(date_strings, delim = "/") {
   
@@ -1665,6 +1592,10 @@ dplyr::glimpse(tidy_v9e)
 # Check date range quickly
 range(tidy_v9e$date_actual, na.rm = T)
 
+# Date from early 1900s? 
+filter(tidy_v9e, year < 1930) %>% 
+  distinct(Raw_Filename)
+
 # Final (actually this time) date wrangling
 tidy_v9f <- tidy_v9e %>%
   # Rename final date column
@@ -1677,6 +1608,13 @@ tidy_v9f <- tidy_v9e %>%
 dplyr::glimpse(tidy_v9f)
 
 
+# expected data present? 
+main_solutes <- c("Ca","SO4","Na","Cl","NO3","NOx","PO4","SRP","DSi","K")
+
+solute_check <- tidy_v9f %>% 
+  filter(variable %in% main_solutes) %>% 
+  group_by(Raw_Filename, variable) %>% 
+  summarise(n=n())
 
 
 ## -------------------------------------------- ##
@@ -1705,3 +1643,80 @@ googledrive::drive_upload(media = file.path(path,"tidy", chem_filename), overwri
                           path = googledrive::as_id("https://drive.google.com/drive/u/0/folders/1dTENIB5W2ClgW0z-8NbjqARiaGO2_A7W"))
 
 # End ----
+
+
+
+# OLD CODE MAYBE USEFUL ---------------------------------------------------
+
+### SKIP #### 
+# Look at general date format per LTER
+tidy_v9a %>%
+  dplyr::group_by(Raw_Filename) %>%
+  dplyr::summarize(dates = paste(unique(date_v4), collapse = "; ")) %>%
+  tidyr::pivot_wider(names_from = Raw_Filename, values_from = dates) %>%
+  dplyr::glimpse()
+
+# Identify format for each file name based on **human eye/judgement**
+tidy_v9b <- tidy_v9a %>%
+  dplyr::mutate(date_format = dplyr::case_when(
+    Raw_Filename == "20221030_masterdata_chem_V2.csv" ~ "ymd",
+    # I think this one from PJulian might be obselete
+    Raw_Filename == "Australia_MurrayBasin_PJulian_071723.csv" ~ "ymd",
+    Raw_Filename == "CAMELS_USGS_N_P.csv" ~ "ymd",
+    Raw_Filename == "CAMREX_filled_template.csv" ~ "mdy",
+    Raw_Filename == "Canada_WQ_dat.csv" ~ "ymd",
+    Raw_Filename == "Chem_Cameroon.csv" ~ "mdy",
+    Raw_Filename == "Chem_HYBAM.csv" ~ "mdy",
+    Raw_Filename == "ElbeRiverChem.csv" ~ "dmy",
+    Raw_Filename == "Krycklan_NP.csv" ~ "mdy",
+    Raw_Filename == "MCM_Chem_clean.csv" ~ "mdy",
+    Raw_Filename == "MurrayDarlingChem_Merged.csv" ~ "ymd",
+    Raw_Filename == "NIVA_Water_chemistry.csv" ~ "mdy",
+    Raw_Filename == "NT_NSW_Chem_Cleaned.csv" ~ "dmy",
+    Raw_Filename == "NigerRiver.csv" ~ "mdy",
+    Raw_Filename == "SiSyn_DataTemplate_Sweden_102423.csv" ~ "mdy",
+    Raw_Filename == "UK_Si.csv" ~ "dmy",
+    Raw_Filename == "UK_nonSi_solutes.csv" ~ "ymd",
+    Raw_Filename == "UMR_si_new_sites.csv" ~ "ymd",
+    Raw_Filename == "UMR_si_update_existing_sites.csv" ~ "ymd",
+    Raw_Filename == "USGS_NWQA_Chemistry_MissRiverSites.csv" ~ "ymd",
+    Raw_Filename == "USGS_geogenic_solutes.csv" ~ "ymd",
+    #Raw_Filename == "NEON_Chem.csv" ~"ymd",
+    Raw_Filename == "WalkerBranch_Chem.csv" ~"ymd",
+    Raw_Filename == "CatalinaJemez_chemistry_2009-2019_V2.csv"~ "mdy",
+    Raw_Filename == "Alpine_Clean.csv"~ "ymd",
+    Raw_Filename == "Finnish_riverine_data_07032025.csv"~ "mdy",
+    Raw_Filename == "NIVA_geogenic_clean.csv" ~ "ymd",
+    Raw_Filename == "Cleaned_Seine_Data.csv"~ "mdy",
+    Raw_Filename == "Seine_baseGeo_Naides.csv" ~ "ymd",
+    Raw_Filename == "Swedish_Geo_Updated_10062025.csv"~ "ymd",
+    Raw_Filename == "guadeloupe_GRCBDMDF_chem.csv" ~ "ymd",
+    Raw_Filename == "guadeloupe_GRCBDPBD_chem.csv" ~ "ymd",
+    Raw_Filename == "guadeloupe_GRCBDQCK_chem.csv" ~ "ymd",
+    Raw_Filename == "guadeloupe_GRCCEDIG_chem.csv" ~ "ymd",
+    Raw_Filename == "guadeloupe_GRCVHBAR_chem.csv" ~ "ymd",
+    Raw_Filename == "guadeloupe_GRCVHSAV_chem.csv" ~ "ymd",
+    Raw_Filename == "yzeron_301502401_chem.csv"~ "ymd",
+    Raw_Filename == "yzeron_v301502402_chem.csv" ~ "ymd",
+    Raw_Filename == "yzeron_v3015810_chem.csv" ~ "ymd",
+    Raw_Filename == "Krycklan_Cation_Clean.csv" ~ "mdy",
+    Raw_Filename == "GRO_Obidos.csv" ~ "ymd",
+    Raw_Filename == "WesternAus_AllSites_Filtered_v2.csv" ~ "ymd",
+    Raw_Filename == "EastRiverSFA_chem.csv" ~ "ymd",
+    Raw_Filename == "Como_Creek_chem.csv" ~ "ymd",
+    Raw_Filename %in% c(
+      "Canada_ECCC_AllSites_chemistry.csv",
+      "Chile_DGA_AllSites_chemistry.csv",
+      "danube_dsi_ready_v1.csv",
+      "Deduplicated_Sites_AllSites_chemistry.csv",
+      "gems_dsi_ready_v1.csv",
+      "Japan_MLIT_AllSites_chemistry.csv",
+      "Netherlands_RWS_AllSites_chemistry.csv",
+      "Switzerland_CAMELS_CH_AllSites_chemistry.csv",
+      "WesternAus_AllSites_Filtered_v2.csv"
+    ) ~ "ymd",
+    # Raw_Filename == "" ~ "",
+    T ~ "UNKNOWN"))
+
+######
+
