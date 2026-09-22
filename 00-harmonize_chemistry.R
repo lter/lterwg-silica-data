@@ -29,7 +29,7 @@ dir.create(path = file.path(path, "keys"), showWarnings = F)
 
 # Create a folder for inputs & and outputs
 dir.create(path = file.path(path, "chem_raw"), showWarnings = F)
-dir.create(path = file.path(path, "chem_raw_subset"), showWarnings = F)
+dir.create(path = file.path(path, "chem_raw_subset_092126"), showWarnings = F)
 dir.create(path = file.path(path, "tidy"), showWarnings = F)
 
 ## -------------------------------------------- ##
@@ -80,10 +80,10 @@ chem_drive_actual <- chem_drive %>%
 # Download these files
 purrr::walk2(.x = chem_drive_actual$id, .y = chem_drive_actual$name,
              .f = ~ googledrive::drive_download(file = .x, overwrite = T,
-                                                path = file.path(path, "chem_raw_subset", .y)))
+                                                path = file.path(path, "chem_raw_subset_092126", .y)))
 
 # check what is in chemistry files folder 
-list.files(path = file.path(path,"chem_raw_subset"))
+list.files(path = file.path(path,"chem_raw_subset_092126"))
 
 # site reference table
 googledrive::drive_ls(path = googledrive::as_id("https://drive.google.com/drive/u/1/folders/0AIPkWhVuXjqFUk9PVA")) %>%
@@ -117,15 +117,10 @@ units_key <- units_key_v1 %>%
 dplyr::glimpse(units_key)
 
 # Identify all downloaded files
-( raw_files <- dir(path = file.path(path, "chem_raw_subset")) )
+( raw_files <- dir(path = file.path(path, "chem_raw_subset_092126")) )
 
 # Make an empty list to store re-formatted raw data
 df_list <- list() 
-
-
-
-rm(j)
-
 
 # For each raw file...
 for(j in 1:length(raw_files)){
@@ -151,7 +146,7 @@ for(j in 1:length(raw_files)){
   cols_to_remove <- c("Dataset","Raw_Filename")
   
   # Load in that file
-  raw_df_v1 <- read.csv(file = file.path(path, "chem_raw_subset", focal_raw)) %>% 
+  raw_df_v1 <- read.csv(file = file.path(path, "chem_raw_subset_092126", focal_raw)) %>% 
     select(-any_of(cols_to_remove))
   
   # Process it to ready for integration with other raw files
@@ -294,7 +289,7 @@ tidy_v0 <- df_list %>%
 dplyr::glimpse(tidy_v0)
 
 # Clean up environment (i.e., drop everything prior to this object)
-rm(list = setdiff(ls(), c("key", "tidy_v0")))
+rm(list = setdiff(ls(), c("key", "tidy_v0", "ref_table")))
 
 ## -------------------------------------------- ##
               # Big-Picture Checks ----
@@ -494,14 +489,20 @@ tidy_v3b <- tidy_v3a %>%
                 -specificconductance_uS_cm) %>%
   dplyr::rename(conductivity_uS_cm = cond_actual) %>%
   # Chl a 
-  dplyr::mutate(chla_actual = dplyr::coalesce(chl_a_ug_L, chla_ug_L, suspended_chl_ug_L,chla_ugl_ug_L), .after = chla_ug_L) %>%
-  dplyr::select(-chl_a_ug_L, -chla_ug_L,-suspended_chl_ug_L,-chla_ugl_ug_L) %>%
+  dplyr::mutate(chla_actual = dplyr::coalesce(chl_a_ug_L, chla_ug_L, suspended_chl_ug_L,chla_ugl_ug_L,chlorophyll_a_ug_L), .after = chla_ug_L) %>%
+  dplyr::select(-chl_a_ug_L, -chla_ug_L,-suspended_chl_ug_L,-chla_ugl_ug_L,-chlorophyll_a_ug_L) %>%
   dplyr::rename(chla_ug_L = chla_actual) %>% 
   # DO 
   dplyr::mutate(do_actual = dplyr::coalesce(do_mg_L, do_mg_O2_L), .after = do_mg_O2_L) %>%
   dplyr::select(-do_mg_L, -do_mg_O2_L) %>%
   dplyr::rename(do_mg_L = do_actual) |> 
-  dplyr::rename(do_percent = do_pct_percent) %>% 
+  # DO percent
+  dplyr::rename(do_percent = "do_percent_%") |>
+  dplyr::mutate(do_pct_actual = dplyr::coalesce(do_percent, do_pct_percent), .after = do_pct_percent) %>%
+  dplyr::select(-do_percent, -do_pct_percent) %>%
+  dplyr::rename(do_percent = do_pct_actual) %>% 
+  # DO - uM
+  dplyr::rename(do_uM = dissolved_oxygen_uM)  %>% 
   # aluminum
   dplyr::rename(al_ug_L = al_ugl_ug_L) |> 
   # anc 
@@ -521,14 +522,26 @@ tidy_v3b <- tidy_v3a %>%
   dplyr::mutate(cl_actual_uM = dplyr::coalesce(chloride_uM,cl_uM)) %>%
   dplyr::select(-chloride_uM,-cl_uM) %>%
   dplyr::rename(cl_uM = cl_actual_uM) |> 
+  # Colour
+  dplyr::mutate(colour_actual = dplyr::coalesce(colour_PCU,colour_pcu_,colour_pcu_PCU)) %>%
+  dplyr::select(-colour_PCU,-colour_pcu_,-colour_pcu_PCU) %>%
+  dplyr::rename(colour_pcu = colour_actual) %>% 
   # DOC
   dplyr::mutate(doc_actual = dplyr::coalesce(doc_mgl_mg_C_L,doc_mg_C_L,doc_mg_L,doc_mgl_mg_L)) %>%
   dplyr::select(-doc_mgl_mg_C_L,-doc_mg_C_L,-doc_mg_L,-doc_mgl_mg_L) %>%
   dplyr::rename(doc_mg_L = doc_actual) |>
+  # DOC -uM
+  dplyr::mutate(doc_actual = dplyr::coalesce(dissolved_org_c_uM,doc_uM)) %>%
+  dplyr::select(-dissolved_org_c_uM,-doc_uM) %>%
+  dplyr::rename(doc_uM = doc_actual) |>
   # DIC
   dplyr::mutate(dic_actual = dplyr::coalesce(dic_mg_C_L,dic_mg_L)) %>%
   dplyr::select(-dic_mg_C_L,-dic_mg_L) %>%
   dplyr::rename(dic_mg_L = dic_actual) |>
+  # DIC - uM
+  dplyr::mutate(dic_actual = dplyr::coalesce(dic_uM,dissolved_inorg_c_uM)) %>%
+  dplyr::select(-dic_uM,-dissolved_inorg_c_uM) %>%
+  dplyr::rename(dic_uM = dic_actual) |>
   # TOC
   dplyr::mutate(toc_actual = dplyr::coalesce(toc_mgl_mg_L,toc_mg_L,toc_mg_C_L)) %>%
   dplyr::select(-toc_mgl_mg_L,-toc_mg_L,-toc_mg_C_L) %>%
@@ -591,6 +604,8 @@ dplyr::mutate(nh4_actual = dplyr::coalesce(nh4_mgl_mg_L,nh4_mg_NH4_L)) %>%
   dplyr::mutate(no2_actual = dplyr::coalesce(no2_mgl_mg_NO2_N_L,no2_mg_NO2_N_L)) %>%
   dplyr::select(-no2_mgl_mg_NO2_N_L,-no2_mg_NO2_N_L) %>%
   dplyr::rename(no2_mg_NO2_N_L = no2_actual) |>
+  # DON
+  dplyr::rename(don_uM = dissolved_org_n_uM) %>% 
   # PO4
   dplyr::mutate(po4_actual = dplyr::coalesce(po4_mg_PO4_L,po4_mgl_mg_PO4_L)) %>%
   dplyr::select(-po4_mgl_mg_PO4_L,-po4_mg_PO4_L) %>%
@@ -603,6 +618,10 @@ dplyr::mutate(nh4_actual = dplyr::coalesce(nh4_mgl_mg_L,nh4_mg_NH4_L)) %>%
   dplyr::mutate(po4_p_actual = dplyr::coalesce(po4_mg_PO4_P_L,po4_mg_P_L,ortho___p_mg_PO4_P_L)) %>%
   dplyr::select(-po4_mg_PO4_P_L,-po4_mg_P_L,-ortho___p_mg_PO4_P_L) %>%
   dplyr::rename(po4_mg_P_L = po4_p_actual) |> 
+  # SSC 
+  dplyr::mutate(ssc_actual = dplyr::coalesce(ssc_mg_L, susp_sediment_conc_mg_L)) %>%
+  dplyr::select(-ssc_mg_L, -susp_sediment_conc_mg_L) %>%
+  dplyr::rename(ssc_mg_L = ssc_actual) %>% 
   # SiO2 (units in Si are corrected below with Canadian solute names)
   dplyr::mutate(sio2_actual = dplyr::coalesce(si_mg_SiO2_L,sio2_mgl_mg_SiO2_L,dsi_mg_SiO2_L,
                                               sio2_mg_SiO2_L)) %>%
@@ -617,13 +636,23 @@ dplyr::mutate(nh4_actual = dplyr::coalesce(nh4_mgl_mg_L,nh4_mg_NH4_L)) %>%
   dplyr::select(-so4_uM, -sulfate_uM) %>%
   dplyr::rename(so4_uM = so4_actual_uM) |>
   # TDN
-  dplyr::mutate(tdn_actual = dplyr::coalesce(tdn_mg_N_L,tdn_mgl_mg_N_L,tdn_mg_L)) %>%
-  dplyr::select(-tdn_mgl_mg_N_L,-tdn_mg_N_L,-tdn_mg_L) %>%
-  dplyr::rename(tdn_mg_N_L = tdn_actual) |> 
+  dplyr::mutate(tdn_actual = dplyr::coalesce(tdn_mg_N_L,tdn_mgl_mg_N_L)) %>%
+  dplyr::select(-tdn_mgl_mg_N_L,-tdn_mg_N_L) %>%
+  dplyr::rename(tdn_mg_N_L = tdn_actual) |>
+  # TDN
+  dplyr::mutate(tdn_uM_actual = dplyr::coalesce(tdn_uM,tot_dissolved_n_uM)) %>%
+  dplyr::select(-tdn_uM,-tot_dissolved_n_uM) %>%
+  dplyr::rename(tdn_uM = tdn_uM_actual) |> 
+  # TKN
+  dplyr::rename(tkn_uM = tot_kjeldahl_n_uM) %>% 
   # temperature
   dplyr::mutate(temp_actual = dplyr::coalesce(temp_C,temp_c_C,`twater_(°c)_C`)) %>%
   dplyr::select(-temp_C,-temp_c_C,-`twater_(°c)_C`) %>%
   dplyr::rename(temp_C = temp_actual) |> 
+  # TOC
+  dplyr::mutate(toc_actual = dplyr::coalesce(toc_uM,tot_org_c_uM)) %>%
+  dplyr::select(-toc_uM,-tot_org_c_uM) %>%
+  dplyr::rename(toc_uM = toc_actual) %>% 
   # total P
   dplyr::mutate(tp_actual = dplyr::coalesce(tp_ug_L,tp_ugl_ug_P_L)) %>%
   dplyr::select(-tp_ug_L, -tp_ugl_ug_P_L) %>%
@@ -632,8 +661,22 @@ dplyr::mutate(nh4_actual = dplyr::coalesce(nh4_mgl_mg_L,nh4_mg_NH4_L)) %>%
   dplyr::mutate(turb_actual = dplyr::coalesce(turbidity_NTU,turb_NTU)) %>%
   dplyr::select(-turbidity_NTU,-turb_NTU) %>%
   dplyr::rename(turbidity_NTU = turb_actual) %>% 
+  # TDS
+  dplyr::mutate(tds_actual = dplyr::coalesce(tds_mg_L,tot_dissolved_solids_mg_L)) %>%
+  dplyr::select(-tds_mg_L,-tot_dissolved_solids_mg_L) %>%
+  dplyr::rename(tds_mg_L = tds_actual) %>% 
+  # TSS
+  dplyr::mutate(tss_actual = dplyr::coalesce(tss___dry_mass_mg_L,tss_mg_L)) %>%
+  dplyr::select(-tss___dry_mass_mg_L,-tss_mg_L) %>%
+  dplyr::rename(tss_mg_L = tss_actual) %>% 
+  dplyr::rename(tss_ug_L = tss___dry_mass_ug) %>% 
   # temporary - need to remove this column not using
-  select(-contains("nicb"))
+  select(-contains("nicb")) %>% 
+  # VSS
+  dplyr::mutate(vss_actual = dplyr::coalesce(volatile_susp_solids_mg_L,vss_mg_L)) %>%
+  dplyr::select(-volatile_susp_solids_mg_L,-vss_mg_L) %>%
+  dplyr::rename(vss_mg_L = vss_actual)
+  
 
 # Re-check remaining columns
 tidy_v3b %>%
@@ -694,7 +737,7 @@ tidy_v4a <- tidy_v3c %>%
   dplyr::mutate(alkalinity_uM = dplyr::coalesce(
     alkalinity_uM,
     alkalinity_ueq_L,
-    anc_ueq_L,
+    anc_ueq_L,anc_ueq_l_ueq_L,
     alkalinity_ug_L / 50.04345
   )) %>%
   dplyr::mutate(alkalinity_uM = dplyr::coalesce(alkalinity_uM, alkalinity_ueq_L)) %>%
@@ -795,16 +838,6 @@ tidy_v4b <- tidy_v4a %>%
                 .after = do_mg_L) %>%
   dplyr::select(-do_mg_L) %>%
   # Silica (!)
-  ## UPDATED ##
-  # dplyr::mutate(dsi_uM = dplyr::case_when(
-  #   !is.na(dsi_uM) ~ dsi_uM,
-  #   is.na(dsi_uM) & !is.na(dsi_mg_Si_L) ~ (dsi_mg_Si_L / Si_mw) * 10^3,
-  #   is.na(dsi_uM) & !is.na(dsi_ug_Si_L) ~ dsi_ug_Si_L / Si_mw,
-  #   is.na(dsi_uM) & !is.na(silicon_ug_L) ~ (silicon_ug_L / Si_mw),
-  #   is.na(dsi_uM) & !is.na(dsi_mg_SiO2_L) ~ (dsi_mg_SiO2_L / (Si_mw + (O_mw * 2))) * 10^3,
-  #   is.na(dsi_uM) & !is.na(sio2_ug_SiO2_L) ~ (sio2_ug_SiO2_L / (Si_mw+(O_mw*2))),
-  #   T ~ NA)) %>%
-  # dplyr::select(-dsi_mg_SiO2_L, -dsi_mg_Si_L,-dsi_ug_Si_L,-sio2_ug_SiO2_L,-silicon_ug_L) %>%
   dplyr::mutate(dsi_uM = dplyr::case_when(
     !is.na(dsi_uM) ~ dsi_uM,
     is.na(dsi_uM) & !is.na(dsi_mg_Si_L) ~ (dsi_mg_Si_L / Si_mw) * 10^3, 
@@ -972,9 +1005,9 @@ tidy_v4b <- tidy_v4a %>%
   )) %>%
   dplyr::select(-tn_mg_L,-tn_ug_L) %>%
   # Dissolved Organic Nitrogen (TON)
-  dplyr::mutate(don_uM = (don_mg_L / N_mw) * 10^3, 
-                .after = don_mg_L) %>%
-  dplyr::select(-don_mg_L) %>%
+  #dplyr::mutate(don_uM = (don_mg_L / N_mw) * 10^3, 
+   #             .after = don_mg_L) %>%
+  #dplyr::select(-don_mg_L) %>%
   # Total Organic Carbon (TOC)
   dplyr::mutate(toc_uM = dplyr::case_when(
     !is.na(toc_uM) ~ toc_uM,
@@ -983,14 +1016,6 @@ tidy_v4b <- tidy_v4a %>%
     T ~ NA)) %>%
   dplyr::select(-toc_mg_L) %>%
   # Total Phosphorus (TP)
-  ## UPDATED ##
-  # dplyr::mutate(tp_uM = dplyr::case_when(
-  #   !is.na(tp_uM) ~ tp_uM,
-  #   is.na(tp_uM) & !is.na(tp_mg_P_L) ~ tp_mg_P_L / P_mw * 10^3,
-  #   is.na(tp_uM) & !is.na(tp_mg_L) ~ tp_mg_L / P_mw * 10^3,
-  #   is.na(tp_uM) & !is.na(tp_ug_P_L) ~ tp_ug_P_L / P_mw,
-  #   T ~ NA)) %>%
-  # dplyr::select(-tp_mg_P_L, -tp_mg_L,-tp_ug_P_L) %>%
   dplyr::mutate(tp_uM = dplyr::case_when(
     !is.na(tp_uM) ~ tp_uM,
     is.na(tp_uM) & !is.na(tp_mg_P_L) ~ tp_mg_P_L / P_mw * 10^3,
@@ -1027,8 +1052,8 @@ dplyr::glimpse(tidy_v4b)
 # Can expand them to make them a little more intuitive
 tidy_v5 <- tidy_v4b %>%
   # And consensus was that TSS & SPM are equivalent
-  dplyr::mutate(spm_actual = dplyr::coalesce(spm_mg_L, tss_mg_L)) %>%
-  dplyr::select(-spm_mg_L, -tss_mg_L) %>%
+  dplyr::mutate(spm_actual = dplyr::coalesce(spm_mg_L, tss_mg_L,susp_partic_matter_mg_L)) %>%
+  dplyr::select(-spm_mg_L, -tss_mg_L,-susp_partic_matter_mg_L) %>%
   # Expand column names to be more descriptive
   dplyr::rename(
     # DO
@@ -1324,7 +1349,7 @@ length(unique(tidy_v8e$Stream_Name))-length(unique(tidy_v8f$Stream_Name))
 
 # Load data ----------------------------------------------------
 
-master <- tidy_v8f %>% 
+master <- tidy_v8f %>%  
   filter(Raw_Filename != "Deduplicated_Sites_AllSites_chemistry.csv")
 
 dedup <- tidy_v8f %>% 
@@ -1402,6 +1427,8 @@ tidy_v9a <- tidy_v8h %>%
   # Rename original date column
   dplyr::rename(date_v1 = date)
 
+
+### SKIP #### 
 # Look at general date format per LTER
 tidy_v9a %>%
   dplyr::group_by(Raw_Filename) %>%
@@ -1470,6 +1497,97 @@ tidy_v9b <- tidy_v9a %>%
     ) ~ "ymd",
     # Raw_Filename == "" ~ "",
     T ~ "UNKNOWN"))
+
+######
+
+
+## function to automate date detection in by raw filename
+detect_date_format <- function(date_strings, delim = "/") {
+  
+  parts <- stringr::str_split_fixed(date_strings, stringr::fixed(delim), 3)
+  if (ncol(parts) < 3 || all(parts == "")) return("NO_DELIM_MATCH")
+  
+  c1 <- suppressWarnings(as.numeric(parts[, 1]))
+  c2 <- suppressWarnings(as.numeric(parts[, 2]))
+  c3 <- suppressWarnings(as.numeric(parts[, 3]))
+  
+  if (all(is.na(c1)) && all(is.na(c2)) && all(is.na(c3))) return("UNPARSEABLE")
+  
+  comps <- list(c1, c2, c3)
+  
+  # Step 1: find year position -- 4-digit values, or values > 31
+  # (can't be a day or month), anywhere in the column
+  looks_like_year <- function(x) any(nchar(trimws(as.character(x))) == 4 & !is.na(x)) |
+    any(x > 31, na.rm = TRUE)
+  
+  year_candidates <- which(vapply(comps, looks_like_year, logical(1)))
+  
+  if (length(year_candidates) != 1) {
+    return("AMBIGUOUS_YEAR_POSITION")
+  }
+  year_pos <- year_candidates
+  
+  # Only 3 layouts are considered, matching your existing pipeline's
+  # assumptions: year-first (ymd), or year-last (mdy or dmy)
+  if (year_pos == 1) {
+    return("ymd")  # assumes month, day order after year -- flip if you use ydm anywhere
+  }
+  
+  if (year_pos == 3) {
+    max_c1 <- max(c1, na.rm = TRUE)
+    max_c2 <- max(c2, na.rm = TRUE)
+    
+    if (max_c1 > 12 & max_c2 <= 12) return("dmy")
+    if (max_c2 > 12 & max_c1 <= 12) return("mdy")
+    if (max_c1 > 12 & max_c2 > 12) return("CONFLICTING_BOTH_OVER_12") # shouldn't happen if truly day/month
+    return("AMBIGUOUS_DAY_MONTH")  # both components always <= 12 -- can't disambiguate from data
+  }
+  
+  return("UNEXPECTED_YEAR_POSITION")  # year in position 2 -- unusual, worth a manual look
+}
+
+
+detected_formats <- tidy_v9a %>%
+  dplyr::group_by(Raw_Filename) %>%
+  dplyr::summarize(
+    n_rows            = dplyr::n(),
+    detected_format   = detect_date_format(date_v4, delim = "/"),
+    example_dates     = paste(head(unique(date_v4), 3), collapse = "; "),
+    .groups = "drop"
+  )
+
+# Files that resolved cleanly
+detected_formats %>%
+  dplyr::filter(detected_format %in% c("ymd", "mdy", "dmy")) %>%
+  dplyr::count(detected_format)
+
+# Files needing manual review -- either genuinely ambiguous from the data,
+# or hit an unexpected pattern (wrong delimiter, missing data, etc.)
+needs_review <- detected_formats %>%
+  dplyr::filter(!detected_format %in% c("ymd", "mdy", "dmy"))
+
+dplyr::glimpse(needs_review)
+
+reviewed  <- needs_review %>% 
+  mutate(detected_format = case_when(detected_format == "AMBIGUOUS_YEAR_POSITION" ~ "mdy"))
+
+detected_formats_v2 <- detected_formats %>% 
+  bind_rows(reviewed)
+
+# Create date format lookup table 
+date_format_lookup <- detected_formats_v2 %>%
+  dplyr::filter(detected_format %in% c("ymd", "mdy", "dmy")) %>%
+  dplyr::select(Raw_Filename, date_format = detected_format)
+
+# Sanity check: any duplicate filenames with conflicting formats?
+date_format_lookup %>%
+  dplyr::count(Raw_Filename) %>%
+  dplyr::filter(n > 1)
+
+# Now join data with detected date formats
+tidy_v9b <- tidy_v9a %>%
+  dplyr::left_join(date_format_lookup, by = "Raw_Filename") %>%
+  dplyr::mutate(date_format = tidyr::replace_na(date_format, "UNKNOWN"))
 
 # Check remaining date formats
 tidy_v9b %>%
@@ -1557,6 +1675,9 @@ tidy_v9f <- tidy_v9e %>%
 
 # Check structure
 dplyr::glimpse(tidy_v9f)
+
+
+
 
 ## -------------------------------------------- ##
                   # Export ----
