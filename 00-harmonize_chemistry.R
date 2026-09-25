@@ -1301,7 +1301,7 @@ tidy_v8a |>
   filter(LTER == "Finnish Environmental Institute") |> 
   filter(variable == "DSi") |> 
   group_by(Stream_Name) |> 
-  summarize(n=n()) |> 
+  dplyr::summarize(n=n()) |> 
   print(n=30)
 
 ### Fix Sopchoppy River duplicate names and solutes ###
@@ -1335,14 +1335,15 @@ tidy_v8e <- tidy_v8d %>%
 tidy_v8e %>% 
   filter(Stream_Name == "Sopchoppy River")
 
+tidy_v8e %>% 
+  filter(Stream_Name == "SOPCHOPPY RIVER")
+
 ### Filter to only what sites are in the Site Reference Table ###
 tidy_v8f <- tidy_v8e %>% 
   filter(Stream_Name %in% ref_table$Stream_Name)
 
 # check how many sites removed
 length(unique(tidy_v8e$Stream_Name))-length(unique(tidy_v8f$Stream_Name))
-
-
 
 
 ### Replace larger dataset values with values from "deduplicated sites ###
@@ -1614,8 +1615,9 @@ main_solutes <- c("Ca","SO4","Na","Cl","NO3","NOx","PO4","SRP","DSi","K")
 solute_check <- tidy_v9f %>% 
   filter(variable %in% main_solutes) %>% 
   group_by(Raw_Filename, variable) %>% 
-  summarise(n=n())
+  dplyr::summarise(n=n())
 
+glimpse(solute_check)
 
 ## -------------------------------------------- ##
                   # Export ----
