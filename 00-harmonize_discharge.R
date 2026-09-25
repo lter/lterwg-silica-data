@@ -109,14 +109,22 @@ discharge_files<-discharge_files[!(discharge_files %like% "Discharge_master")]
 remove_these<-setdiff(csv_files$name,discharge_files)
 discharge_files<-discharge_files[!(discharge_files %in% remove_these)]
 
-# Do all the streams have representatives in the Site Reference Table?
+# Check for whether all the streams have representatives in the Site Reference Table?
 check_files <- as.data.frame(discharge_files) %>% 
   # remove csv for matching
   mutate(Discharge_File_Name_nocsv = substr(discharge_files,start=1,stop=nchar(discharge_files)-4)) %>% 
   # filter out those that are NOT in the Site Reference Table
   filter(!Discharge_File_Name_nocsv  %in% ref_table$Discharge_File_Name)
 
+discharge_files_v2 <- as.data.frame(discharge_files) %>% 
+  # remove csv for matching
+  mutate(Discharge_File_Name_nocsv = substr(discharge_files,start=1,stop=nchar(discharge_files)-4)) %>% 
+  # filter out those that are NOT in the Site Reference Table
+  filter(Discharge_File_Name_nocsv  %in% ref_table$Discharge_File_Name)
 
+head(discharge_files_v2)
+
+discharge_files_v3 <- discharge_files_v2$discharge_files
 
 # Combine discharge files with loop ---------------------------------------
 
@@ -134,7 +142,7 @@ DischargeList<-c("MEAN_Q", "Discharge", "InstantQ", "Q_m3sec", "discharge", "Q",
                  "Q_cms","Flow","var", "Value", "valeur",
                  "AVG_DISCHARGE","dailyQ","Discharge.m3.s.","Discharge(m3/s)", 
                  "Mean Daily", "Mean_Daily_Discharge","mean_daily_Q", "Daily_Mean_Q",
-                 "CC_Q_cms","Qcms")
+                 "CC_Q_cms","Qcms", "Discharge.m3.s.")
 DateList<-c("Date", "dateTime", "dates", "date", "datetime", "DATE_TIME",
             "Sampling Date", "Dates","DateTime")
 
@@ -211,6 +219,7 @@ na_q <- filter(disc_v1, is.na(Qcms)) %>%
   group_by(Discharge_File_Name) %>% 
   dplyr::summarise(n=n())
 
+# checking for sites that are in reference table
 na_q_ref <- na_q %>% 
   filter(Discharge_File_Name %in% ref_table$Discharge_File_Name)
 
@@ -238,7 +247,7 @@ neg_Q <- filter(disc_v2, Qcms<0)
 
 ## plot to see what new data look like
 disc_v2 %>% 
-  filter(Discharge_File_Name == "SHINGLE_CREEK_Q") %>%  
+  filter(Discharge_File_Name == "HUDSON_RIVER_Q") %>%  
   ggplot(aes(Date,Qcms)) +
   geom_point()
 
@@ -254,16 +263,6 @@ disc_v3 <- disc_v2 %>%
 #check this
 glimpse(disc_v3)
 
-#check the many-to-many warnings
-name_table %>% filter(Discharge_File_Name=="3080660_Q")
-disc_v2 %>% filter(Discharge_File_Name=="AAGEVEG_Q") %>% pull(Discharge_File_Name) %>% unique()
-#pull() makes a column and returns it as a vector
-
-#the number of rows should be the same, to make check discharge is added for multi-alias'd sites
-disc_v2 %>% filter(Discharge_File_Name=="AAGEVEG_Q") %>% nrow()
-disc_v3 %>% filter(Discharge_File_Name=="AAGEVEG_Q") %>% nrow()
-
-
 ## Check date formats
 # Look at general date format per discharge file
 disc_v3 %>%
@@ -271,8 +270,6 @@ disc_v3 %>%
   dplyr::summarize(dates = paste(unique(Date), collapse = "; ")) %>%
   tidyr::pivot_wider(names_from = Discharge_File_Name, values_from = dates) %>%
   dplyr::glimpse()
-
-
 
 # Plot discharge data and save to file for review -------------------------
 
