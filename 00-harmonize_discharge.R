@@ -158,7 +158,6 @@ DateList<-c("Date", "dateTime", "dates", "date", "datetime", "DATE_TIME",
 
 discharge_files <- discharge_files_v3
 
-i=513
 
 for (i in 1:length(discharge_files)) {
   file_name_nocsv<-substr(discharge_files[i],start=1,stop=nchar(discharge_files[i])-4)
@@ -292,7 +291,7 @@ disc_v4 = disc_v3 %>%
   mutate(Qcms = case_when(
    Qcms >= 0 ~ Qcms,
    # covers the NA indicators like -9999
-   Qcms <= -9999 ~ NA,
+   Qcms <= 0 ~ NA,
    .default=Qcms))
 
 # check again
