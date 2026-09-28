@@ -133,6 +133,9 @@ setwd("//home/shares/lter-si/WRTDS/discharge/discharge_raw")
 
 #create list to store output from for loop
 data_list = list()
+na_list = list()
+na_threshold <- 50
+na_introduced_list <- list()
 
 # Create lists for discharge and dates
 # this is where you add different names for discharge and date columns
@@ -153,8 +156,9 @@ DateList<-c("Date", "dateTime", "dates", "date", "datetime", "DATE_TIME",
 #loop through each discharge file
 #rename columns, convert units, keep only important columns
 
-discharge_files[1]
+discharge_files <- discharge_files_v3
 
+i=513
 
 for (i in 1:length(discharge_files)) {
   file_name_nocsv<-substr(discharge_files[i],start=1,stop=nchar(discharge_files[i])-4)
@@ -168,6 +172,16 @@ for (i in 1:length(discharge_files)) {
   ref_site<-ref_site[1,]
   d$Units<-ref_site$Units
   #d$LTER = LTER_name
+  
+  n_missing <- sum(is.na(d$Q))
+  if(n_missing > na_threshold){
+    na_list[[file_name_nocsv]] <- data.frame(
+      Discharge_File_Name = file_name_nocsv,
+      Missing_Count = n_missing,
+      Total_Rows = nrow(d),
+      Pct_Missing = round(n_missing / nrow(d) * 100, 1)
+    )
+  }
   
   #convert all Q file units to CMS
   d$Qcms<-ifelse(d$Units=="cms", d$Q, 
@@ -199,10 +213,26 @@ for (i in 1:length(discharge_files)) {
 
   }
 
+  d$Qcms <- as.numeric(d$Qcms)
+  
+  n_missing_after <- sum(is.na(d$Qcms))
+  
+  if(n_missing_after > n_missing){
+    na_introduced_list[[file_name_nocsv]] <- data.frame(
+      Discharge_File_Name = file_name_nocsv,
+      Missing_Before = n_missing,
+      Missing_After = n_missing_after,
+      New_NAs_Introduced = n_missing_after - n_missing)
+      #Flagged_Units_Value = unique(d$Units)[!unique(d$Units) %in% c("cms","cfs","Ls","cmh","cmd")]
+    #)
+  }
+  
   print(is(d$Date)) # check date format as list is created
   print(head(d))
   data_list[[i]] = d
 }
+
+
 
 ### Create data frame from list - use bind_rows to concatenate each new discharge file
 # should have 3 columns: date, site, discharge
@@ -211,61 +241,70 @@ disc_v1 = bind_rows(data_list)
 
 # QA/QC of combined file --------------------------------------------------
 
-# checking files where dates got converted to NA
-na_dates = filter(disc_v1, is.na(Date))
+## pull out dataset, stream information from reference table
+name_table <-  QLog %>%
+  select(LTER,Stream_Name,Discharge_File_Name)
 
-## checking na values for discharge
-na_q <- filter(disc_v1, is.na(Qcms)) %>% 
+# Evaluate NAs - look at percent of original files containing missing discharge data
+na_summary <- rbindlist(na_list)
+print(na_summary)
+
+# files with introduced NAs after combining 
+# largely due to missing units in site reference table
+na_introduced_summary <- rbindlist(na_introduced_list)
+
+# join again with reference table so only reflects datasets we want to keep
+disc_v2 <- disc_v1 %>% 
+  left_join(y=name_table,by="Discharge_File_Name", relationship="many-to-many")
+
+# checking files where dates got converted to NA
+disc_v2 %>% 
+  filter(is.na(Date)) %>% 
   group_by(Discharge_File_Name) %>% 
   dplyr::summarise(n=n())
 
-# checking for sites that are in reference table
-na_q_ref <- na_q %>% 
-  filter(Discharge_File_Name %in% ref_table$Discharge_File_Name)
+# remove missing dates
+disc_v3 <- disc_v2 %>% 
+  filter(!is.na(Date))
+  
+# screen discharge values for NA and unreasonable numbers
+# Check for any non numeric values in discharge column
+supportR::num_check(data = disc_v3, col = "Qcms")
 
-# checking which files have negative discharge values
-neg_Q = filter(disc_v1, Qcms<0)
+range(suppressWarnings(as.numeric(disc_v3$Qcms)), na.rm = T)
+
+# look at negative discharge values 
+disc_v3 %>% 
+  filter(Qcms <0) %>% 
+  group_by(Discharge_File_Name) %>% 
+  dplyr::summarise(n=n())
 
 # plotting to see what they look like
-neg_Q %>% 
+disc_v3 %>%
+  filter(Qcms<0) %>% 
   ggplot(aes(Qcms))+
   geom_histogram()+
   facet_wrap(~Discharge_File_Name, scales="free")
 
-# LUQ_QS_Q - two blank rows come up as NA for dates
-
 # addressing negative values
 # keep all values above zero, replace -999999 with NA, replace negative with 0
-disc_v2 = disc_v1 %>% 
+disc_v4 = disc_v3 %>% 
   mutate(Qcms = case_when(
    Qcms >= 0 ~ Qcms,
-   Qcms == -999999 ~ NA,
-   Qcms < 0 ~ 0))
+   # covers the NA indicators like -9999
+   Qcms <= -9999 ~ NA,
+   .default=Qcms))
 
-# check
-neg_Q <- filter(disc_v2, Qcms<0)
-
-## plot to see what new data look like
-disc_v2 %>% 
-  filter(Discharge_File_Name == "HUDSON_RIVER_Q") %>%  
-  ggplot(aes(Date,Qcms)) +
-  geom_point()
-
-## append the Stream Name to the file before saving ## 
-name_table = QLog %>%
-  select(LTER,Stream_Name,Discharge_File_Name)
-
-# join with reference table and remove missing date rows
-disc_v3 <- disc_v2 %>% 
-  filter(!is.na(Date)) %>% 
-  left_join(y=name_table,by="Discharge_File_Name")
-
-#check this
-glimpse(disc_v3)
+# check again
+disc_v4 %>% 
+  filter(Qcms <0) %>% 
+  group_by(Discharge_File_Name) %>% 
+  dplyr::summarise(n=n()) %>% 
+  filter()
 
 ## Check date formats
 # Look at general date format per discharge file
-disc_v3 %>%
+disc_v4 %>%
   dplyr::group_by(Discharge_File_Name) %>%
   dplyr::summarize(dates = paste(unique(Date), collapse = "; ")) %>%
   tidyr::pivot_wider(names_from = Discharge_File_Name, values_from = dates) %>%
@@ -275,10 +314,10 @@ disc_v3 %>%
 
 
 # plot all discharge and save to file
-p = ggplot(data = disc_v3, aes(x = Date, y = Qcms)) + 
+p = ggplot(data = disc_v4, aes(x = Date, y = Qcms)) + 
   geom_point()
 
-plots = disc_v3 %>%
+plots = disc_v4 %>%
   group_by(Discharge_File_Name) %>%
   do(plots = p %+% . + facet_wrap(~Discharge_File_Name))
 
@@ -300,7 +339,7 @@ date <- gsub(pattern = "-", replacement = "", x = Sys.Date())
 ( disc_filename <- paste0(date, "_masterdata_discharge.csv") )
 
 # write locally
-write.csv(x = disc_v3, file = file.path(path2,"discharge_tidy", disc_filename), na = '', row.names = F)
+write.csv(x = disc_v4, file = file.path(path2,"discharge_tidy", disc_filename), na = '', row.names = F)
 
 # write to google drive
 googledrive::drive_upload(media = file.path(path2,"discharge_tidy", disc_filename), overwrite = T,
