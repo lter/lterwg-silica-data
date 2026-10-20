@@ -13,6 +13,18 @@ As with many synthesis projects, this work involves "harmonizing" many separate 
 - `00-harmonize_chemistry.R`: **Combines individual _chemistry_ files (river / stream gage level) into a single file.** This is done with virtually no filtering to minimize data loss from this process
     - _When to Use:_ you want to integrate new _chemistry_ data into the 'master' file
 
+- `00-harmonize_chemistry_sidney_review-only.R`: **Shows Sidney's proposed updates beside KJ's original workflow.** Sidney's sections are commented so the two versions can be reviewed without changing how KJ's script runs
+    - _When to Use:_ you want to review each proposed replacement before using the updated workflow
+
+- `00-harmonize_chemistry_sidney.R`: **Builds master chemistry with the reviewed source corrections, qualifiers, method notes, date notes, and site checks.** This is the clean version containing only the updated workflow
+    - _When to Use:_ you want to run the updated master chemistry workflow
+
+- `chemistry_functions.R`: **Contains the shared functions used by Sidney's chemistry workflow.** The main workflow loads this file automatically
+    - _When to Use:_ keep it beside `00-harmonize_chemistry_sidney.R`; it is not run on its own
+
+- `chemistry_rules.R`: **Contains the reviewed source names, unit conversions, dates, flags, and exclusions used by Sidney's chemistry workflow.** The main workflow loads this file automatically
+    - _When to Use:_ review or update a documented chemistry decision without searching through the full workflow
+
 - `00-harmonize_discharge.R`: **Combines individual _discharge_ files (river / stream gage level) into a single file.** This is done with virtually no filtering to minimize data loss from this process
     - _When to Use:_ you want to integrate new _discharge_ data into the 'master' file
 
