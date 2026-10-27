@@ -1,11 +1,15 @@
-# ---- chemistry harmonization and wrangling ----
+# ---- combine chemistry files ----
 # original script authors: nick j lyon, kathi jo jankowski, and paul julian
 # workflow updates: sidney bush
-# purpose: combine and harmonize chemistry files into an analysis-ready master file
+# combine chemistry files using the shared variable names and units
+# read the 77 files created by the preparation scripts
+# leave the downloaded chemistry and original source files unchanged
+# open the full chemistry runner in rstudio and click source
+# that runner calls this script after preparing the working inputs
 
 # ---- setup ----
 librarian::shelf(
-  googledrive, purrr, readxl, stringr, supportR, tidyverse,
+  purrr, readxl, stringr, tidyverse,
   quiet = TRUE
 )
 options(dplyr.summarise.inform = FALSE)
@@ -17,354 +21,100 @@ workflow_dir <- if (length(script_argument) == 1L) {
 }
 source(file.path(workflow_dir, "chemistry_rules.R"))
 source(file.path(workflow_dir, "chemistry_functions.R"))
-use_local_test <- read_boolean_setting("SISYN_CHEM_LOCAL_TEST", FALSE)
-download_shared_inputs <- read_boolean_setting("SISYN_CHEM_DOWNLOAD_SHARED", TRUE)
-upload_output <- read_boolean_setting("SISYN_CHEM_UPLOAD_OUTPUT", FALSE)
-stop_if(upload_output && use_local_test, "output upload is not available during a local test")
-stop_if(upload_output && !download_shared_inputs, "output upload requires fresh inputs")
-if (use_local_test) {
-  root_dir <- read_required_setting("SISYN_CHEM_LOCAL_ROOT")
-  raw_input_dir <- Sys.getenv("SISYN_CHEM_LOCAL_INPUT_DIR", file.path(root_dir, "chem_raw_subset"))
-} else {
-  root_dir <- scicomptools::wd_loc(
-    local = FALSE,
-    remote_path = file.path("/", "home", "shares", "lter-si", "WRTDS")
+prepared_workflow_run <- read_boolean_setting(
+  "SISYN_CHEM_INTERNAL_PREPARED_RUN",
+  FALSE
+)
+stop_if(
+  !prepared_workflow_run,
+  paste(
+    "run run_full_chemistry_workflow.R so the source-review rules create",
+    "fresh working inputs before chemistry is harmonized"
   )
-  raw_input_dir <- file.path(root_dir, "Master_Chemistry_Inputs_CURRENT")
-}
+)
+root_dir <- read_required_setting("SISYN_CHEM_LOCAL_ROOT")
+run_input_dir <- Sys.getenv(
+  "SISYN_CHEM_LOCAL_INPUT_DIR",
+  file.path(root_dir, "chem_raw_subset")
+)
 
 # ---- shared inputs ----
-inputs <- load_chemistry_inputs(root_dir, raw_input_dir, download_shared_inputs)
+inputs <- load_chemistry_inputs(root_dir, run_input_dir)
 data_key <- inputs$data_key
 units_key <- inputs$units_key
 site_reference <- inputs$site_reference
-raw_files <- inputs$raw_files
+method_rules <- inputs$method_rules
+chemistry_files <- inputs$chemistry_files
 source_headers <- inputs$source_headers
 output_dir <- inputs$output_dir
-
-# ---- source harmonizing ----
-mean_measurement <- function(values) {
-  missing_tokens <- unique(c(data_key$NA_indicator, fixed_missing_tokens))
-  mean_qualified_measurement(values, missing_tokens)
-}
-harmonize_source <- function(file_name) {
-  key_rows <- data_key |>
-    dplyr::filter(
-      Raw_Filename == file_name,
-      !Standardized_Column_Name %in% c("Dataset", "Raw_Filename"),
-      !is.na(Standardized_Column_Name),
-      Standardized_Column_Name != ""
-    )
-  raw_data <- read_selected_source(
-    raw_input_dir, file_name, key_rows$Raw_Column_Name, source_headers
-  ) |>
-    dplyr::select(-dplyr::any_of(c("Dataset", "Raw_Filename")))
-  raw_data <- apply_source_review_rules(raw_data, file_name)
-  raw_data <- raw_data[unique(key_rows$Raw_Column_Name)]
-  keyed_data <- raw_data |>
-    dplyr::mutate(
-      row_num = dplyr::row_number(),
-      Raw_Filename = file_name,
-      .before = dplyr::everything()
-    ) |>
-    dplyr::mutate(dplyr::across(dplyr::everything(), as.character)) |>
-    tidyr::pivot_longer(
-      -row_num:-Raw_Filename,
-      names_to = "Raw_Column_Name",
-      values_to = "values"
-    ) |>
-    dplyr::left_join(key_rows, by = c("Raw_Filename", "Raw_Column_Name")) |>
-    dplyr::filter(!is.na(Standardized_Column_Name)) |>
-    dplyr::mutate(
-      Units = dplyr::na_if(normalize_unit_label(Units), ""),
-      unit_suffix = gsub("\\/| |\\-", "_", Units),
-      standard_name = dplyr::if_else(
-        is.na(unit_suffix),
-        Standardized_Column_Name,
-        paste0(Standardized_Column_Name, "_", unit_suffix)
-      )
-    ) |>
-    dplyr::select(row_num, Dataset, Raw_Filename, standard_name, values) |>
-    tidyr::pivot_wider(names_from = standard_name, values_from = values) |>
-    dplyr::select(-row_num) |>
-    dplyr::distinct()
-  if (!identical(unique(key_rows$Dataset_orientation), "long")) {
-    return(keyed_data)
-  }
-  source_units <- units_key |>
-    dplyr::filter(Raw_Filename == file_name) |>
-    dplyr::mutate(
-      Units = gsub("/| |\\-", "_", normalize_unit_label(Units)),
-      solute = tolower(gsub("/| |\\-", "_", Variable))
-    ) |>
-    dplyr::distinct(Raw_Filename, solute, Units)
-  if (file_name == deduplicated_filename) {
-    source_units <- dplyr::bind_rows(source_units, deduplicated_raw_aliases) |>
-      dplyr::distinct(Raw_Filename, solute, Units)
-  }
-  has_row_units <- "solute_units" %in% names(keyed_data)
-  if (!has_row_units) {
-    keyed_data$solute_units <- NA_character_
-  }
-  long_rows <- keyed_data |>
-    dplyr::mutate(
-      solute = tolower(gsub("/| |\\-", "_", solute)),
-      solute_units = gsub("/| |\\-", "_", normalize_unit_label(solute_units)),
-      solute_units = dplyr::na_if(solute_units, "")
-    ) |>
-    dplyr::group_by(dplyr::across(-amount)) |>
-    dplyr::summarise(amount = mean_measurement(amount), .groups = "drop")
-  if (file_name == deduplicated_filename) {
-    long_rows$solute_units[
-      long_rows$solute == "nh4_mgl" & long_rows$solute_units == "mg_L"
-    ] <- "mg_NH4_L"
-  }
-  unit_counts <- source_units |>
-    dplyr::count(Raw_Filename, solute, name = "unit_count")
-  keyed_rows <- long_rows |>
-    dplyr::filter(solute %in% source_units$solute)
-  joined_units <- keyed_rows |>
-    dplyr::left_join(unit_counts, by = c("Raw_Filename", "solute")) |>
-    dplyr::left_join(
-      source_units,
-      by = c("Raw_Filename", "solute"),
-      relationship = "many-to-many"
-    ) |>
-    dplyr::filter(
-      (unit_count == 1L & (
-        !has_row_units |
-          (is.na(solute_units) & (is.na(Units) | Units == "")) |
-          (!is.na(solute_units) & solute_units == Units)
-      )) |
-        (unit_count > 1L & has_row_units & solute_units == Units)
-    )
-  stop_if(
-    nrow(joined_units) != nrow(keyed_rows),
-    paste0("row-level units did not resolve in '", file_name, "'")
+hbr_rules <- method_rules |>
+  dplyr::filter(
+    rule_lter == "HBR",
+    vapply(expected_variables, function(x) "DSi" %in% x, logical(1)),
+    !is.na(start_date)
   )
-  joined_units |>
-    dplyr::mutate(
-      standard_name = dplyr::if_else(
-        is.na(Units) | Units == "",
-        solute,
-        paste0(solute, "_", Units)
-      )
-    ) |>
-    dplyr::select(-solute, -solute_units, -Units, -unit_count) |>
-    tidyr::pivot_wider(
-      names_from = standard_name,
-      values_from = amount,
-      values_fn = mean_measurement
-    )
-}
-chemistry_wide <- purrr::map(raw_files, harmonize_source) |>
-  dplyr::bind_rows()
-if (!"source_lab_flag" %in% names(chemistry_wide)) {
-  chemistry_wide$source_lab_flag <- NA_character_
-}
-if (!"source_method_flag" %in% names(chemistry_wide)) {
-  chemistry_wide$source_method_flag <- NA_character_
-}
-chemistry_wide <- chemistry_wide |>
-  dplyr::relocate(source_lab_flag, source_method_flag, .before = date)
+stop_if(
+  nrow(hbr_rules) != 1L || !is.na(hbr_rules$end_date[[1]]),
+  "the workflow-rules lookup needs one open-ended HBR dissolved-Si rule"
+)
+hbr_documented_start <- hbr_rules$start_date[[1]]
+rm(hbr_rules)
+allowed_source_method_flags <- method_rules$source_method_flag[
+  !is.na(method_rules$source_method_flag)
+]
+valid_method_flags <- method_rules$Method_Flag
 
-# ---- qualifiers and units ----
-chemistry_wide <- chemistry_wide |>
-  dplyr::mutate(
-    LTER = dplyr::coalesce(LTER, Dataset),
-    Dataset = dplyr::coalesce(Dataset, LTER),
-    Stream_Name = dplyr::case_when(
-      Raw_Filename == "NigerRiver.csv" & is.na(Stream_Name) ~ "Niger",
-      Raw_Filename == "ElbeRiverChem.csv" ~ "Elbe",
-      TRUE ~ Stream_Name
-    )
-  ) |>
-  dplyr::select(-dplyr::ends_with("_NA"), -dplyr::any_of("Dataset_orientation")) |>
-  drop_empty_columns() |>
-  dplyr::mutate(row_num = dplyr::row_number(), .before = dplyr::everything())
-id_columns <- names(chemistry_wide)[seq_len(match("date", names(chemistry_wide)))]
-chemistry_long <- chunked_pivot_longer(
-  chemistry_wide,
-  id_columns,
-  "solute",
-  "measurement"
-) |>
-  dplyr::mutate(
-    measurement = dplyr::case_when(
-      trimws(measurement) %in% unique(c(
-        data_key$NA_indicator,
-        fixed_missing_tokens
-      )) ~ NA_character_,
-      suppressWarnings(as.numeric(trimws(measurement))) == -9999 ~ NA_character_,
-      TRUE ~ measurement
-    )
-  ) |>
-  dplyr::filter(!is.na(measurement), measurement != "")
-rm(chemistry_wide)
-unparsed <- chemistry_long |>
-  dplyr::filter(is.na(suppressWarnings(as.complex(
-    stringr::str_remove(measurement, "^\\s*[<>]\\s*")
-  ))))
-stop_if(
-  nrow(unparsed) > 0L,
-  paste("unparsed chemistry values remain:", paste(unique(unparsed$measurement), collapse = ", "))
-)
-# store the reported less-than or greater-than sign while units are converted
-chemistry_wide <- chemistry_long |>
-  dplyr::mutate(
-    value = as.complex(stringr::str_remove(measurement, "^\\s*[<>]\\s*")) +
-      (stringr::str_detect(measurement, "^\\s*<") -
-         stringr::str_detect(measurement, "^\\s*>")) * 1i
-  ) |>
-  dplyr::select(-measurement) |>
-  dplyr::arrange(solute) |>
-  tidyr::pivot_wider(names_from = solute, values_from = value) |>
-  dplyr::select(-row_num)
-rm(chemistry_long, unparsed)
-stop_if_columns_have_values(
-  chemistry_wide,
-  c(
-    "ammonia_n_mg_L", "nh4_mgl_mg_L", "no3_mg_L", "no2_mg_L",
-    "nox_mg_L", "po4_mg_L", "srp_mg_L", "tn_mg_L", "tn_ug_L",
-    "tdn_mg_L", "tkn_mg_L", "tp_mg_L", "tp_ug_L", "tdp_mg_L", "don_mg_L"
-  ),
-  "nutrient mass units are missing an N or P reporting basis"
-)
-stop_if_columns_have_values(
-  chemistry_wide,
-  c(
-    "doc_mg_L", "doc_mgl_mg_L", "carbon_dissolved_organic_mg_L",
-    "dic_mg_L", "toc_mg_L", "toc_mgl_mg_L", "so4_mg_L", "so4_ug_L"
-  ),
-  "carbon or sulfate mass units are missing a C, SO4, or S reporting basis"
-)
-# use field measurements first and keep laboratory values as a fallback
-chemistry_wide$pH <- dplyr::if_else(
-  chemistry_wide$Dataset == "ColoradoAlpine",
-  first_present_value(
-    chemistry_wide,
-    c("fldph", "fldph_", "labph", "labph_", ph_columns)
-  ),
-  first_present_value(chemistry_wide, ph_columns)
-)
-chemistry_wide <- chemistry_wide |>
-  dplyr::select(-dplyr::any_of(setdiff(ph_columns, "pH")))
-chemistry_wide$conductivity_uS_cm <- dplyr::case_when(
-  chemistry_wide$Dataset == "Guadeloupe" ~ first_present_value(
-    chemistry_wide, "conductivity_at_25°c_uS_cm"
-  ),
-  chemistry_wide$Dataset == "ColoradoAlpine" ~ first_present_value(
-    chemistry_wide, c("fldcond_uscm_uS_cm", "labcond_uscm_uS_cm")
-  ),
-  TRUE ~ first_present_value(chemistry_wide, conductivity_columns)
-)
-chemistry_wide <- chemistry_wide |>
-  dplyr::select(-dplyr::any_of(setdiff(conductivity_columns, "conductivity_uS_cm"))) |>
-  apply_merge_rules(merge_rules)
-for (column in optional_measurement_columns) {
-  if (!column %in% names(chemistry_wide)) {
-    chemistry_wide[[column]] <- NA_complex_
-  }
+# ---- prepare each source ----
+# process each source separately to avoid one large table of mostly empty columns
+standardize_source <- function(file_name) {
+  harmonize_source(file_name, data_key, units_key, run_input_dir, source_headers) |>
+    standardize_source_data(data_key)
 }
-# convert each reported chemical basis to the standard output unit
-chemistry_wide <- apply_conversion_rules(chemistry_wide, conversion_rules)
-east_rows <- chemistry_wide$Raw_Filename == "EastRiverSFA_chem.csv"
-stop_if(
-  !any(east_rows & !is.na(chemistry_wide$nhx_uM)) ||
-    any(east_rows & !is.na(chemistry_wide$nh4_uM)),
-  "East River ammonia-N was not retained as combined ammonia"
-)
 
 # ---- variables, sites, and dates ----
-chemistry_wide <- merge_columns(
-  chemistry_wide,
-  "susp_partic_matter_mg_L",
-  c("spm_mg_L", "tss_mg_L")
-) |>
-  dplyr::select(-dplyr::contains("_q_"))
-stop_if(
-  anyDuplicated(names(chemistry_wide)) > 0L,
-  "duplicate column names remain before the final long-format reshape"
+chemistry_long <- purrr::map(chemistry_files, standardize_source) |>
+  dplyr::bind_rows()
+# compare nutrient forms only at the same site on the same date
+site_day <- paste(
+  chemistry_long$LTER,
+  chemistry_long$Stream_Name,
+  chemistry_long$date,
+  sep = "\r"
 )
-id_columns <- names(chemistry_wide)[seq_len(match("date", names(chemistry_wide)))]
-chemistry_long <- chunked_pivot_longer(
-  chemistry_wide,
-  id_columns,
-  "raw_variable",
-  "value"
-) |>
-  dplyr::mutate(
-    value_qualifier = dplyr::case_when(
-      Im(value) > 0 ~ "<",
-      Im(value) < 0 ~ ">",
-      TRUE ~ NA_character_
-    ),
-    value = Re(value),
-    variable_units = stringr::str_replace(
-      raw_variable,
-      "_(uM|ueq_L|uS_cm|ug(?:_[A-Za-z0-9]+)*_L|mg(?:_[A-Za-z0-9]+)*_L|PCU|C|NTU|FNU|percent|ppt)$",
-      "--\\1"
-    )
-  ) |>
-  tidyr::separate_wider_delim(
-    variable_units,
-    delim = "--",
-    names = c("raw_name", "raw_units"),
-    too_few = "align_start"
-  ) |>
-  dplyr::mutate(
-    units = gsub("_", "/", raw_units),
-    variable = dplyr::coalesce(
-      unname(variable_names[raw_name]),
-      dplyr::case_when(
-        nchar(raw_name) == 1 ~ toupper(raw_name),
-        nchar(raw_name) == 2 ~ stringr::str_to_title(raw_name),
-        nchar(raw_name) < 4 & stringr::str_detect(raw_name, "x") ~ toupper(raw_name),
-        stringr::str_detect(raw_name, "[[:digit:]]") ~ toupper(raw_name),
-        TRUE ~ gsub("_", " ", raw_name)
-      )
-    ),
-    variable = gsub("Ph", "pH", variable),
-    variable = gsub("Ec", "EC", variable),
-    variable = gsub("NOX", "NOx", variable)
-  ) |>
-  dplyr::select(-raw_variable, -raw_name, -raw_units) |>
-  dplyr::relocate(value, value_qualifier, .after = dplyr::everything())
-rm(chemistry_wide)
+has_no3 <- site_day %in% site_day[chemistry_long$variable == "NO3"]
+has_nox <- site_day %in% site_day[chemistry_long$variable == "NOx"]
+has_po4 <- site_day %in% site_day[chemistry_long$variable == "PO4"]
 drop_nitrogen <- with(
   chemistry_long,
-  (LTER %in% drop_no3_lters & variable == "NO3") |
-    (Stream_Name %in% drop_nox_streams & variable == "NOx") |
-    (Stream_Name %in% drop_no3_streams & variable == "NO3") |
+  (LTER %in% drop_no3_lters & variable == "NO3" & has_nox) |
+    (Stream_Name %in% drop_nox_streams & variable == "NOx" & has_no3) |
+    (Stream_Name %in% drop_no3_streams & variable == "NO3" & has_nox) |
     (
       Raw_Filename == "CAMELS_USGS_N_P.csv" &
-        Stream_Name %in% drop_camels_no3_streams & variable == "NO3"
+        Stream_Name %in% drop_camels_no3_streams & variable == "NO3" & has_nox
     )
 )
 drop_phosphorus <- with(
   chemistry_long,
-  (LTER %in% drop_srp_lters & variable == "SRP") |
-    (Stream_Name %in% drop_srp_streams & variable == "SRP")
+  (
+    (LTER %in% drop_srp_lters | Stream_Name %in% drop_srp_streams) &
+      variable == "SRP" & has_po4
+  )
 )
-# keep the reviewed source when two files cover the same chemical series
+# keep the reviewed nutrient form only where both occur on the same day
 chemistry_long <- chemistry_long |>
   dplyr::filter(!drop_nitrogen, !drop_phosphorus) |>
-  dplyr::filter(!(
-    Stream_Name == "Sopchoppy River" & Raw_Filename %in% sopchoppy_superseded_files
-  )) |>
   dplyr::mutate(
     Stream_Name = dplyr::if_else(
       Raw_Filename == "CAMELS_USGS_N_P.csv" & Stream_Name == "Sopchoppy River",
       "SOPCHOPPY RIVER",
       Stream_Name
     )
-  ) |>
-  dplyr::filter(!(
-    Stream_Name == "SOPCHOPPY RIVER" &
-      Raw_Filename == "20221030_masterdata_chem_V2.csv" &
-      variable %in% sopchoppy_legacy_variables
-  ))
-rm(drop_nitrogen, drop_phosphorus)
+  )
+rm(
+  site_day, has_no3, has_nox, has_po4,
+  drop_nitrogen, drop_phosphorus
+)
 name_lookup <- dplyr::bind_rows(
   site_reference |>
     dplyr::transmute(
@@ -477,6 +227,10 @@ chemistry_long <- chemistry_long |>
   dplyr::select(-date1, -date2, -date3, -day, -month, -year, -date_format)
 stop_if(anyNA(chemistry_long$date), "unparsed or missing chemistry dates remain")
 
+# retain unverified seine si with a flag and remove confirmed unfiltered si
+chemistry_long <- review_seine_si(chemistry_long, site_reference,
+  file.path(root_dir, "keys", "seine_silica_provider_20261022.rds"))
+
 # ---- daily master chemistry ----
 stop_if(
   any(
@@ -497,15 +251,18 @@ for (row in seq_len(nrow(source_method_exclusions))) {
   )
   chemistry_long <- chemistry_long[!remove_rows, , drop = FALSE]
 }
-stop_if(
-  any(
-    !is.na(chemistry_long$source_method_flag) &
-      chemistry_long$source_method_flag != "" &
-      !chemistry_long$source_method_flag %in% allowed_source_method_flags
-  ),
-  "unsupported source method flags remain"
+unknown_method_flags <- unsupported_method_flags(
+  chemistry_long$source_method_flag,
+  allowed_source_method_flags
 )
-# average detected replicates and keep limits only when every result is limited
+stop_if(
+  length(unknown_method_flags) > 0L,
+  paste("unsupported source method flags:", paste(unknown_method_flags, collapse = ", "))
+)
+# daily averages are calculated after unit conversion and date checks
+# average only detected values when other samples are below or above a limit
+# flag that the below-limit or above-limit samples were left out of the average
+# if every result has the same limit sign, average the thresholds and keep the sign
 daily_rows <- chemistry_long |>
   dplyr::filter(!is.na(value)) |>
   dplyr::group_by(Dataset, Raw_Filename, LTER, Stream_Name, date, variable, units) |>
@@ -515,15 +272,15 @@ daily_rows <- chemistry_long |>
     above = sum(value_qualifier == ">", na.rm = TRUE),
     value = if (detected > 0L) mean(value[is.na(value_qualifier)]) else mean(value),
     value_qualifier = if (detected > 0L) NA_character_ else dplyr::first(value_qualifier),
-    source_lab_flag = reduce_daily_flag(source_lab_flag, "source lab"),
+    estimated = any(source_lab_flag == "estimated value", na.rm = TRUE),
+    source_lab_flag = reduce_daily_flag(
+      source_lab_flag[source_lab_flag != "estimated value"], "source lab"),
     source_method_flag = reduce_daily_flag(source_method_flag, "source method"),
     .groups = "drop"
-  ) |>
+  )
+daily_rows <- daily_rows |>
   dplyr::mutate(
-    calculated_lab_flag = purrr::pmap_chr(
-      list(detected, below, above),
-      daily_lab_flag
-    )
+    calculated_lab_flag = daily_lab_flag(detected, below, above)
   )
 stop_if(
   any(
@@ -534,42 +291,66 @@ stop_if(
   "source and qualifier-derived lab flags conflict"
 )
 daily_rows <- daily_rows |>
-  dplyr::mutate(Lab_Flag = dplyr::coalesce(calculated_lab_flag, source_lab_flag)) |>
-  dplyr::select(-detected, -below, -above, -calculated_lab_flag, -source_lab_flag)
+  dplyr::mutate(Lab_Flag = add_estimated_lab_flag(
+    dplyr::coalesce(calculated_lab_flag, source_lab_flag), estimated)) |>
+  dplyr::select(-detected, -below, -above, -estimated, -calculated_lab_flag, -source_lab_flag)
+# use the combined file only on dates it actually covers
 preferred_rows <- daily_rows |>
   dplyr::filter(Raw_Filename == deduplicated_filename)
-preferred_series <- preferred_rows |>
-  dplyr::distinct(LTER, Stream_Name, variable)
+preferred_keys <- preferred_rows |>
+  dplyr::distinct(LTER, Stream_Name, date, variable, units)
 master_chemistry <- daily_rows |>
   dplyr::filter(Raw_Filename != deduplicated_filename) |>
-  dplyr::anti_join(preferred_series, by = c("LTER", "Stream_Name", "variable")) |>
+  dplyr::anti_join(
+    preferred_keys,
+    by = c("LTER", "Stream_Name", "date", "variable", "units")
+  ) |>
   dplyr::bind_rows(preferred_rows) |>
   dplyr::distinct()
-rm(chemistry_long, daily_rows, preferred_rows, preferred_series)
-# exclude silicon methods that did not measure filtered dissolved water
-extractable_si <- master_chemistry$variable == "DSi" &
-  master_chemistry$Raw_Filename == canada_extractable_filename
-check_reviewed_count(
-  sum(extractable_si),
-  canada_extractable_allowed_counts,
-  "the reviewed Canada extractable-silicon count changed"
-)
-unfiltered_hbr_si <- master_chemistry$LTER == "HBR" &
+rm(chemistry_long, daily_rows, preferred_rows, preferred_keys)
+# exclude three hbr si values that predate the documented dissolved series
+hbr_si_before_documented_period <- master_chemistry$LTER == "HBR" &
   master_chemistry$variable == "DSi" &
-  master_chemistry$date < hbr_filter_start
+  master_chemistry$date < hbr_documented_start
 check_reviewed_count(
-  sum(unfiltered_hbr_si),
-  hbr_unfiltered_si_count,
-  "the reviewed Hubbard Brook unfiltered-silicon count changed"
+  sum(hbr_si_before_documented_period),
+  hbr_undocumented_si_count,
+  "the reviewed Hubbard Brook Si count before the documented period changed"
 )
-master_chemistry <- master_chemistry[!extractable_si & !unfiltered_hbr_si, ]
+master_chemistry <- master_chemistry[!hbr_si_before_documented_period, ]
+# record the documented one-day camrex date correction in the final rows
+camrex_corrected <- master_chemistry$Raw_Filename ==
+  "CAMREX_filled_template.csv" |
+  (
+    master_chemistry$Raw_Filename == "Manacapuru_chemistry_combined.csv" &
+      master_chemistry$date %in% camrex_manacapuru_dates
+  )
+check_reviewed_count(
+  sum(camrex_corrected),
+  camrex_corrected_rows,
+  "the reviewed CAMREX corrected-date row count changed"
+)
+camrex_date_notes <- master_chemistry[camrex_corrected, ] |>
+  dplyr::distinct(Dataset, Raw_Filename, LTER, Stream_Name, date) |>
+  dplyr::mutate(
+    Date_Flag = "corrected",
+    Date_Note = camrex_date_note
+  )
+check_reviewed_count(
+  nrow(camrex_date_notes),
+  camrex_corrected_events,
+  "the reviewed CAMREX corrected-date event count changed"
+)
+date_notes <- dplyr::bind_rows(date_notes, camrex_date_notes)
 master_chemistry <- master_chemistry |>
   dplyr::left_join(
     date_notes,
     by = c("Dataset", "Raw_Filename", "LTER", "Stream_Name", "date")
   ) |>
   dplyr::relocate(Date_Flag, Date_Note, .after = date) |>
-  dplyr::mutate(Method_Flag = dplyr::na_if(source_method_flag, ""))
+  dplyr::mutate(source_method_flag = dplyr::na_if(source_method_flag, "")) |>
+  map_source_method_flags(method_rules) |>
+  apply_interval_method_rules(method_rules)
 flagged_date_events <- master_chemistry |>
   dplyr::filter(!is.na(Date_Flag)) |>
   dplyr::distinct(Dataset, Raw_Filename, LTER, Stream_Name, date)
@@ -581,22 +362,8 @@ stop_if(
   )) > 0L,
   "a reviewed inferred-date event is missing before site filtering"
 )
-canada_site_si <- master_chemistry$variable == "DSi" &
-  grepl("^Canada__Canada__", master_chemistry$Raw_Filename)
-hbr_filtered_si <- master_chemistry$LTER == "HBR" &
-  master_chemistry$variable == "DSi" &
-  master_chemistry$date >= hbr_filter_start
-master_chemistry$Method_Flag[
-  is.na(master_chemistry$Method_Flag) & canada_site_si
-] <- "dissolved silicon, filtered"
-master_chemistry$Method_Flag[
-  is.na(master_chemistry$Method_Flag) & hbr_filtered_si
-] <- "filtered Si, 0.7 micrometer GF/F"
 master_chemistry <- master_chemistry |>
-  dplyr::left_join(
-    dplyr::select(method_rules, Method_Flag, Method_Note),
-    by = "Method_Flag"
-  ) |>
+  add_method_notes(method_rules) |>
   dplyr::select(-source_method_flag) |>
   dplyr::relocate(Method_Flag, Method_Note, .after = Lab_Flag)
 stop_if(
@@ -616,14 +383,36 @@ stop_if(
           !master_chemistry$Lab_Flag %in% valid_lab_flags) ||
     any(!is.na(master_chemistry$Date_Flag) &
           !master_chemistry$Date_Flag %in% allowed_date_flags) ||
-    any(!is.na(master_chemistry$Method_Flag) &
-          !master_chemistry$Method_Flag %in% valid_method_flags),
+    !source_method_flags_supported(
+      master_chemistry$Method_Flag,
+      valid_method_flags
+    ),
   "unsupported sample flags remain"
 )
 for (row in seq_len(nrow(method_rules))) {
-  wrong_variable <- master_chemistry$Method_Flag == method_rules$Method_Flag[[row]] &
-    !master_chemistry$variable %in% method_rules$expected_variables[[row]]
-  stop_if(any(wrong_variable, na.rm = TRUE), "a method flag is attached to another variable")
+  has_flag <- method_flag_present(
+    master_chemistry$Method_Flag,
+    method_rules$Method_Flag[[row]]
+  )
+  outside_scope <- !master_chemistry$variable %in% method_rules$expected_variables[[row]]
+  if (!is.na(method_rules$rule_lter[[row]])) {
+    outside_scope <- outside_scope | master_chemistry$LTER != method_rules$rule_lter[[row]]
+  }
+  if (!is.na(method_rules$start_date[[row]])) {
+    outside_scope <- outside_scope | master_chemistry$date < method_rules$start_date[[row]]
+  }
+  if (!is.na(method_rules$end_date[[row]])) {
+    outside_scope <- outside_scope | master_chemistry$date > method_rules$end_date[[row]]
+  }
+  wrong_pairs <- master_chemistry[which(has_flag & outside_scope), c("Raw_Filename", "variable")] |>
+    dplyr::distinct()
+  stop_if(
+    nrow(wrong_pairs) > 0L,
+    paste(
+      "method flag", method_rules$Method_Flag[[row]], "is outside its variable, network, or date rule:",
+      paste(paste(wrong_pairs$Raw_Filename, wrong_pairs$variable, sep = " / "), collapse = ", ")
+    )
+  )
 }
 stop_if(
   any(master_chemistry$value_qualifier == "<" &
@@ -651,15 +440,26 @@ stop_if(
   ),
   "nonstandard suspended particulate matter units remain"
 )
+arctic_lake_rows <- master_chemistry |>
+  dplyr::semi_join(
+    arctic_lake_events,
+    by = c("LTER", "Stream_Name", "date")
+  )
+check_reviewed_count(
+  nrow(arctic_lake_rows),
+  arctic_lake_measurement_count,
+  "the provider-confirmed ARC lake-water measurement count changed"
+)
 master_chemistry <- dplyr::anti_join(
   master_chemistry,
   arctic_lake_events,
   by = c("LTER", "Stream_Name", "date")
 )
+rm(arctic_lake_rows)
 si_sites <- master_chemistry |>
   dplyr::filter(variable == "DSi") |>
   dplyr::distinct(LTER, Stream_Name)
-# keep only flowing-water sites that also have dissolved silicon data
+# keep river and stream sites with si after the method checks
 included_sites <- site_reference |>
   dplyr::filter(Waterbody %in% flowing_types, Include_in_Master_Chem == "Yes") |>
   dplyr::distinct(LTER, Stream_Name) |>
@@ -669,27 +469,42 @@ master_chemistry <- dplyr::semi_join(
   included_sites,
   by = c("LTER", "Stream_Name")
 )
+master_chemistry <- apply_preferred_source_rules(
+  master_chemistry,
+  preferred_source_rules,
+  expected_superseded_rows
+)
+daily_key <- c("LTER", "Stream_Name", "date", "variable", "units")
+stop_if(
+  anyDuplicated(master_chemistry[daily_key]) > 0L,
+  "duplicate site-day-variable-unit rows remain after reviewed source selection"
+)
 stop_if(nrow(master_chemistry) == 0L, "no chemistry rows remain after site checks")
 # carry site notes onto every row and combine the sample-level flags
 master_chemistry <- add_site_and_sample_flags(master_chemistry, site_reference)
-for (row in seq_len(nrow(method_rules))) {
-  if (!is.na(method_rules$expected_count[[row]])) {
-    check_reviewed_count(
-      sum(master_chemistry$Method_Flag == method_rules$Method_Flag[[row]], na.rm = TRUE),
-      method_rules$expected_count[[row]],
-      "a reviewed method count changed"
-    )
-  }
-}
+checked_methods <- which(!is.na(method_rules$expected_count))
+observed_method_counts <- vapply(checked_methods, function(row) {
+  sum(method_flag_present(master_chemistry$Method_Flag, method_rules$Method_Flag[[row]]))
+}, integer(1))
+check_reviewed_counts(
+  observed_method_counts,
+  method_rules$expected_count[checked_methods],
+  paste("method count:", method_rules$Method_Flag[checked_methods])
+)
 stop_if(
   any(master_chemistry$variable == "DSi" &
         master_chemistry$Raw_Filename == canada_extractable_filename) ||
-    any(master_chemistry$LTER == "HBR" & master_chemistry$variable == "DSi" &
-          master_chemistry$date < hbr_filter_start),
-  "excluded silicon methods entered the final master"
+    any(master_chemistry$variable == "DSi" &
+          master_chemistry$Raw_Filename == "EastRiverSFA_chem.csv") ||
+    any(master_chemistry$LTER == "HBR" &
+          master_chemistry$variable == "DSi" &
+          master_chemistry$date < hbr_documented_start),
+  "silicon with an undocumented sample fraction entered the final master"
 )
 release_counts <- c(
-  inferred_date_rows = sum(!is.na(master_chemistry$Date_Flag)),
+  corrected_date_rows = sum(master_chemistry$Date_Flag == "corrected", na.rm = TRUE),
+  inferred_date_rows = sum(master_chemistry$Date_Flag == "inferred", na.rm = TRUE),
+  restored_date_rows = sum(master_chemistry$Date_Flag == "restored", na.rm = TRUE),
   less_than_rows = sum(master_chemistry$value_qualifier == "<", na.rm = TRUE),
   greater_than_rows = sum(master_chemistry$value_qualifier == ">", na.rm = TRUE),
   mixed_below_daily_rows = sum(
@@ -704,20 +519,41 @@ release_counts <- c(
   ),
   final_silicon_rows = sum(master_chemistry$variable == "DSi")
 )
-stop_if(
-  !identical(release_counts, expected_release_counts),
-  "one or more reviewed final chemistry counts changed"
-)
+if (!identical(release_counts, expected_release_counts)) {
+  count_text <- paste(
+    names(release_counts),
+    release_counts,
+    sep = "=",
+    collapse = ", "
+  )
+  stop("reviewed final chemistry counts changed: ", count_text, call. = FALSE)
+}
 
 # ---- output ----
 output_file <- file.path(output_dir, paste0(gsub("-", "", Sys.Date()), "_masterdata_chem.csv"))
-write.csv(master_chemistry, output_file, na = "", row.names = FALSE)
-if (upload_output) {
-  googledrive::drive_upload(
-    media = output_file,
-    overwrite = TRUE,
-    path = googledrive::as_id(
-      "https://drive.google.com/drive/u/0/folders/1dTENIB5W2ClgW0z-8NbjqARiaGO2_A7W"
-    )
-  )
-}
+
+# keep long explanations once in metadata and leave all flags on chemistry rows
+date_note_keys <- c("Dataset", "Raw_Filename", "LTER", "Stream_Name", "date", "Date_Flag")
+output_date_notes <- master_chemistry |>
+  dplyr::filter(!is.na(Date_Note)) |>
+  dplyr::distinct(dplyr::across(dplyr::all_of(c(date_note_keys, "Date_Note"))))
+output_method_notes <- master_chemistry |>
+  dplyr::filter(!is.na(Method_Note)) |>
+  dplyr::distinct(Method_Flag, Method_Note)
+stop_if(
+  anyDuplicated(output_date_notes[date_note_keys]) > 0L ||
+    anyDuplicated(output_method_notes$Method_Flag) > 0L,
+  "the metadata needs one explanation per date event or method flag"
+)
+metadata <- list(date_notes = output_date_notes, method_notes = output_method_notes)
+metadata_dir <- file.path(dirname(output_dir), "metadata")
+dir.create(metadata_dir, showWarnings = FALSE)
+metadata_file <- file.path(
+  metadata_dir,
+  sub("[.]csv$", "_metadata.csv", basename(output_file))
+)
+write_chemistry_metadata(metadata, metadata_file)
+
+# removing notes does not change values, row order, or flags
+master_output <- dplyr::select(master_chemistry, -Date_Note, -Method_Note)
+write.csv(master_output, output_file, na = "", row.names = FALSE)

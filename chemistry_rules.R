@@ -1,3 +1,62 @@
+# ---- gems silicon gap filling ----
+# use only reviewed matches to sites already in the chemistry dataset
+gems_usgs_si_sites <- tibble::tribble(
+  ~gems_station, ~usgs_station,
+  "USA00004", "06934500",
+  "USA00008", "01463500",
+  "USA00011", "11447650",
+  "USA00013", "06775900",
+  "USA00021", "04264331"
+)
+gems_filtered_reactive_methods <- c("COL-HB", "COL-HB-AA-F", "VMV_3628")
+gems_reactive_si_flag <- "reactive Si, filtered (GEMS)"
+gems_si_exclusions <- tibble::tribble(
+  ~gems_station, ~date, ~reason,
+  "USA00004", "1991-05-28", "no matching result in the reviewed USGS download"
+)
+gems_si_expected_days <- c(Canada = 1L, USGS = 56L)
+
+# the original catalogue identifies the sample fractions and reported chemical forms
+# total metals, total sulfate, and total reactive phosphorus are not substitutes
+gems_gap_parameters <- function() {
+  tibble::tribble(
+    ~source_entry, ~parameter_code, ~provider_units, ~variable, ~units, ~conversion, ~limit_is_clear,
+    "Aluminium.csv", "Al-Dis", "mg/l", "Al", "uM", 1000 / atomic_mass[["Al"]], TRUE,
+    "Calcium.csv", "Ca-Dis", "mg/l", "Ca", "uM", 1000 / atomic_mass[["Ca"]], TRUE,
+    "Chloride.csv", "Cl-Dis", "mg/l", "Cl", "uM", 1000 / atomic_mass[["Cl"]], TRUE,
+    "Pigment.csv", "Chl-a", "mg/l", "chlorophyll a", "ug/L", 1000, TRUE,
+    "Carbon.csv", "DOC", "mg/l", "dissolved org C", "uM", 1000 / atomic_mass[["C"]], TRUE,
+    "Carbon.csv", "TOC", "mg/l", "tot org C", "uM", 1000 / atomic_mass[["C"]], TRUE,
+    "Fluoride.csv", "F-Dis", "mg/l", "F", "uM", 1000 / atomic_mass[["F"]], TRUE,
+    "Iron.csv", "Fe-Dis", "mg/l", "Fe", "uM", 1000 / atomic_mass[["Fe"]], TRUE,
+    "Bicarbonate.csv", "HCO3", "mg/l", "HCO3", "uM", 1000 / molecule_mass[["HCO3"]], TRUE,
+    "Potassium.csv", "K-Dis", "mg/l", "K", "uM", 1000 / atomic_mass[["K"]], TRUE,
+    "Magnesium.csv", "Mg-Dis", "mg/l", "Mg", "uM", 1000 / atomic_mass[["Mg"]], TRUE,
+    "Manganese.csv", "Mn-Dis", "mg/l", "Mn", "uM", 1000 / atomic_mass[["Mn"]], TRUE,
+    "Sodium.csv", "Na-Dis", "mg/l", "Na", "uM", 1000 / atomic_mass[["Na"]], TRUE,
+    "Other_Nitrogen.csv", "NH4N", "mg/l", "NHX", "uM", 1000 / atomic_mass[["N"]], TRUE,
+    "Other_Nitrogen.csv", "TN", "mg/l", "TN", "uM", 1000 / atomic_mass[["N"]], TRUE,
+    "Other_Nitrogen.csv", "TKN", "mg/l", "tot kjeldahl N", "uM", 1000 / atomic_mass[["N"]], TRUE,
+    "Oxidized_Nitrogen.csv", "NO2N", "mg/l", "NO2", "uM", 1000 / atomic_mass[["N"]], TRUE,
+    "Oxidized_Nitrogen.csv", "NO3N", "mg/l", "NO3", "uM", 1000 / atomic_mass[["N"]], TRUE,
+    "Oxidized_Nitrogen.csv", "NOxN", "mg/l", "NOx", "uM", 1000 / atomic_mass[["N"]], TRUE,
+    "Phosphorus.csv", "TP", "mg/l", "TP", "uM", 1000 / atomic_mass[["P"]], TRUE,
+    "Phosphorus.csv", "TDP", "mg/l", "tdp", "uM", 1000 / atomic_mass[["P"]], TRUE,
+    "Phosphorus.csv", "DRP", "mg/l", "SRP", "uM", 1000 / atomic_mass[["P"]], TRUE,
+    "Sulfur.csv", "SO4-Dis", "mg/l", "SO4", "uM", 1000 / molecule_mass[["SO4"]], TRUE,
+    "Alkalinity.csv", "Alk-Tot", "mg/l", "alkalinity", "ueq/L", 2000 / 100.0869, TRUE,
+    "Water.csv", "TSS", "mg/l", "susp partic matter", "mg/L", 1, TRUE,
+    "Water.csv", "TDS", "mg/l", "tot dissolved solids", "mg/L", 1, TRUE,
+    "Zinc.csv", "Zn-Dis", "mg/l", "Zn", "uM", 1000 / atomic_mass[["Zn"]], TRUE,
+    "Dissolved_Gas.csv", "O2-Dis", "mg/l", "dissolved oxygen", "uM", 1000 / (2 * atomic_mass[["O"]]), FALSE,
+    "Dissolved_Gas.csv", "O2-Dis-Sat", "%", "do percent", "percent", 1, FALSE,
+    "Temperature.csv", "TEMP", "°C", "temp", "C", 1, FALSE,
+    "Electrical_Conductance.csv", "EC", "µS/cm", "conductivity", "uS/cm", 1, FALSE,
+    "pH.csv", "pH", "---", "pH", NA_character_, 1, FALSE,
+    "Optical.csv", "TURB", "NTU", "turbidity", "NTU", 1, FALSE
+  )
+}
+
 # ---- raw labels ----
 deduplicated_filename <- "Deduplicated_Sites_AllSites_chemistry.csv"
 deduplicated_raw_aliases <- tibble::tribble(
@@ -30,9 +89,7 @@ fixed_missing_tokens <- c(
 )
 source_review_columns <- list(
   "EastRiverSFA_chem.csv" = c("solute", "value"),
-  "CatalinaJemez_chemistry_2009-2019_V2.csv" = c("SampleCode", "SiteCode", "DateTime"),
-  "guadeloupe_GRCVHSAV_chem.csv" = "datetime",
-  "guadeloupe_GRCBDPBD_chem.csv" = "datetime"
+  "CatalinaJemez_chemistry_2009-2019_V2.csv" = c("SampleCode", "SiteCode", "DateTime")
 )
 
 # ---- unit label aliases ----
@@ -60,7 +117,9 @@ unit_label_aliases <- c(
   "ueq/l" = "ueq/L"
 )
 
-# ---- variable names and precedence ----
+# ---- variable names and preferred columns ----
+# the order below controls which equivalent column is used first
+# converting between reported chemical forms is separate from matching names
 ph_columns <- c(
   "pH", "ph", "pH_pH", "ph_SU", "ph_", "fldph", "fldph_", "labph", "labph_"
 )
@@ -163,7 +222,7 @@ merge_rules <- list(
 optional_measurement_columns <- c("don_mg_L", "so4_mg_S_L", "zn_mg_L")
 variable_names <- c(
   ph = "pH", dsi = "DSi", do = "dissolved oxygen", chla = "chlorophyll a",
-  dic = "dissolved inorg C", din = "dissolved inorg N",
+  co2 = "CO2", dic = "dissolved inorg C", din = "dissolved inorg N",
   doc = "dissolved org C", don = "dissolved org N", srp = "SRP",
   ssc = "susp sediment conc", tdn = "tot dissolved N",
   tds = "tot dissolved solids", tkn = "tot kjeldahl N", tn = "TN",
@@ -295,11 +354,118 @@ drop_camels_no3_streams <- c(
 )
 drop_srp_lters <- "Krycklan"
 drop_srp_streams <- c("MGWEIR", "ORlow")
-sopchoppy_superseded_files <- c(
+
+# prefer the better documented source for the same site, date, variable, and unit
+preferred_source_rules <- tibble::tribble(
+  ~preferred_file, ~superseded_file, ~variables, ~expected_overlap,
+  paste0(
+    "Canada__Canada__ALSEK_RIVER_ABOVE_BATES_RIVER_IN_",
+    "KLUANE_NATIONAL_PARK__b577690976a4.csv"
+  ),
+  "Canada_WQ_dat.csv",
+  "NHX;NO3;TN;TP;dissolved org C;tdp;tot dissolved N", 570L,
+  paste0(
+    "Canada__Canada__BEAVER_RIVER_ABOVE_HIGHWAY_1_IN_GLACIER_",
+    "NATIONAL_PARK__8db5e916b53d.csv"
+  ),
+  "Canada_WQ_dat.csv",
+  "NHX;NO3;TN;TP;dissolved org C;tdp;tot dissolved N", 1661L,
+  paste0(
+    "Canada__Canada__KICKING_HORSE_RIVER_AT_FIELD_IN_YOHO_",
+    "NATIONAL_PARK__78eed20cf9d6.csv"
+  ),
+  "Canada_WQ_dat.csv",
+  "NHX;NO3;TN;TP;dissolved org C;tdp;tot dissolved N", 2058L,
+  paste0(
+    "Canada__Canada__KOOTENAY_RIVER_ABOVE_HIGHWAY_93_IN_",
+    "KOOTENAY_NATIONAL_PARK__7a1cbddf7523.csv"
+  ),
+  "Canada_WQ_dat.csv",
+  "NHX;NO3;TN;TP;dissolved org C;tdp;tot dissolved N", 2313L,
+  "Canada__Canada__LIARD_RIVER_AT_UPPER_CROSSING__47916feca4a8.csv",
+  "Canada_WQ_dat.csv",
+  "NHX;NO3;TN;TP;dissolved org C;tdp;tot dissolved N", 1279L,
+  "Canada__Canada__SKEENA_RIVER_AT_USK__6692e2a39888.csv",
+  "Canada_WQ_dat.csv",
+  "NHX;NO3;TN;TP;dissolved org C;tdp;tot dissolved N", 2317L,
+  "MD__MD__Lock_5__092e7030faa8.csv",
+  "MurrayDarlingChem_Merged.csv", NA_character_, 16882L,
+  "MD__MD__Merbein__9df18bcf9b24.csv",
+  "MurrayDarlingChem_Merged.csv", NA_character_, 15025L,
+  "USGS_geogenic_solutes.csv", "20221030_masterdata_chem_V2.csv",
+  "dissolved org C", 14285L,
+  "MCM_Chem_clean.csv", "20221030_masterdata_chem_V2.csv",
+  "alkalinity;Ca;Cl;DSi;K;Mg;Na;SO4", 7612L,
+  "USGS__USGS__SUSQUEHANNA_RIVER__4db2531edf53.csv",
+  "20221030_masterdata_chem_V2.csv",
+  "dissolved org C;DSi;NHX;NOx;PO4;tot dissolved N;TP", 6171L,
   "USGS_geogenic_solutes.csv",
-  "20221030_masterdata_chem_V2.csv"
+  "USGS__USGS__SUSQUEHANNA_RIVER__4db2531edf53.csv",
+  "Ca;Cl;dissolved org C;K;Mg;Na;SO4", 3831L,
+  "Swedish_Geo_Updated_10062025.csv", "SiSyn_DataTemplate_Sweden_102423.csv",
+  "Cl", 3418L,
+  "USGS_geogenic_solutes.csv",
+  "USGS__USGS__Choptank_River__da9275d27028.csv",
+  "Ca;Cl;dissolved org C;K;Mg;Na;SO4", 2457L,
+  "EastRiverSFA_chem.csv", "20221030_masterdata_chem_V2.csv",
+  "Cl;NO3;PO4;SO4;tot dissolved N", 0L,
+  "USGS_geogenic_solutes.csv",
+  "USGS__USGS__Frio_River__4e8764089639.csv",
+  "Ca;Cl;dissolved org C;K;Mg;Na;SO4", 2044L,
+  "CAMELS_USGS_N_P.csv",
+  "USGS__USGS__Choptank_River__da9275d27028.csv",
+  "NO3;NOx;PO4", 1769L,
+  "USGS__USGS__Mississippi_River_above_Vicksburg__d2360d259841.csv",
+  "USGS_NWQA_Chemistry_MissRiverSites.csv", NA_character_, 1453L,
+  "Sweden__Sweden__Nykopingsan_Spanga__2cdeeea43708.csv",
+  "SiSyn_DataTemplate_Sweden_102423.csv",
+  "Cl;DSi;NH4;NOx;PO4;tot org C", 939L,
+  "Sweden__Sweden__Ljungan_Skallboleforsen__c0d37822b53a.csv",
+  "SiSyn_DataTemplate_Sweden_102423.csv",
+  "Cl;DSi;NH4;NOx;PO4;tot org C", 929L,
+  "Sweden__Sweden__Orekilsalven_Munkedal__96dcdaa96ada.csv",
+  "SiSyn_DataTemplate_Sweden_102423.csv",
+  "Cl;DSi;NH4;NOx;PO4;tot org C", 926L,
+  "UK_Si.csv", "UK__UK__BLACKWATER_AT_LANGFORD__e4ddc46f9d7c.csv",
+  "DSi", 847L,
+  "UK_Si.csv", "UK__UK__CHELMER_AT_RUSHES_LOCK__f7addd85ee9b.csv",
+  "DSi", 847L,
+  "USGS__USGS__Choptank_River__da9275d27028.csv",
+  "20221030_masterdata_chem_V2.csv", "DSi", 726L,
+  "Krycklan_NP.csv", "20221030_masterdata_chem_V2.csv", "NH4", 403L,
+  "USGS_geogenic_solutes.csv", "USGS_NWQA_Chemistry_MissRiverSites.csv",
+  "dissolved org C", 400L,
+  "CAMELS_USGS_N_P.csv", "USGS__USGS__Frio_River__4e8764089639.csv",
+  "NO3;NOx;PO4", 288L,
+  "CAMELS_USGS_N_P.csv", "20221030_masterdata_chem_V2.csv",
+  "NOx", 1879L,
+  "UMR_si_update_existing_sites.csv", "20221030_masterdata_chem_V2.csv",
+  NA_character_, 136L,
+  "USGS__USGS__Frio_River__4e8764089639.csv",
+  "20221030_masterdata_chem_V2.csv", "DSi", 84L
 )
-sopchoppy_legacy_variables <- c("NOx", "PO4", "dissolved org C")
+niva_preferred_files <- c(
+  "Norway_NIVA_AllSites__NIVA__AAGEVEG__19eac75d0edc.csv",
+  "Norway_NIVA_AllSites__NIVA__FINETAN__bcbb2dcfe9fb.csv",
+  "Norway_NIVA_AllSites__NIVA__FINEPAS__da624d256e41.csv",
+  "Norway_NIVA_AllSites__NIVA__HOREVOS__756e629d446e.csv",
+  "Norway_NIVA_AllSites__NIVA__MROEDRI__76754047396e.csv",
+  "Norway_NIVA_AllSites__NIVA__OSLEALN__9abcb2378cbb.csv",
+  "Norway_NIVA_AllSites__NIVA__ROGEBJE__9eabc44c847b.csv",
+  "Norway_NIVA_AllSites__NIVA__ROGEVIK__455000df4ac3.csv",
+  "Norway_NIVA_AllSites__NIVA__SFJENAU__44ddce831990.csv",
+  "Norway_NIVA_AllSites__NIVA__STRENID__a56da145d7a8.csv"
+)
+preferred_source_rules <- dplyr::bind_rows(
+  preferred_source_rules,
+  tibble::tibble(
+    preferred_file = niva_preferred_files,
+    superseded_file = "20221030_masterdata_chem_V2.csv",
+    variables = "DSi",
+    expected_overlap = c(61L, 61L, 60L, 60L, 60L, 60L, 59L, 60L, 59L, 59L)
+  )
+)
+expected_superseded_rows <- 93646L
 
 # ---- reviewed unmatched sites ----
 reviewed_unmatched_sites <- tibble::tribble(
@@ -330,19 +496,7 @@ reviewed_unmatched_sites <- tibble::tribble(
 )
 
 # ---- date review ----
-guadeloupe_dates <- list(
-  "guadeloupe_GRCVHSAV_chem.csv" = as.Date(c(
-    "2010-10-05", "2009-01-08", "2007-06-05", "2007-03-05",
-    "2006-11-10", "2006-10-12", "2006-09-25", "2006-09-22",
-    "2006-06-06", "2006-05-06"
-  )),
-  "guadeloupe_GRCBDPBD_chem.csv" = as.Date("2007-09-28")
-)
-guadeloupe_rows <- c(
-  "guadeloupe_GRCVHSAV_chem.csv" = 304L,
-  "guadeloupe_GRCBDPBD_chem.csv" = 1856L
-)
-guadeloupe_rows_per_restored_date <- 16L
+# inferred dates keep a flag in the master and an explanation in its metadata
 catalina_date_note <- tibble::tibble(
   Dataset = "CZO-Catalina Jemez",
   Raw_Filename = "CatalinaJemez_chemistry_2009-2019_V2.csv",
@@ -382,134 +536,56 @@ date_notes <- dplyr::bind_rows(
   catalina_date_note,
   cameroon_date_notes
 )
+camrex_manacapuru_dates <- as.Date(c(
+  "1982-05-12", "1982-08-26", "1982-12-07", "1983-03-30",
+  "1983-07-06", "1983-11-05", "1984-02-25", "1984-07-22",
+  "1985-08-11", "1988-12-02", "1990-05-01", "1991-08-30"
+))
+camrex_date_note <- paste0(
+  "Date shifted back one day because the provider defines Julian day 1 as ",
+  "January 1, 1982; an earlier conversion treated that date as day 0."
+)
+camrex_corrected_events <- 182L
+camrex_corrected_rows <- 2059L
 
 # ---- flags and daily groups ----
 allowed_value_qualifiers <- c("<", ">")
-allowed_date_flags <- "inferred"
+allowed_date_flags <- c("corrected", "inferred", "restored")
 allowed_source_lab_flags <- c(
   "below reported limit",
   "above reported limit",
   "below-limit results excluded from daily mean",
-  "above-limit results excluded from daily mean"
+  "above-limit results excluded from daily mean",
+  "reported value below historical detection limit",
+  "provider < flag; meaning not confirmed",
+  "estimated value"
 )
+allowed_source_lab_flags <- c(allowed_source_lab_flags,
+  paste0(setdiff(allowed_source_lab_flags, "estimated value"), "; estimated value"))
 valid_lab_flags <- allowed_source_lab_flags
-allowed_source_method_flags <- c(
-  "ECCC SiO2 method 2329, VMV 14108",
-  "soluble reactive Si, filtered ICP-OES",
-  "dissolved SiO2, filtered",
-  "dissolved Si, reporting basis under review",
-  "field pH",
-  "laboratory pH fallback",
-  "field conductivity",
-  "laboratory conductivity fallback",
-  "total alkalinity",
-  "bicarbonate alkalinity fallback"
-)
-valid_method_flags <- c(
-  "ECCC SiO2 method 2329, VMV 14108",
-  "soluble reactive Si, filtered ICP-OES",
-  "dissolved silicon, filtered",
-  "dissolved SiO2, filtered",
-  "dissolved Si, reporting basis under review",
-  "filtered Si, 0.7 micrometer GF/F",
-  "field pH",
-  "laboratory pH fallback",
-  "field conductivity",
-  "laboratory conductivity fallback",
-  "total alkalinity",
-  "bicarbonate alkalinity fallback"
-)
-
-# ---- method notes ----
-method_rules <- tibble::tibble(
-  Method_Flag = valid_method_flags,
-  expected_variables = list(
-    "DSi", "DSi", "DSi", "DSi", "DSi", "DSi",
-    "pH", "pH",
-    c("conductivity", "specific conductivity"),
-    c("conductivity", "specific conductivity"),
-    "alkalinity", "alkalinity"
-  ),
-  expected_count = c(
-    3802L, 4219L, NA_integer_, 39040L, 161L, 464L,
-    12667L, 780L, 11075L, 0L, 2063L, 27L
-  ),
-  Method_Note = c(
-    paste0(
-      "ECCC VMV 14108/method 2329, colourimetry using heteropoly blue ",
-      "on an autoanalyser. The provider identifies this as reactive ",
-      "dissolved silica from a field-filtered 0.45 micrometer sample. ",
-      "It is reported in mg SiO2/L and converted using SiO2 molecular mass."
-    ),
-    paste0(
-      "ECCC VMV 109113/method 3628. The provider labels this soluble ",
-      "reactive silica and analyzes a filtered sample by ICP-OES. The ",
-      "workflow treats the reported mg/L as mg SiO2/L based on continuity ",
-      "with the earlier ECCC SiO2 series, then converts it using SiO2 ",
-      "molecular mass."
-    ),
-    paste0(
-      "ECCC provider variable SILICON DISSOLVED; VMV 1175/method 10320 ",
-      "or VMV 13812/method 4399."
-    ),
-    paste0(
-      "GEMStat reports this as SiO2-Dis in mg/L and defines it as ",
-      "dissolved silica passing through a 0.45 micrometer filter. The ",
-      "workflow converts it using SiO2 molecular mass."
-    ),
-    paste0(
-      "GEMStat reports this as Si-Dis in mg/L and defines it as dissolved ",
-      "silicon passing through a 0.45 micrometer filter. At seven Belgian ",
-      "stations, this code replaces SiO2-Dis only during 2016-2017, while ",
-      "the reported values remain continuous across the switch. GEMStat ",
-      "does not define the analytical method code. The workflow currently ",
-      "treats the value as mg Si/L and converts it using Si atomic mass, ",
-      "but the reporting basis still needs provider confirmation."
-    ),
-    paste0(
-      "Hubbard Brook samples collected from June 1, 2013 onward were ",
-      "vacuum filtered through a 0.7 micrometer GF/F filter. Earlier ",
-      "unfiltered SiO2 samples are excluded from master chemistry."
-    ),
-    paste0(
-      "This value was measured in the field. Field pH takes priority ",
-      "when a laboratory pH result exists on the same site-date."
-    ),
-    paste0(
-      "This laboratory pH value was retained because no field pH ",
-      "measurement was available on the same site-date."
-    ),
-    paste0(
-      "This value was measured in the field. Field conductivity takes ",
-      "priority when a laboratory result exists on the same site-date."
-    ),
-    paste0(
-      "This laboratory conductivity value was retained because no field ",
-      "measurement was available on the same site-date."
-    ),
-    paste0(
-      "Total alkalinity as CaCO3 takes priority when bicarbonate ",
-      "alkalinity is also available on the same site-date."
-    ),
-    paste0(
-      "Bicarbonate alkalinity as CaCO3 was retained because total ",
-      "alkalinity was unavailable on the same site-date."
-    )
-  )
-)
+# method flags and notes come from the shared workflow-rules lookup
 
 # ---- exact exclusions ----
 source_method_exclusions <- tibble::tibble(
   source_method_flag = c(
+    "ECCC SiO2 method 2329, VMV 14108",
     "ECCC SiO2 method 2328, VMV 14109",
-    "silica as SiO2, fraction unspecified"
+    "BNZ Si fraction not documented"
   ),
-  allowed_counts = list(c(0L, 135L), c(0L, 4908L))
+  allowed_counts = list(0L, 0L, 243L)
 )
 canada_extractable_filename <- "Canada_WQ_dat.csv"
-canada_extractable_allowed_counts <- c(0L, 1549L)
-hbr_filter_start <- as.Date("2013-06-01")
-hbr_unfiltered_si_count <- 3922L
+canada_extractable_label <- "SILICON EXTRACTABLE"
+canada_extractable_count <- 1549L
+hbr_undocumented_si_count <- 3L
+walker_lab_code_columns <- c(
+  Al = "al_lab_code",
+  Fe = "fe_lab_code",
+  K = "k_lab_code",
+  Mn = "mn_lab_code",
+  Sr = "sr_lab_code",
+  Zn = "zn_lab_code"
+)
 arctic_lake_events <- tibble::tribble(
   ~LTER, ~Stream_Name, ~date,
   "ARC", "I Swamp Outlet", as.Date("2012-08-08"),
@@ -518,13 +594,12 @@ arctic_lake_events <- tibble::tribble(
   "ARC", "I3 Outlet", as.Date("2012-08-07"),
   "ARC", "I4 Outlet", as.Date("2012-08-07"),
   "ARC", "I5 Outlet", as.Date("2012-08-07"),
-  "ARC", "I6 Headwater Lake Outlet", as.Date("2012-08-07"),
   "ARC", "I6 Outlet", as.Date("2012-08-08"),
   "ARC", "I7 Outlet", as.Date("2012-08-08"),
-  "ARC", "I8 Headwater", as.Date("2012-08-07"),
   "ARC", "I8 Outlet", as.Date("2012-08-08"),
   "ARC", "Toolik Outlet", as.Date("2012-06-04")
 )
+arctic_lake_measurement_count <- 177L
 flowing_types <- c("River", "Creek", "Stream", "Brook")
 
 # ---- source review counts ----
@@ -536,13 +611,17 @@ east_river_source_counts <- c(
 east_river_nondetect_value <- "<0.0077"
 
 # ---- expected output ----
+# the seine fraction check removes 482 daily si rows and no complete sites
+# gems fills reviewed chemistry gaps at existing sites without adding sites
 expected_release_counts <- c(
+  corrected_date_rows = 2059L,
   inferred_date_rows = 79L,
-  less_than_rows = 47977L,
+  restored_date_rows = 0L,
+  less_than_rows = 58820L,
   greater_than_rows = 43L,
-  mixed_below_daily_rows = 814L,
-  final_rows = 4816311L,
-  final_sites = 1156L,
-  final_silicon_sites = 1156L,
-  final_silicon_rows = 311341L
+  mixed_below_daily_rows = 914L,
+  final_rows = 4686420L,
+  final_sites = 1170L,
+  final_silicon_sites = 1170L,
+  final_silicon_rows = 296848L
 )
