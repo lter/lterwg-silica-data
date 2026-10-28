@@ -18,15 +18,15 @@ These scripts put chemistry files into the same format and combine them into mas
 
 - `00-harmonize_chemistry_sidney.R`: combines the prepared files, converts units, calculates daily averages, and adds flags; the runner calls it automatically
 
-- `chemistry_functions.R`: functions shared by the scripts; it is loaded automatically
+- `chemistry_functions.R`: shared functions for reading selected columns, parsing limit signs, averaging daily results, adding flags and notes, and checking inputs and outputs; it is loaded automatically
 
-- `chemistry_rules.R`: the names, conversion factors, dates, and exclusions used in the workflow; check here to review those choices
+- `chemistry_rules.R`: the reviewed name matches, conversion factors, overlap choices, inferred dates, exact exclusions, and expected counts used by the code; lab-method labels and explanations come from the shared lab workbook instead
 
 #### Running the Updated Chemistry Workflow
 
 Keep the files together in the downloaded or cloned repository folder. Open `run_full_chemistry_workflow.R` in RStudio and click **Source**. Choose where to save the results and sign in to Google when prompted. There are no paths to edit or files to download by hand.
 
-The full validation passed on October 26 at 9:46 p.m. Pacific, including the additional GEMS chemistry and the agreed Canada Si conversion. The live keys and lab notes now match the copies used for that run. Thirteen cells were updated; the Site Reference Table already matched and was left alone. The code still needs final review and publication before Kathi Jo can pull it from GitHub. The older `_SAB` files on Drive are from the earlier version, which filled only Si gaps.
+The full chemistry validation passed on October 26, including the additional GEMS chemistry and the agreed Canada Si conversion. The shared keys and lab rules matched the validated copies. The finalized chemistry code was committed and pushed on October 27 as `4c15c54`, `Finalize master chemistry workflow, source checks, and metadata`. Kathi Jo can pull that version from GitHub. The older `_SAB` chemistry files on Drive are from the earlier version, which filled only Si gaps; they are not the final validated master. Later discharge and spatial work has not rerun or changed chemistry.
 
 The GEMS additions include 65,510 non-Si daily measurements. Of those, 106 daily averages exclude below-limit samples and 15 exclude above-limit samples; their flags say so. Estimated-value flags also survive daily averaging. Another 249 additions use the shallowest sample depth and carry that method flag. These flags apply only to the affected results, not every row in the network.
 
@@ -46,7 +46,19 @@ chemistry-inputs/
   prepare_qualifier_inputs.R
 ```
 
-Only the runner needs to be opened and run manually. `prepare_chemistry.R` shows the preparation order and combines the prepared files. `prepare_eccc_gems_danube.R` builds the combined ECCC, GEMS, and Danube files from the original downloads. `prepare_other_sources.R` handles the other datasets' unit corrections, dates, names, and method choices. It loads `prepare_usgs_legacy.R` for the USGS TN/TDN/TDS repairs and corrections to the older combined master. The existing repair order is unchanged; neither file needs to be run separately. `prepare_qualifier_inputs.R` preserves reported limit signs and thresholds. Each source has a named section you can find through RStudio's section menu. Kathi Jo's original script and the optional `review-only` copy are for reference; neither is needed for this run.
+Only the runner needs to be opened and run manually. The other scripts are called automatically:
+
+- `run_full_chemistry_workflow.R` downloads the chemistry files, supporting ZIP, and live keys; checks that the required files and packages are present; runs preparation and master chemistry; and uploads the two finished CSVs after the checks pass. Failed runs keep their logs.
+- `00-harmonize_chemistry_sidney.R` reads the 77 prepared inputs using the Data Key, standardizes variables and units, matches sites, calculates daily results, and writes the 14-column master and separate notes CSV.
+- `chemistry_functions.R` contains the repeated reading, reshaping, conversion, flag, and checking functions. It also reads the lab workbook's `Workflow rules` tab, checks which variables each flag can describe, and checks that the original inputs have not changed.
+- `chemistry_rules.R` keeps the code's reviewed choices together, including source overlaps, chemical forms, date inferences, and expected counts. It does not replace the Data Key, Units Key, Site Reference Table, or lab workbook.
+- `chemistry-inputs/prepare_chemistry.R` controls the preparation order, prepares the Amazon files, selects sources where files overlap, adds GEMS results only where the preferred direct source lacks a matching result, and collects the 77 inputs for master chemistry.
+- `chemistry-inputs/prepare_eccc_gems_danube.R` reads the original ECCC, GEMS, and Danube downloads. It keeps parameter and method information, applies the checked chemical forms and units, preserves limit signs, and builds their combined chemistry files and local key updates.
+- `chemistry-inputs/prepare_other_sources.R` handles the remaining datasets' names, units, sample fractions, date decisions, and field-versus-lab choices. Its named source sections include the Seine fraction checks and the flagged Catalina and Cameroon date inferences.
+- `chemistry-inputs/prepare_usgs_legacy.R` is loaded by `prepare_other_sources.R`. It separates the confirmed TDS-as-TN records, rebuilds nitrogen using the original USGS parameter identities, and restores checked TDS values in mg/L without a nitrogen conversion. It also handles the reviewed corrections to the older combined master.
+- `chemistry-inputs/prepare_qualifier_inputs.R` recovers limit signs and numeric thresholds from source-specific fields and documented codes. It checks that these changes reach the master parser and leaves unrelated source columns unchanged.
+
+Each source has a named section you can find through RStudio's section menu. Kathi Jo's original script and the optional `review-only` copy are for reference; neither is needed for this run. None of the preparation scripts needs to be run separately.
 
 The split passed full background validation on October 26 at 11:11 p.m. Pacific. All 77 prepared files, the final master CSV, and the metadata CSV are byte-for-byte identical to the successful run before the split. The master still has 4,686,420 measurements at 1,170 sites. All 236 raw chemistry files and the other inputs stayed unchanged. Uploading was off during validation.
 
@@ -90,7 +102,7 @@ These matches restore the explanations without adding chemistry rows or requirin
 
 Both outputs are CSVs. Uploading was tested with the earlier saved `_SAB` files, and their names, sizes, folder locations, and checksums were verified. Those older files do not contain the final GEMS additions or Canada conversion. The final validated master has not been uploaded.
 
-Canada VMV 109113 uses the agreed Si basis because the original method metadata identify silicon. The workflow converts mg Si/L to uM using silicon's atomic mass instead of the earlier SiO2 assumption. These results keep the `soluble reactive Si, filtered ICP-OES` flag. GEMS records labeled SiO2-Rea still use the SiO2 conversion and keep their reactive-Si flag. The live keys and lab notes match the validated copies.
+Canada VMV 109113 uses the agreed Si basis because the original method metadata identify silicon. The workflow converts mg Si/L to uM using silicon's atomic mass instead of the earlier SiO2 assumption. These results keep the `soluble reactive Si, filtered ICP-OES` flag. GEMS records labeled SiO2-Rea still use the SiO2 conversion and keep their reactive-Si flag. The chemistry mappings and lab rules matched the validated copies. Later discharge and spatial reference updates are described below.
 
 #### Questions still open
 
@@ -133,8 +145,93 @@ If a script fails, the error shows its full log location under `chemistry-run/lo
 
 For a background run, supply the five folder paths in this order: chemistry files, original source downloads, keys, supporting records, and a new output folder. That option skips the folder picker, downloads, and uploads. Calls to `run_chemistry()` also leave uploading off unless `upload = TRUE` is supplied. Clicking **Source** in RStudio turns uploading on automatically.
 
-- `00-harmonize_discharge.R`: **Combines individual _discharge_ files (river / stream gage level) into a single file.** This is done with virtually no filtering to minimize data loss from this process
+- `00-harmonize_discharge.R`: combines individual discharge files into daily values and matches them to sites using the reference table
     - _When to Use:_ you want to integrate new _discharge_ data into the 'master' file
+
+- `discharge_functions.R`: loaded by the discharge script; checks site-to-file matches against the finalized chemistry sites, reads dates and fractional-second timestamps, removes repeated copies of the same reading, converts flow units, and adds `Q_Flag`. It also contains the original-source corrections and saved USGS additions described below. `attach_discharge_sites()` keeps shared gauges assigned to each matching chemistry site. `join_chemistry_discharge()` joins by site and date without dropping chemistry rows, then calls `apply_walk_discharge_rule()` for the solute-specific Walker Branch check. These functions do not run automatically just because the file is opened.
+
+The discharge preparation uses `discharge_functions.R` before joining files to chemistry sites. Choose the finalized master chemistry CSV at the start, or enter its path in `chemistry_file`. That file determines which sites and discharge files are required. The current 1,170 chemistry sites require 776 available discharge files. Five absent East River filenames belong to sites outside this chemistry release, so they do not block it. Shared gauges remain assigned to every matching chemistry site. Missing required files stop the run instead of silently dropping sites.
+
+Blank times are allowed for daily records. Rows with neither a date nor a value are skipped. A missing result beside a measured result is not treated as a conflict. Distinct timed readings are averaged without removing equal flows at different times. Identical input copies are removed and recorded in `Q_Flag`. Other conflicting readings still stop the run. The four saved PIE, NE14 Outlet, and Andrews Creek inputs already contain `Qcms` in m³/s. Missing local unit entries are filled accordingly, and a conflicting unit label stops the run rather than converting these values twice. Live sheets are not changed by this step.
+
+The original-source checks run during preparation, without overwriting the downloaded inputs:
+
+- Shingle Creek's saved `Q` column contains water temperatures alongside discharge. Preparation reads the [dated original USGS download on Drive](https://drive.google.com/file/d/1n0JHBLq1Oi6zH3CPa3UxlWjMY542y4KN/view), `discharge-inputs/20261027_USGS_05288705_daily_discharge.json`. The runner downloads this fixed file only if the local copy is missing. It does not request a new USGS series each run. The JSON keeps the original source information and estimated and provisional flags. The reader checks station 05288705, [discharge parameter 00060 and daily-mean statistic 00003](https://nwis.waterservices.usgs.gov/docs/dv-service/daily-values-service-details/). It never averages temperature with flow. Set `shingle_source_file` to the saved download if it is stored elsewhere. The file is data, excluded from Git. The older mixed CSV is unchanged. The uploaded source file was downloaded and checked against the local copy on October 27; their bytes match exactly.
+- LUQ Q1, Q2, and Q3 each contain 153 duplicated dates from January 1 through June 2, 2006. The [archived Bisley daily data and header](https://www.hydroshare.org/resource/8fb0c17c23da423b8240396342bde0eb/) identify the original daily record. Preparation keeps that record and removes the extra row. The runoff-derived values from January 3, 1987 through June 2, 2006 use the historical conversion areas: Q1 0.067, Q2 0.0634, and Q3 0.35 km². The existing conversion used 0.07, 0.07, and 0.28 km². Correcting that conversion preserves the saved rounding and adds a flag; it does not read the spatial area from `drainSqKm`. Each site has 7,091 historical daily records, including 22 verified interpolated gaps. All later values from June 9, 2006 onward are unchanged. Six transition estimates each for Q2 and Q3 retain their existing interpolation weights with the corrected runoff endpoint. Q1's transition estimates are unchanged because its endpoint is zero. The [later Forest Service release](https://doi.org/10.2737/RDS-2022-0074) documents the cfs records beginning in June 2006; these records do not receive an area conversion.
+- Krycklan Site 7 matches Kallkälsbäcken C7 at 64.251301, 19.7779. Its saved file has lost the hourly times. Preparation uses the station's [fixed published daily series](https://meta.fieldsites.se/objects/adVF13uWj9IlUHOhej0T_EFk), reported in m³/s and local UTC+1 dates, for dates already in the saved file. It does not invent hourly timestamps. Where that series has no value, legacy daily values are retained and flagged. Interpolated legacy values keep an interpolation flag. The published daily series differs from the older input, so this changes values as well as resolving timing. SITES data are licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
+
+The historical LUQ areas also match Table 1 of [Schaefer et al. (2000)](https://research.fs.usda.gov/treesearch/download/30121.pdf): 6.7, 6.34, and 35 hectares. The live Site Reference Table now records those conversion areas and original discharge sources in `CQ_Notes` and `q_source_URL`. Its spatial areas remain 0.07, 0.07, and 0.28 km². Their citation now points to [Wymore et al. (2017), Table 1](https://doi.org/10.1002/2016WR020016), rather than the mapped boundaries. `Spatial_Notes` separately describes the mapped areas. Twelve cells were updated and read back; all other cells stayed unchanged.
+
+All 776 required discharge files now pass the saved-data checks. The earlier failures, including the seven PIE unit conflicts, have been resolved against the original sources. The LUQ checks confirmed the historical conversion areas, unchanged later discharge, and separation from spatial drainage areas. Output uploading remains off in the discharge script, and the older source-file editing examples at its end are disabled. These discharge changes remain local and have not been committed or pushed.
+
+The seven PIE files have now been compared with the original sources. All already contain m³/s: five USGS files match 731 checked daily values each after multiplying cfs by 0.028316846592. Cart Creek matches 168 daily means from [PIE 111.5](https://portal.edirepository.org/nis/mapbrowse?packageid=knb-lter-pie.111.5), using `Discharge` in L/s divided by 1,000, not the older rating-curve column. All 122 YSI-Ipswich dates match daily `Flow` means from [PIE 114.5](https://portal.edirepository.org/nis/mapbrowse?packageid=knb-lter-pie.114.5), also divided by 1,000. The local reference copy uses `cms` for these seven files so they are not converted twice. Other unexpected unit conflicts still stop the run.
+
+The source checks also identified three wrong file assignments in the reference table. Preparation assigns `PIE_Parker_Q` to Parker River at Byfield, `PIE_IpswichMid_Q` to Ipswich at Middleton, and `PIE_YSIIR_Q` to Ipswich at North Reading. Sawmill Brook and IR-97 no longer inherit discharge from those different stations. Site names, chemistry, spatial areas, and raw files stay unchanged. The live reference table was updated and read back on October 27: 61 cells across nine PIE sites now contain the checked assignments, saved-file units, gauge details, distances, and source notes. All other cells were unchanged. The live file assignments and units match the validated preparation.
+
+The complete saved-data joins passed again after the USGS and Walker additions and the four-site ERA5 update. They preserve all 4,686,420 chemistry measurements across 1,170 sites without multiplying rows or changing chemistry values or flags. All 130 missing-spatial notes are retained. The current discharge totals are given below; spatial coverage and the successful sync are described in the spatial section. A final combined dataset has not yet been exported.
+
+The calculated `WALK` chemistry needs a row-level discharge check after the chemistry and discharge tables are joined. `apply_walk_discharge_rule()` uses the existing Data Key, prepared Walker chemistry input, and original historical daily discharge from [ORNL](https://doi.org/10.3334/CDIAC/ORNLSFA.007). It assigns East Fork plus West Fork daily discharge only when both forks contributed to that solute's concentration and both daily flows are available. `Q_Flag` identifies calculated combined flow and retains any original daily flow code. One-fork or unverified concentrations, and dates missing a required flow, keep discharge missing with an explanatory flag. The function changes only `Qcms` and `Q_Flag` on `WALK` rows; it does not modify chemistry or the separate fork records. This rule belongs in the combined-data join, not the variable-free master discharge export. It has not yet been used to export a combined dataset.
+
+The local `discharge-inputs/20261027_original_discharge_additions.rds` stores the checked original USGS downloads and Walker daily records. `add_verified_discharge()` fills only missing saved discharge for Sacramento River, San Joaquin River, and Maumee River, preserving existing usable flows and their flags. The original-source check found 18,042 additional chemistry measurements with matching discharge. Added values use the existing cfs conversion and carry source and estimated/provisional flags where reported. The discharge preparation calls this helper before combining files.
+
+The same checked [original-source input bundle](https://drive.google.com/file/d/1kYR7-tWCEPO2tKj5Mcl2V1BtX2JytkUv/view) is saved with the shared discharge inputs. Its downloaded bytes were verified against the local file. The discharge workflow downloads this saved copy only when the local copy is missing; it does not retrieve a changing replacement from the original websites. The live reference table includes source notes for these three USGS sites, the calculated WALK rule, and Ferguson's corrected boundary. No scripts or combined outputs were uploaded.
+
+`join_chemistry_discharge()` joins the finalized chemistry to prepared daily discharge without changing chemistry rows, then applies the `WALK` rule. Pass the prepared Walker chemistry input, the saved discharge additions, and the Data Key from the same chemistry run. The WALK validation assigned calculated combined flow to 18,178 measurements, left 6,505 one-fork or unverified measurements without flow, and left 89 without a required daily flow. The complete saved-data validation passed with both sets of additions: 3,593,358 chemistry measurements have matching discharge, and 1,093,062 do not. All 4,686,420 chemistry measurements across 1,170 sites remain unchanged, including their existing flags. No combined output has been uploaded.
+
+Quiock has 19 records on April 26, 2020 with seconds recorded as 58.39. Preparation preserves those fractional seconds instead of truncating them to 58. Decimal seconds in separate `Time` fields and combined date/time fields are also retained. The earlier targeted validation passed, including 23,374 exact matches to the original Theia timestamps after dividing the saved values by 3,600. The source files stayed unchanged.
+
+Quiock's saved export contains values in m3/hour despite its m3/s column heading. On October 27, 2026, 515 exact UTC timestamps from beginning, middle, and end samples of the [saved export](https://drive.google.com/file/d/10W_hM0RO0ykT7epCak8SgaoZy7wD9btk/view) were compared with the [original Theia observations](https://in-situ.theia-land.fr/api-data/visualize/timeserie/OBSE/OBSE_DAT_HYDRO_GUADELOUPE.GHYBDQCK/OBSE_7fde6bf4-c131-381a-bb74-21f7a7b82fe0). All 253 matches in the 2015 sample, six in 2018, and 256 in 2025 agreed after dividing the saved values by 3,600, within the portal's six-decimal rounding. For example, at 2015-01-14 11:19 UTC, the saved 76.786388 becomes 0.021329552 m3/s, matching the portal's 0.021330. This was a sample comparison, not a check of every record. The reference unit stays `cmh`, the division by 3,600 stays in preparation, and the temporary Quiock stop has been removed. No raw values or shared-sheet entries were changed.
+
+### Spatial data and the combined dataset
+
+#### Current coverage and shared files
+
+The spatial site list comes from finalized master chemistry, not a separate station list. The October 28 saved-data validation passed with 1,170 sites. ERA5-Land values are present at 1,040 sites; 130 sites still lack spatial data and retain their missing-data notes. Those sites stay in the dataset rather than being dropped.
+
+PIE sites `12`, `15`, and `20`, and Western Australia's `Ferguson River - Dowdells Rd Bridge`, now each have all six annual ERA5-Land variables for 2000-2025. All 26 Earth Engine tasks completed, and all 104 site-year records and 624 values were checked against the merged data. The six variables are precipitation, temperature, evapotranspiration, potential evaporation, snow-cover fraction, and snow-water equivalent. The other 1,166 sites were unchanged by this merge.
+
+The current files were synced and verified on October 28:
+
+- [Spatial predictors CSV](https://drive.google.com/file/d/17Dbv-jV2E_aDg311Xqrm6DoyKSITL5ZA/view): `spatial_predictors_glass_climate_era5_land_modis_glc_20261028.csv`
+- [Site metadata CSV](https://drive.google.com/file/d/1bavvkMZIrEkFBLWXlRujBXVAbBHBWYvb/view): `site_metadata_20261028.csv`
+
+Matching copies are in `SiSyn/spatial-data-extractions/spatial-data` on Box. Both Drive downloads matched the local files by checksum. The Box copies matched too, and the Box sync client confirmed both uploads with no conflicts. The existing Drive file links were kept. Older dated releases were left untouched.
+
+The predictor CSV keeps the site names, coordinates, drainage area, site flag, and predictor values. The metadata CSV contains source links, watershed details, discharge information, coverage, and longer notes. Human impacts and distance to coast are not included in this release. The land-cover columns cover 1985-2022, not 1900 onward.
+
+#### Ferguson's boundary and remaining predictors
+
+Ferguson now uses 25 connected upstream catchments from [BoM Geofabric](https://hosting.wsapi.cloud.bom.gov.au/arcgis/rest/services/ahgf/Geofabric_V3x_All_Products/FeatureServer/7), covering 104.973609 km² above station 611026. The older HydroBASINS polygon covered about 224.7 km². That original file is retained, but its predictors are not reused.
+
+Ferguson's ERA5 results were extracted using the corrected boundary and are included in the shared spatial CSV. The Site Reference Table's watershed source link and extraction note match the metadata on Drive and Box. The source-link correction changed no spatial values or other reference-table cells.
+
+Ferguson still needs the following predictors extracted using the corrected boundary:
+
+- Land cover and long-term climate
+- MODIS evapotranspiration, NPP, greenup, and snow
+- Elevation, slope, geology, soils, and permafrost
+
+Those fields remain blank with an explanatory note. They must not be filled from the older watershed's results.
+
+#### What the spatial scripts do
+
+These scripts belong to the separate spatial workflow checkout, not the chemistry runner:
+
+- `workflow/build_watershed_collection.R` reads the site table and watershed files. It selects a verified replacement boundary before an older shapefile when one is available, including Ferguson's corrected boundary.
+- `workflow/gee/build_gee_vector_payloads.R` prepares the selected watershed polygons for Earth Engine and checks site coverage, file size, and any geometry changes. It does not start extraction tasks.
+- `workflow/gee/era5_land/run_safe_era5_land_exports.py` checks the selected sites, years, and products, skips existing results, and submits ERA5 tasks only with an approved quota check. Its default is a check without submitting tasks.
+- `workflow/gee/era5_land/finish_missing_era5_land_assets.py` runs the missing exports in checked batches outside RStudio and waits for their results. It does not need an open chat to continue.
+- `workflow/gee/era5_land/download_annual_era5_land_assets.R` downloads completed annual tables and checks for duplicate site-year matches, missing or infinite values, required variables, and complete requested coverage.
+- `workflow/release/recover_saved_spatial_results.R` aligns saved spatial results to the chemistry sites, recovers reviewed missing results, keeps site flags, and removes predictors from replaced boundaries. `merge_annual_era5_results()` adds the checked annual updates after that removal, so Ferguson's new ERA5 values are retained while its other old predictors stay excluded.
+- `workflow/release/build_spatial_dataset_files.R` writes separate product CSVs and one site metadata CSV. Its `--era5-updates` option reads the downloaded annual-results RDS when building the updated files. The RDS is an input to the local workflow; the shared predictor and metadata files are CSVs.
+
+#### What remains before the final combined export
+
+The saved chemistry, daily discharge, and spatial joins have passed. There are 3,593,358 chemistry measurements with matching discharge and 1,093,062 without usable matching flow. Missing discharge or spatial values do not remove chemistry rows.
+
+The final assembly still needs to write the combined dataset and check the exported file. Match discharge by `LTER`, `Stream_Name`, and date; annual predictors by site and year; and static predictors by site. Keep chemistry and discharge flags on each row and longer explanations in metadata. Use year-matched predictor columns rather than repeating every year's columns on every chemistry row. Do not extend ERA5 beyond 2000-2025 or fill Ferguson's remaining predictors with old values.
+
+Chemistry has not been rerun during this work. The updated discharge and spatial code and these documentation edits have not been committed or pushed.
 
 ### WRTDS (`01`)
 

@@ -17,6 +17,35 @@ library(supportR)
 
 rm(list = ls())
 
+# load the daily discharge preparation before changing directories
+source("discharge_functions.R")
+
+# select the finalized master chemistry csv, not an earlier drive copy
+# enter its local path here or choose it when prompted
+chemistry_file <- ""
+if (!nzchar(chemistry_file)) chemistry_file <- file.choose()
+
+# keep the dated discharge-only usgs download separate from the older mixed file
+shingle_source_file <- normalizePath(file.path("discharge-inputs",
+  "20261027_USGS_05288705_daily_discharge.json"), mustWork = FALSE)
+# download the saved source once if it is not already here
+if (!file.exists(shingle_source_file)) {
+  dir.create(dirname(shingle_source_file), recursive = TRUE, showWarnings = FALSE)
+  googledrive::drive_download(googledrive::as_id("1n0JHBLq1Oi6zH3CPa3UxlWjMY542y4KN"),
+    path = shingle_source_file, overwrite = FALSE)
+}
+
+# leave shared outputs alone while checking the discharge changes
+upload_outputs <- FALSE
+
+# saved original-source records fill only the checked gaps, without replacing existing flows
+discharge_additions_file <- file.path("discharge-inputs", "20261027_original_discharge_additions.rds")
+if (!file.exists(discharge_additions_file)) {
+  dir.create(dirname(discharge_additions_file), recursive = TRUE, showWarnings = FALSE)
+  googledrive::drive_download(googledrive::as_id("1kYR7-tWCEPO2tKj5Mcl2V1BtX2JytkUv"),
+    path = discharge_additions_file, overwrite = FALSE)
+}
+discharge_additions <- readRDS(discharge_additions_file)
 
 # Set up paths and import data --------------------------------------------
 
@@ -39,12 +68,12 @@ dir.create(path = file.path(path2,"discharge_tidy"), showWarnings = F)
 #ref_table <- drive_download(file = ref_table_folder$id, path = file.path(path2,"Site_Reference_Table"), overwrite = T)
 #QLog<-read_xlsx(ref_table$local_path)
 
-# site reference table
-googledrive::drive_ls(path = googledrive::as_id("https://drive.google.com/drive/u/1/folders/0AIPkWhVuXjqFUk9PVA")) %>%
-  dplyr::filter(name == "Site_Reference_Table") %>%
-  googledrive::drive_download(file = .$id, path = file.path(path, "keys", .$name), overwrite = T, type="csv")
-
-ref_table <- read.csv(file = file.path(path, "keys", paste0("Site_Reference_Table", ".csv")))
+# read the same live reference tab used by the chemistry workflow
+ref_table <- as.data.frame(googlesheets4::read_sheet(
+  "11t9YYTzN_T12VAQhHuY5TpVjGS50ymNmKznJK4rKTIU",
+  sheet = "Site_Reference_Table_LTER_V3", col_types = "c"
+))
+ref_table <- discharge_site_reference(ref_table, chemistry_file)
 
 QLog<-ref_table
 
@@ -82,8 +111,14 @@ csv_files_remove <- c( "andrsn_h1_Q.csv",
                        "priscu_b1_Q.csv",                                      
                        "vguerard_f6_Q.csv")
 
-csv_files_download <- csv_files %>% 
-  filter(!name %in% csv_files_remove)
+required_files <- unique(ref_table$Discharge_File_Name)
+required_files <- required_files[!is.na(required_files) & nzchar(trimws(required_files))]
+required_files <- setdiff(paste0(required_files, ".csv"), csv_files_remove)
+missing_files <- setdiff(required_files, csv_files$name)
+if (length(missing_files)) stop("missing discharge files for finalized chemistry sites: ",
+  paste(missing_files, collapse = ", "))
+csv_files_download <- csv_files %>% filter(name %in% required_files)
+if (anyDuplicated(csv_files_download$name)) stop("multiple drive files share a required discharge filename")
 
 
 # Download files from Google Drive to store locally
@@ -100,14 +135,15 @@ for (i in 1:length(csv_files_download$drive_resource)) {
 
 # Prep loop and check match with reference table --------------------------
 
-# get list of files downloaded
-discharge_files = list.files(path=file.path(path2, "discharge_raw"), pattern = ".csv")
-#discharge_files = list.files(pattern = ".csv")
-
-# remove all "Master Q" or other unneeded files
-discharge_files<-discharge_files[!(discharge_files %like% "Discharge_master")]
-remove_these<-setdiff(csv_files$name,discharge_files)
-discharge_files<-discharge_files[!(discharge_files %in% remove_these)]
+# use only files selected for this run, never stale files in the local folder
+discharge_files <- csv_files_download$name
+if (!all(file.exists(file.path(path2, "discharge_raw", discharge_files)))) {
+  stop("a selected discharge file was not downloaded")
+}
+if ("BK01.0M_Q" %in% ref_table$Discharge_File_Name &&
+    !"BK01.0M_Q.csv" %in% discharge_files) {
+  stop("BK01.0M_Q is mapped but was not downloaded for this run")
+}
 
 # Check for whether all the streams have representatives in the Site Reference Table?
 check_files <- as.data.frame(discharge_files) %>% 
@@ -133,9 +169,6 @@ setwd("//home/shares/lter-si/WRTDS/discharge/discharge_raw")
 
 #create list to store output from for loop
 data_list = list()
-na_list = list()
-na_threshold <- 50
-na_introduced_list <- list()
 
 # Create lists for discharge and dates
 # this is where you add different names for discharge and date columns
@@ -150,111 +183,34 @@ DateList<-c("Date", "dateTime", "dates", "date", "datetime", "DATE_TIME",
             "Sampling Date", "Dates","DateTime")
 
 
-## need to assign discharge file names to ones with alot of NAs!
-
-
-#loop through each discharge file
-#rename columns, convert units, keep only important columns
+# prepare daily discharge without changing the source files
 
 discharge_files <- discharge_files_v3
+source_cache <- new.env(parent = emptyenv())
 
 
-for (i in 1:length(discharge_files)) {
-  file_name_nocsv<-substr(discharge_files[i],start=1,stop=nchar(discharge_files[i])-4)
-  file_name = discharge_files[i]
-  d = fread(file_name, sep=",", tz="")
-  names(d)[which(colnames(d) %in% DischargeList)]<-"Q"
-  names(d)[which(colnames(d) %in% DateList)]<-"Date"
-  d<-d[,c("Q", "Date")]
-  d$Discharge_File_Name<-file_name_nocsv
-  ref_site<-subset(QLog, QLog$Discharge_File_Name==file_name_nocsv)
-  ref_site<-ref_site[1,]
-  d$Units<-ref_site$Units
-  #d$LTER = LTER_name
-  
-  n_missing <- sum(is.na(d$Q))
-  if(n_missing > na_threshold){
-    na_list[[file_name_nocsv]] <- data.frame(
-      Discharge_File_Name = file_name_nocsv,
-      Missing_Count = n_missing,
-      Total_Rows = nrow(d),
-      Pct_Missing = round(n_missing / nrow(d) * 100, 1)
-    )
-  }
-  
-  #convert all Q file units to CMS
-  d$Qcms<-ifelse(d$Units=="cms", d$Q, 
-                 ifelse(d$Units=="cfs", d$Q*0.0283,
-                        ifelse(d$Units=="Ls", d$Q*0.001,
-                               ifelse(d$Units == "cmh", d$Q/3600,
-                               ifelse(d$Units=="cmd", d$Q*1.15741e-5, "")))))
-  
-  d<-d[,c("Qcms", "Date", "Discharge_File_Name")]
-  
-  d$Qcms <- as.numeric(d$Qcms)
-  
-  #convert date to date format
-  if(is.Date(d$Date)){
-
-    d$Date<-d$Date
-
-  } else{
-
-    #d<-date_format_guess(d,"Date", groups = TRUE, group_col = "LTER")
-    #d <- date_format_guess(data=d,date_col="Date", groups = DischargeFileName)
-    
-    format<-"%m/%d/%Y"
-    d$Date<-as.IDate(d$Date, format)
-    
-    #x = d %>% mutate(Date = as.character(Date)) %>% 
-     # date_format_guess(date_col="Date", groups = DischargeFileName) %>% 
-      #case_when(date_format_guess == "year/month/day" ~ as.Date(Date, ""))
-
-  }
-
-  d$Qcms <- as.numeric(d$Qcms)
-  
-  n_missing_after <- sum(is.na(d$Qcms))
-  
-  if(n_missing_after > n_missing){
-    na_introduced_list[[file_name_nocsv]] <- data.frame(
-      Discharge_File_Name = file_name_nocsv,
-      Missing_Before = n_missing,
-      Missing_After = n_missing_after,
-      New_NAs_Introduced = n_missing_after - n_missing)
-      #Flagged_Units_Value = unique(d$Units)[!unique(d$Units) %in% c("cms","cfs","Ls","cmh","cmd")]
-    #)
-  }
-  
-  print(is(d$Date)) # check date format as list is created
-  print(head(d))
-  data_list[[i]] = d
+for (i in seq_along(discharge_files)) {
+  file_name <- discharge_files[i]
+  file_name_nocsv <- tools::file_path_sans_ext(file_name)
+  original <- data.table::fread(file.path(path2, "discharge_raw", file_name),
+    showProgress = FALSE)
+  original <- restore_original_discharge(original, file_name_nocsv, ref_table, source_cache,
+    shingle_source_file = shingle_source_file)
+  data_list[[i]] <- prepare_daily_discharge(
+    original, file_name_nocsv, ref_table, DischargeList, DateList
+  )
+  data_list[[i]] <- add_verified_discharge(data_list[[i]], discharge_additions)
 }
 
-
-
 ### Create data frame from list - use bind_rows to concatenate each new discharge file
-# should have 3 columns: date, site, discharge
+# daily values retain the discharge filename and preparation flags
 disc_v1 = bind_rows(data_list)
 
 
 # QA/QC of combined file --------------------------------------------------
 
-## pull out dataset, stream information from reference table
-name_table <-  QLog %>%
-  select(LTER,Stream_Name,Discharge_File_Name)
-
-# Evaluate NAs - look at percent of original files containing missing discharge data
-na_summary <- rbindlist(na_list)
-print(na_summary)
-
-# files with introduced NAs after combining 
-# largely due to missing units in site reference table
-na_introduced_summary <- rbindlist(na_introduced_list)
-
-# join again with reference table so only reflects datasets we want to keep
-disc_v2 <- disc_v1 %>% 
-  left_join(y=name_table,by="Discharge_File_Name", relationship="many-to-many")
+# preserve shared gauges without duplicating the same file-to-site mapping
+disc_v2 <- attach_discharge_sites(disc_v1, ref_table)
 
 # checking files where dates got converted to NA
 disc_v2 %>% 
@@ -341,7 +297,7 @@ date <- gsub(pattern = "-", replacement = "", x = Sys.Date())
 write.csv(x = disc_v4, file = file.path(path2,"discharge_tidy", disc_filename), na = '', row.names = F)
 
 # write to google drive
-googledrive::drive_upload(media = file.path(path2,"discharge_tidy", disc_filename), overwrite = T,
+if (upload_outputs) googledrive::drive_upload(media = file.path(path2,"discharge_tidy", disc_filename), overwrite = T,
                           path = googledrive::as_id("https://drive.google.com/drive/u/0/folders/1hbkUsTdo4WAEUnlPReOUuXdeeXm92mg-"))
 
 ########################################################################
@@ -353,12 +309,14 @@ googledrive::drive_upload(media = file.path(path2,"discharge_tidy", disc_filenam
 write.csv(x = check_files, file = file.path(path2,"discharge_tidy", filename), na = '', row.names = F)
 
 # write to google drive
-googledrive::drive_upload(media = file.path(path2,"discharge_tidy", filename), overwrite = T,
+if (upload_outputs) googledrive::drive_upload(media = file.path(path2,"discharge_tidy", filename), overwrite = T,
                           path = googledrive::as_id("https://drive.google.com/drive/u/0/folders/1hbkUsTdo4WAEUnlPReOUuXdeeXm92mg-"))
 
 
 
 ### reviewing files
+# older source-editing examples below are not part of the master discharge run
+if (FALSE) {
 filter(all_discharge_save, DischargeFileName == "AL02.3M_Q")
 
 
@@ -446,3 +404,4 @@ AUS_dat %>%
 # #write master discharge file to .csv
 # setwd("L:/GitHub/SiSyn/Merge Site Discharge")
 # write.csv(all_discharge_longterm, file="WRTDS_discharge_allsites_11Aug21.csv")
+}

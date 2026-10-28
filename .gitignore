@@ -63,3 +63,6 @@ WRTDS*/
 keys/
 chem_raw/
 tidy/
+
+# local discharge source downloads
+discharge-inputs/
