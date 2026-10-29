@@ -1617,23 +1617,12 @@ dir.create(path = file.path(path, "tidy"), showWarnings = F)
 #   days <- data |>
 #     dplyr::group_by(LTER, Stream_Name, date, solute, solute_units) |>
 #     dplyr::summarise(
-#       detected = sum(sample_qualifier == ""),
-#       below = sum(sample_qualifier == "<"),
-#       above = sum(sample_qualifier == ">"),
-#       value = if (detected > 0L) mean(sample_value[sample_qualifier == ""]) else mean(sample_value),
-#       qualifier = if (detected > 0L) NA_character_ else dplyr::first(sample_qualifier),
-#       estimated = any(source_lab_flag == "estimated value", na.rm = TRUE),
-#       source_lab_flag = reduce_daily_flag(
-#         source_lab_flag[source_lab_flag != "estimated value"], "GEMS lab"),
+#       source_lab_flag = daily_lab_flag(sample_qualifier, source_lab_flag),
+#       value = daily_limit_mean(sample_value, sample_qualifier),
+#       qualifier = if (all(sample_qualifier == ">")) ">" else NA_character_,
 #       source_method_flag = reduce_daily_flag(source_method_flag, "GEMS method"),
 #       .groups = "drop"
 #     )
-#   calculated_flag <- daily_lab_flag(days$detected, days$below, days$above)
-#   conflict <- !is.na(calculated_flag) & !is.na(days$source_lab_flag) &
-#     calculated_flag != days$source_lab_flag
-#   if (any(conflict)) stop("GEMS source and daily detection-limit flags conflict")
-#   days$source_lab_flag <- add_estimated_lab_flag(
-#     dplyr::coalesce(calculated_flag, days$source_lab_flag), days$estimated)
 #   days |>
 #     dplyr::mutate(amount = format_amount(value, qualifier)) |>
 #     dplyr::select(LTER, Stream_Name, date, solute, solute_units, amount,
@@ -2304,15 +2293,16 @@ dir.create(path = file.path(path, "tidy"), showWarnings = F)
 #   dplyr::filter(variable != "alkalinity") %>%
 #   dplyr::bind_rows(canada_alkalinity_source)
 #
-# # average only detected values when some samples are below a limit
-# # if all samples are below the limit, average the thresholds and keep the sign
+# # include each below-limit sample at half its reported threshold
 # canada_daily <- canada_selected_source %>%
 #   dplyr::group_by(Stream_Name, date, variable, units) %>%
 #   dplyr::summarize(
 #     any_censored = any(censored),
 #     all_censored = all(censored),
-#     value = if (all_censored) mean(value) else mean(value[detected]),
-#     value_qualifier = if (all_censored) "<" else NA_character_,
+#     below_count = sum(censored),
+#     observation_count = dplyr::n(),
+#     value = daily_limit_mean(value, ifelse(censored, "<", "")),
+#     value_qualifier = NA_character_,
 #     source_method_flag = {
 #       method_flags <- unique(source_method_flag[
 #         !is.na(source_method_flag) & source_method_flag != ""
@@ -2324,6 +2314,11 @@ dir.create(path = file.path(path, "tidy"), showWarnings = F)
 #     },
 #     .groups = "drop"
 #   )
+#
+# if (sum(canada_daily$below_count) != sum(canada_selected_source$censored) ||
+#     sum(canada_daily$observation_count) != nrow(canada_selected_source)) {
+#   stop("the Canada daily substitution counts lost source observations")
+# }
 #
 # canada_sensitive_variables <- c(
 #   "alkalinity",
@@ -2344,12 +2339,7 @@ dir.create(path = file.path(path, "tidy"), showWarnings = F)
 #   dplyr::transmute(
 #     LTER = "Canada",
 #     Stream_Name,
-#     source_lab_flag = dplyr::case_when(
-#       any_censored & !all_censored ~
-#         "below-limit results excluded from daily mean",
-#       all_censored ~ "below reported limit",
-#       TRUE ~ NA_character_
-#     ),
+#     source_lab_flag = half_limit_flag(below_count, observation_count),
 #     source_method_flag,
 #     date,
 #     solute,
@@ -2372,24 +2362,19 @@ dir.create(path = file.path(path, "tidy"), showWarnings = F)
 #   stop("the reviewed Canada output rows changed")
 # }
 #
-# canada_sensitive_output <- canada_output %>%
-#   dplyr::semi_join(
-#     canada_raw_map %>%
-#       dplyr::filter(variable %in% canada_sensitive_variables) %>%
-#       dplyr::select(solute, solute_units),
-#     by = c("solute", "solute_units")
-#   )
-#
-# canada_sensitive_review <- canada_sensitive_output %>%
+# # check the reviewed original daily groups, not less-than signs on calculated means
+# canada_sensitive_review <- canada_daily %>%
+#   dplyr::filter(variable %in% canada_sensitive_variables) %>%
+#   dplyr::left_join(canada_raw_map, by = c("variable", "units")) %>%
 #   dplyr::group_by(solute) %>%
 #   dplyr::summarize(
 #     rows = dplyr::n(),
-#     less_than = sum(grepl("^<", amount)),
+#     all_below_days = sum(all_censored),
 #     .groups = "drop"
 #   )
 #
 # canada_sensitive_expected <- tibble::tribble(
-#   ~solute, ~rows, ~less_than,
+#   ~solute, ~rows, ~all_below_days,
 #   "alkalinity", 13910L, 52L,
 #   "conductivity", 232L, 0L,
 #   "specific conductivity", 11208L, 0L,
@@ -2414,7 +2399,7 @@ dir.create(path = file.path(path, "tidy"), showWarnings = F)
 #         "=",
 #         canada_sensitive_review$rows,
 #         "/",
-#         canada_sensitive_review$less_than
+#         canada_sensitive_review$all_below_days
 #       ),
 #       collapse = "; "
 #     )
@@ -2523,7 +2508,7 @@ dir.create(path = file.path(path, "tidy"), showWarnings = F)
 #       canada_output$solute,
 #       canada_output$solute_units
 #     ) != 226083L ||
-#     sum(grepl("^<", canada_output$amount)) != 11000L ||
+#     any(grepl("^<", canada_output$amount)) ||
 #     any(canada_output$source_method_flag ==
 #       "soluble reactive SiO2, ECCC", na.rm = TRUE)
 # ) {
@@ -2534,10 +2519,9 @@ dir.create(path = file.path(path, "tidy"), showWarnings = F)
 # # the final master keeps 11295 total and 2131 gran fallback rows
 # if (
 #   nrow(canada_output) != 226083L ||
-#     sum(canada_output$source_lab_flag ==
-#       "below reported limit", na.rm = TRUE) != 11000L ||
-#     sum(canada_output$source_lab_flag ==
-#       "below-limit results excluded from daily mean", na.rm = TRUE) != 517L ||
+#     sum(canada_daily$all_censored) != 11000L ||
+#     sum(canada_daily$any_censored & !canada_daily$all_censored) != 517L ||
+#     sum(is_half_limit_flag(canada_output$source_lab_flag)) != 11517L ||
 #     sum(canada_output$source_method_flag ==
 #       "soluble reactive Si, filtered ICP-OES", na.rm = TRUE) != 4366L ||
 #     any(canada_output$source_method_flag ==
@@ -2555,11 +2539,10 @@ dir.create(path = file.path(path, "tidy"), showWarnings = F)
 #     "the prepared Canada lab or method flags changed: rows=",
 #     nrow(canada_output),
 #     ", below=",
-#     sum(canada_output$source_lab_flag == "below reported limit", na.rm = TRUE),
+#     sum(canada_daily$all_censored),
 #     ", mixed=",
 #     sum(
-#       canada_output$source_lab_flag ==
-#         "below-limit results excluded from daily mean",
+#       canada_daily$any_censored & !canada_daily$all_censored,
 #       na.rm = TRUE
 #     ),
 #     ", field_ph=",
@@ -2816,8 +2799,7 @@ dir.create(path = file.path(path, "tidy"), showWarnings = F)
 # # 2,976 flags occur on ordinary italian field values such as temperature and ph
 # # keep their numeric values and record that the flag meaning still needs review
 #
-# # average only detected values when some samples are below a limit
-# # if all samples are below the limit, average the thresholds and keep the sign
+# # include confirmed below-limit chemistry at half its reported threshold
 # gems_safe_depth_review <- gems_source %>%
 #   dplyr::filter(safe) %>%
 #   dplyr::group_by(Stream_Name, date, variable) %>%
@@ -2847,7 +2829,6 @@ dir.create(path = file.path(path, "tidy"), showWarnings = F)
 #     all_censored = all(censored),
 #     mixed = any_censored & !all_censored
 #   ) %>%
-#   dplyr::filter(all_censored | !censored) %>%
 #   dplyr::ungroup() %>%
 #   dplyr::group_by(
 #     Stream_Name,
@@ -2859,8 +2840,10 @@ dir.create(path = file.path(path, "tidy"), showWarnings = F)
 #     mixed
 #   ) %>%
 #   dplyr::summarize(
-#     value = mean(source_value * conversion),
-#     value_qualifier = if (dplyr::first(all_censored)) "<" else NA_character_,
+#     below_count = sum(censored),
+#     observation_count = dplyr::n(),
+#     value = daily_limit_mean(source_value * conversion, ifelse(censored, "<", "")),
+#     value_qualifier = NA_character_,
 #     source_method_flag = combine_method_flags(
 #       dplyr::case_when(
 #         dplyr::first(parameter_code) == "SiO2-Dis" ~
@@ -2877,6 +2860,13 @@ dir.create(path = file.path(path, "tidy"), showWarnings = F)
 #     ),
 #     .groups = "drop"
 #   )
+#
+# if (sum(gems_daily$below_count) != sum(gems_safe_depth_review$censored[
+#     gems_safe_depth_review$depth_order == gems_safe_depth_review$selected_depth]) ||
+#     sum(gems_daily$observation_count) != sum(
+#       gems_safe_depth_review$depth_order == gems_safe_depth_review$selected_depth)) {
+#   stop("the GEMS daily substitution counts lost source observations")
+# }
 #
 # gems_replacements <- gems_daily %>%
 #   dplyr::filter(any_censored) %>%
@@ -2912,10 +2902,7 @@ dir.create(path = file.path(path, "tidy"), showWarnings = F)
 #     sum(!is.na(gems_review$current_value[gems_review$all_censored])) != 56L ||
 #     sum(is.na(gems_review$current_value[gems_review$all_censored])) != 4234L ||
 #     any(is.na(gems_review$current_value[gems_review$mixed])) ||
-#     any(!dplyr::near(
-#       suppressWarnings(as.numeric(gems_review$amount[gems_review$mixed])),
-#       gems_review$current_value[gems_review$mixed]
-#     ))
+#     any(!is.finite(suppressWarnings(as.numeric(gems_review$amount))))
 # ) {
 #   stop(
 #     "the reviewed GEMS replacement values changed: replacements=",
@@ -2928,11 +2915,8 @@ dir.create(path = file.path(path, "tidy"), showWarnings = F)
 #     sum(is.na(gems_review$current_value[gems_review$all_censored])),
 #     ", missing old mixed=",
 #     sum(is.na(gems_review$current_value[gems_review$mixed])),
-#     ", changed old mixed=",
-#     sum(!dplyr::near(
-#       suppressWarnings(as.numeric(gems_review$amount[gems_review$mixed])),
-#       gems_review$current_value[gems_review$mixed]
-#     ), na.rm = TRUE)
+#     ", invalid new means=",
+#     sum(!is.finite(suppressWarnings(as.numeric(gems_review$amount))))
 #   )
 # }
 #
@@ -3266,10 +3250,9 @@ dir.create(path = file.path(path, "tidy"), showWarnings = F)
 #       gems_output$solute,
 #       gems_output$solute_units
 #     ) != 865002L ||
-#     sum(grepl("^<", gems_output$amount)) != 4290L ||
+#     any(grepl("^<", gems_output$amount)) ||
 #     nrow(dplyr::filter(gems_output, solute == "NHX")) != 26668L ||
-#     sum(grepl("^<", dplyr::filter(gems_output, solute == "NHX")$amount)) !=
-#       494L ||
+#     any(grepl("^<", dplyr::filter(gems_output, solute == "NHX")$amount)) ||
 #     any(gems_output$solute == "NH4")
 # ) {
 #   stop(
@@ -3296,11 +3279,7 @@ dir.create(path = file.path(path, "tidy"), showWarnings = F)
 #     date,
 #     solute = variable,
 #     solute_units = units,
-#     source_safe_lab_flag = dplyr::case_when(
-#       mixed ~ "below-limit results excluded from daily mean",
-#       all_censored ~ "below reported limit",
-#       TRUE ~ NA_character_
-#     )
+#     source_safe_lab_flag = half_limit_flag(below_count, observation_count)
 #   ) %>%
 #   dplyr::distinct()
 #
@@ -3320,10 +3299,7 @@ dir.create(path = file.path(path, "tidy"), showWarnings = F)
 #
 # if (
 #   nrow(gems_output) != 865002L ||
-#     sum(gems_output$source_lab_flag ==
-#       "below reported limit", na.rm = TRUE) != 4290L ||
-#     sum(gems_output$source_lab_flag ==
-#       "below-limit results excluded from daily mean", na.rm = TRUE) != 9L ||
+#     sum(is_half_limit_flag(gems_output$source_lab_flag)) != 4299L ||
 #     sum(gems_output$source_lab_flag ==
 #       "provider < flag; meaning not confirmed", na.rm = TRUE) != 2912L ||
 #     sum(has_method_flag(
@@ -3415,23 +3391,27 @@ dir.create(path = file.path(path, "tidy"), showWarnings = F)
 #   dplyr::filter(priority == min(priority)) %>%
 #   dplyr::ungroup()
 #
-# # average only detected values when some samples are below a limit
-# # if all samples are below the limit, average the thresholds and keep the sign
+# # use half the detection limit for each below-limit sample before averaging
 # danube_daily <- danube_source %>%
 #   dplyr::group_by(Stream_Name, date, variable) %>%
 #   dplyr::summarize(
 #     any_censored = any(censored),
 #     all_censored = all(censored),
 #     mixed = any_censored & !all_censored,
-#     value = if (all_censored) {
-#       mean(detection_limit * conversion)
-#     } else {
-#       mean(value_calc[!censored] * conversion[!censored])
-#     },
-#     value_qualifier = if (all_censored) "<" else NA_character_,
+#     below_count = sum(censored),
+#     observation_count = dplyr::n(),
+#     value = daily_limit_mean(
+#       ifelse(censored, detection_limit, value_calc) * conversion,
+#       ifelse(censored, "<", "")),
+#     value_qualifier = NA_character_,
 #     source_method_flag = NA_character_,
 #     .groups = "drop"
 #   )
+#
+# if (sum(danube_daily$below_count) != sum(danube_source$censored) ||
+#     sum(danube_daily$observation_count) != nrow(danube_source)) {
+#   stop("the Danube daily substitution counts lost source observations")
+# }
 #
 # # build the prepared file from the original source download
 # # do not rely on older generated files for individual sites
@@ -3439,11 +3419,7 @@ dir.create(path = file.path(path, "tidy"), showWarnings = F)
 #   dplyr::transmute(
 #     LTER = "Danube",
 #     Stream_Name,
-#     source_lab_flag = dplyr::case_when(
-#       mixed ~ "below-limit results excluded from daily mean",
-#       all_censored ~ "below reported limit",
-#       TRUE ~ NA_character_
-#     ),
+#     source_lab_flag = half_limit_flag(below_count, observation_count),
 #     source_method_flag,
 #     date,
 #     solute = variable,
@@ -3463,12 +3439,9 @@ dir.create(path = file.path(path, "tidy"), showWarnings = F)
 #       danube_output$solute,
 #       danube_output$solute_units
 #     ) != 239963L ||
-#     sum(grepl("^<", danube_output$amount)) != 5496L ||
+#     any(grepl("^<", danube_output$amount)) ||
 #     any(grepl("^>", danube_output$amount)) ||
-#     sum(danube_output$source_lab_flag ==
-#       "below-limit results excluded from daily mean", na.rm = TRUE) != 757L ||
-#     sum(danube_output$source_lab_flag ==
-#       "below reported limit", na.rm = TRUE) != 5496L ||
+#     sum(is_half_limit_flag(danube_output$source_lab_flag)) != 6253L ||
 #     any(!is.na(danube_output$source_method_flag))
 # ) {
 #   stop("the reviewed Danube daily qualifier groups changed")
@@ -5429,6 +5402,10 @@ dir.create(path = file.path(path, "tidy"), showWarnings = F)
 #   filename <- "Alpine_Clean.csv"
 #   before <- read_source(filename)
 #   after <- before
+#   # keep ammonium on its confirmed nh4 basis for every year
+#   ammonium <- before$parameter == "nh4_mgl"
+#   assert_count(sum(ammonium & !is_blank(before$value)), 3037L,
+#                "Alpine retained ammonium source results")
 #   value_number <- as_number(before$value)
 #   source_key <- paste(before$site, before$date, sep = "\r")
 #   field_rows <- before$parameter == "fldph" & !is.na(value_number)
@@ -5600,6 +5577,10 @@ dir.create(path = file.path(path, "tidy"), showWarnings = F)
 #     28L,
 #     "prepared Alpine retained cold-temperature rows"
 #   )
+#
+#   if (!same_character(before$value[ammonium], after$value[ammonium])) {
+#     stop("Alpine ammonium source values changed during preparation")
+#   }
 #
 #   write_prepared(filename, after)
 # }
@@ -5994,7 +5975,7 @@ dir.create(path = file.path(path, "tidy"), showWarnings = F)
 #     matched_rows = c(2445L, 7151L, 8646L, 8752L, 5450L, 8560L),
 #     selected_rows = c(2445L, 7149L, 8638L, 8750L, 5448L, 8560L),
 #     provider_days = c(2445L, 7147L, 8638L, 8750L, 5448L, 8559L),
-#     qualified_days = c(409L, 1375L, 1906L, 2240L, 880L, 1283L),
+#     all_below_days = c(409L, 1375L, 1906L, 2240L, 880L, 1283L),
 #     dissolved_si_days = c(48L, 119L, 111L, 153L, 78L, 91L),
 #     legacy_rows = c(3L, 0L, 0L, 0L, 5L, 1L),
 #     final_rows = c(2448L, 7147L, 8638L, 8750L, 5453L, 8560L),
@@ -6415,27 +6396,14 @@ dir.create(path = file.path(path, "tidy"), showWarnings = F)
 #     "2041" = "laboratory conductivity fallback"
 #   )
 #
-#   # average only detected values when some canada samples are below a limit
-#   # if all samples are below the limit, average the thresholds and keep the sign
+#   # include each canada sample using half its threshold when it has a less-than flag
 #   daily_rows <- vector("list", length(daily_groups))
 #   names(daily_rows) <- names(daily_groups)
 #   for (group_number in seq_along(daily_groups)) {
 #     row_index <- daily_groups[[group_number]]
 #     detected <- !selected$censored[row_index]
-#     has_detections <- any(detected)
-#     has_limits <- any(!detected)
 #
-#     # detected measurements alone define the mean on mixed days
-#     used_rows <- row_index
-#     source_lab_flag <- NA_character_
-#     if (has_detections) {
-#       used_rows <- row_index[detected]
-#       if (has_limits) {
-#         source_lab_flag <- "below-limit results excluded from daily mean"
-#       }
-#     } else {
-#       source_lab_flag <- "below reported limit"
-#     }
+#     source_lab_flag <- half_limit_flag(sum(!detected), length(row_index))
 #     source_method_values <- unique(unname(
 #       method_flag_by_code[selected$VMV_CODE[row_index]]
 #     ))
@@ -6448,13 +6416,11 @@ dir.create(path = file.path(path, "tidy"), showWarnings = F)
 #     } else {
 #       NA_character_
 #     }
-#     daily_value <- mean(selected$converted_value[used_rows])
+#     daily_value <- daily_limit_mean(selected$converted_value[row_index],
+#       ifelse(selected$censored[row_index], "<", ""))
 #     amount <- sprintf("%.17g", daily_value)
-#     if (!has_detections) {
-#       amount <- paste0("<", amount)
-#     }
 #
-#     # keep original source details from all samples, even those left out of the average
+#     # keep original source details from every sample included in the average
 #     daily_rows[[group_number]] <- data.frame(
 #       LTER = "Canada",
 #       Stream_Name = site_plan$stream_name[
@@ -6494,9 +6460,24 @@ dir.create(path = file.path(path, "tidy"), showWarnings = F)
 #   daily <- do.call(rbind, daily_rows)
 #   rownames(daily) <- NULL
 #
+#   # count original below-limit samples separately from the calculated daily flags
+#   daily_below_count <- vapply(daily_groups, function(rows) {
+#     sum(selected$censored[rows])
+#   }, integer(1))
+#   daily_all_below <- daily_below_count == lengths(daily_groups)
+#   daily_mixed <- daily_below_count > 0L & !daily_all_below
+#   assert_count(sum(daily_all_below), 8093L, "Canada all-below-limit days")
+#   assert_count(sum(daily_mixed), 1L, "Canada mixed detected and below-limit days")
+#   assert_count(sum(daily_below_count), 8095L, "Canada below-limit source samples")
+#   if (!identical(unname(half_limit_flag(daily_below_count, lengths(daily_groups))),
+#       daily$Source_Lab_Flag)) {
+#     stop("Canada daily flags lost the original below-limit sample counts")
+#   }
+#
 #   assert_count(nrow(daily), 40987L, "official Canada provider daily keys")
-#   assert_count(sum(grepl("^<", daily$amount)), 8093L,
-#                "official Canada provider qualified daily keys")
+#   assert_count(sum(is_half_limit_flag(daily$Source_Lab_Flag)), 8094L,
+#                "official Canada daily half-limit flags")
+#   if (any(grepl("^<", daily$amount))) stop("an unconverted Canada limit remains")
 #   assert_count(sum(daily$solute == "NO3"), 2139L,
 #                "official Canada provider nitrate days")
 #   assert_count(sum(daily$solute == "DSi"), 600L,
@@ -6523,9 +6504,14 @@ dir.create(path = file.path(path, "tidy"), showWarnings = F)
 #       paste0(site_plan$site_no[site_row], " Canada provider daily keys")
 #     )
 #     assert_count(
-#       sum(site_daily & grepl("^<", daily$amount)),
-#       site_plan$qualified_days[site_row],
-#       paste0(site_plan$site_no[site_row], " qualified Canada provider days")
+#       sum(site_daily & daily_all_below),
+#       site_plan$all_below_days[site_row],
+#       paste0(site_plan$site_no[site_row], " all-below-limit Canada days")
+#     )
+#     assert_count(
+#       sum(site_daily & is_half_limit_flag(daily$Source_Lab_Flag)),
+#       site_plan$all_below_days[site_row] + sum(site_daily & daily_mixed),
+#       paste0(site_plan$site_no[site_row], " half-limit Canada daily flags")
 #     )
 #   }
 #
@@ -6671,8 +6657,8 @@ dir.create(path = file.path(path, "tidy"), showWarnings = F)
 #   combined <- rbind(daily, legacy)
 #   assert_count(nrow(combined), 40996L,
 #                "provider and legacy Canada output rows")
-#   assert_count(sum(grepl("^<", combined$amount)), 8093L,
-#                "qualified provider and legacy Canada rows")
+#   assert_count(sum(is_half_limit_flag(combined$Source_Lab_Flag)), 8094L,
+#                "provider and legacy Canada daily half-limit flags")
 #   assert_count(length(unique(combined$solute)), 35L,
 #                "prepared Canada solutes")
 #   assert_count(sum(combined$solute == "NH4"), 0L,
@@ -7719,7 +7705,7 @@ dir.create(path = file.path(path, "tidy"), showWarnings = F)
 #     label = "NT/NSW"
 #   )
 #
-#   # the combined file does not identify the si fraction or reporting basis
+#   # the combined file does not identify the si fraction
 #   legacy_si <- after$Parameter == "Si"
 #   assert_count(sum(legacy_si, na.rm = TRUE), 7371L, "NT/NSW generic Si rows")
 #   assert_count(
@@ -7791,7 +7777,6 @@ dir.create(path = file.path(path, "tidy"), showWarnings = F)
 #     stop("the NT/NSW provider-confirmed silica contains blank values")
 #   }
 #
-#   after$Source_Method_Flag <- NA_character_
 #   si_rows <- after[rep(1L, nrow(reviewed_provider)), , drop = FALSE]
 #   si_rows[[1L]] <- paste0(
 #     "MDBA-",
@@ -7805,7 +7790,6 @@ dir.create(path = file.path(path, "tidy"), showWarnings = F)
 #   si_rows$Value <- reviewed_provider$Value
 #   si_rows$Unit <- "mg SiO2/L"
 #   si_rows$Name <- reviewed_provider[["Station Name"]]
-#   si_rows$Source_Method_Flag <- "reported as Silica - Soluble (RMWQMP)"
 #
 #   after <- rbind(after[!legacy_si, , drop = FALSE], si_rows)
 #   rownames(after) <- NULL
@@ -7925,6 +7909,18 @@ dir.create(path = file.path(path, "tidy"), showWarnings = F)
 # validate_long_units_key <- function() {
 #   data_key <- read_source("SiSyn_Data_Key.csv", directory = key_dir)
 #   units_key <- read_source("SiSyn_Chem_Units_Key.csv", directory = key_dir)
+#   # these reporting bases are confirmed, not assumptions needing a method flag
+#   confirmed_units <- list(
+#     c("Alpine_Clean.csv", "nh4_mgl", "mg NH4/L"),
+#     c("MurrayDarlingChem_Merged.csv", "Si", "mg SiO2/L"),
+#     c("NT_NSW_Chem_Cleaned.csv", "Si", "mg SiO2/L")
+#   )
+#   for (entry in confirmed_units) {
+#     selected <- units_key$Raw_Filename == entry[1] & units_key$Variable == entry[2]
+#     selected[is.na(selected)] <- FALSE
+#     assert_count(sum(selected), 1L, paste(entry[1], entry[2], "units-key rows"))
+#     if (units_key$Units[selected] != entry[3]) stop("check the confirmed reporting unit for ", entry[1])
+#   }
 #   canada_alkalinity <- units_key$Raw_Filename %in% canada_site_files &
 #     units_key$Variable == "alkalinity" & units_key$Units == "uM"
 #   canada_alkalinity_fixed <- units_key$Raw_Filename %in% canada_site_files &
@@ -8560,8 +8556,8 @@ dir.create(path = file.path(path, "tidy"), showWarnings = F)
 #   assert_count(sum(selected$above_limit & selected$threshold_uM <= 0), 0L,
 #                "nonpositive USGS total-nitrogen lower limits")
 #
-#   # detected usgs nitrogen results define the daily mean when the day also has limits
-#   # all-limit days retain their inequality qualifier
+#   # check the reviewed mix of original detections and limits on each day
+#   # keep individual results below so the master can apply half-limit averaging
 #   daily_review <- selected[, {
 #     if (any(detected)) {
 #       list(
@@ -11112,9 +11108,7 @@ ref_table <- read.csv(file = file.path(path, "keys", paste0("Site_Reference_Tabl
 # allowed_value_qualifiers <- c("<", ">")
 # allowed_date_flags <- c("corrected", "inferred", "restored")
 # allowed_source_lab_flags <- c(
-#   "below reported limit",
 #   "above reported limit",
-#   "below-limit results excluded from daily mean",
 #   "above-limit results excluded from daily mean",
 #   "reported value below historical detection limit",
 #   "provider < flag; meaning not confirmed",
@@ -11177,9 +11171,7 @@ ref_table <- read.csv(file = file.path(path, "keys", paste0("Site_Reference_Tabl
 #   corrected_date_rows = 2059L,
 #   inferred_date_rows = 79L,
 #   restored_date_rows = 0L,
-#   less_than_rows = 58820L,
 #   greater_than_rows = 43L,
-#   mixed_below_daily_rows = 914L,
 #   final_rows = 4686420L,
 #   final_sites = 1170L,
 #   final_silicon_sites = 1170L,
@@ -11522,7 +11514,7 @@ ref_table <- read.csv(file = file.path(path, "keys", paste0("Site_Reference_Tabl
 #     is_above = is_above
 #   )
 # }
-# # average repeated values while keeping a reported limit when needed
+# # reproduce the previous grouping only for days without below-limit samples
 # mean_qualified_measurement <- function(values, missing_tokens = character()) {
 #   parsed <- parse_qualified_numbers(values, missing_tokens)
 #   detected <- parsed$numbers[
@@ -11724,6 +11716,52 @@ ref_table <- read.csv(file = file.path(path, "keys", paste0("Site_Reference_Tabl
 # }
 #
 # # ---- daily flags ----
+# # use half the reported threshold only for confirmed less-than results
+# # a calculated mean is an estimate, not a new detection threshold
+# daily_limit_mean <- function(value, qualifier) {
+#   below <- !is.na(qualifier) & qualifier == "<"
+#   above <- !is.na(qualifier) & qualifier == ">"
+#   if (any(below) && any(above)) {
+#     stop("less-than and greater-than results share a daily source key", call. = FALSE)
+#   }
+#   if (any(below & (!is.finite(value) | value <= 0))) {
+#     stop("a less-than result has no usable threshold", call. = FALSE)
+#   }
+#   value[below] <- value[below] / 2
+#   if (any(!above)) return(mean(value[!above]))
+#   mean(value)
+# }
+#
+# # name the substituted samples out of all observations used in the daily average
+# half_limit_flag <- function(count, total) {
+#   if (length(count) != length(total) || anyNA(count) || anyNA(total) ||
+#       any(!is.finite(count) | !is.finite(total)) ||
+#       any(count < 0 | total < count | count != floor(count) | total != floor(total))) {
+#     stop("daily substitution counts must be whole numbers within the observation total", call. = FALSE)
+#   }
+#   ifelse(count > 0L,
+#     paste0("half reported limit used for ", count, " of ", total,
+#       ifelse(total == 1L, " observation", " observations"), " in daily average"),
+#     NA_character_)
+# }
+#
+# is_half_limit_flag <- function(flag) {
+#   matched <- !is.na(flag) & grepl(paste0(
+#     "^half reported limit used for [1-9][0-9]* of [1-9][0-9]* observations? in daily average",
+#     "(; estimated value)?$"), flag)
+#   count <- suppressWarnings(as.numeric(sub(
+#     "^half reported limit used for ([0-9]+) of .*$", "\\1", flag[matched])))
+#   total <- suppressWarnings(as.numeric(sub(
+#     "^half reported limit used for [0-9]+ of ([0-9]+) .*$", "\\1", flag[matched])))
+#   matched[matched] <- is.finite(count) & is.finite(total) & count <= total
+#   matched
+# }
+#
+# # accept counted substitution flags without listing every possible count
+# lab_flags_supported <- function(flags, allowed) {
+#   is.na(flags) | flags == "" | flags %in% allowed | is_half_limit_flag(flags)
+# }
+#
 # # an estimate is a measurement, not a detection-limit threshold
 # interpret_gems_qualifiers <- function(qualifier, limit_is_clear) {
 #   qualifier <- dplyr::coalesce(trimws(as.character(qualifier)), "")
@@ -11739,7 +11777,7 @@ ref_table <- read.csv(file = file.path(path, "keys", paste0("Site_Reference_Tabl
 #   list(qualifier = qualifier, lab_flag = lab_flag)
 # }
 #
-# # keep the estimate note alongside any note about excluded daily samples
+# # keep the estimate note alongside the daily substitution count
 # add_estimated_lab_flag <- function(flag, estimated) {
 #   dplyr::case_when(
 #     estimated & !is.na(flag) ~ paste0(flag, "; estimated value"),
@@ -11760,18 +11798,37 @@ ref_table <- read.csv(file = file.path(path, "keys", paste0("Site_Reference_Tabl
 #   }
 #   flags[[1]]
 # }
-# # describe how reported limits contributed to one daily value
-# daily_lab_flag <- function(detected, below, above) {
-#   if (isTRUE(any(below > 0L & above > 0L))) {
+# # describe substitutions, observation totals, and estimates in one daily flag
+# daily_lab_flag <- function(qualifier, source) {
+#   estimated <- any(grepl("(^|; )estimated value$", source))
+#   source <- sub("; estimated value$", "", source)
+#   source[source == "estimated value"] <- NA_character_
+#   below <- !is.na(qualifier) & qualifier == "<"
+#   above <- !is.na(qualifier) & qualifier == ">"
+#   if (any(below) && any(above)) {
 #     stop("less-than and greater-than results share a daily source key", call. = FALSE)
 #   }
-#   dplyr::case_when(
-#     detected > 0L & below > 0L ~ "below-limit results excluded from daily mean",
-#     detected > 0L & above > 0L ~ "above-limit results excluded from daily mean",
-#     detected == 0L & below > 0L ~ "below reported limit",
-#     detected == 0L & above > 0L ~ "above reported limit",
-#     TRUE ~ NA_character_
-#   )
+#   # prepared estimates carry their original counts and need no new substitution
+#   prepared <- is_half_limit_flag(source)
+#   if (any(prepared) && any(above)) {
+#     stop("source and daily lab flags conflict", call. = FALSE)
+#   }
+#   count <- sum(below) + sum(as.numeric(sub(
+#     "^half reported limit used for ([0-9]+) of .*$", "\\1", source[prepared])))
+#   total <- sum(!above & !prepared) + sum(as.numeric(sub(
+#     "^half reported limit used for [0-9]+ of ([0-9]+) .*$", "\\1", source[prepared])))
+#   flag <- if (count > 0L) {
+#     half_limit_flag(count, total)
+#   } else if (any(above)) {
+#     if (all(above)) "above reported limit" else "above-limit results excluded from daily mean"
+#   } else {
+#     NA_character_
+#   }
+#   source_flag <- reduce_daily_flag(source[!prepared], "source lab")
+#   if (!is.na(flag) && !is.na(source_flag) && flag != source_flag) {
+#     stop("source and daily lab flags conflict", call. = FALSE)
+#   }
+#   add_estimated_lab_flag(dplyr::coalesce(flag, source_flag), estimated)
 # }
 #
 # # carry site and sample review notes into the final rows
@@ -11982,10 +12039,10 @@ ref_table <- read.csv(file = file.path(path, "keys", paste0("Site_Reference_Tabl
 # }
 #
 # # ---- prepare each source ----
-# harmonize_source <- function(file_name, data_key, units_key, run_input_dir, source_headers) {
+# harmonize_source <- function(file_name, data_key, units_key, run_input_dir, source_headers,
+#     keep_repeats = TRUE) {
 #   mean_measurement <- function(values) {
-#     missing_tokens <- unique(c(data_key$NA_indicator, fixed_missing_tokens))
-#     mean_qualified_measurement(values, missing_tokens)
+#     mean_qualified_measurement(values, unique(c(data_key$NA_indicator, fixed_missing_tokens)))
 #   }
 #   key_rows <- data_key |>
 #     dplyr::filter(
@@ -12050,8 +12107,10 @@ ref_table <- read.csv(file = file.path(path, "keys", paste0("Site_Reference_Tabl
 #       solute = tolower(gsub("/| |\\-", "_", solute)),
 #       solute_units = gsub("/| |\\-", "_", normalize_unit_label(solute_units)),
 #       solute_units = dplyr::na_if(solute_units, "")
-#     ) |>
-#     collapse_repeated_amounts(data_key$NA_indicator, mean_measurement)
+#     )
+#   if (!keep_repeats) {
+#     long_rows <- collapse_repeated_amounts(long_rows, data_key$NA_indicator, mean_measurement)
+#   }
 #   if (file_name == deduplicated_filename) {
 #     long_rows$solute_units[
 #       long_rows$solute == "nh4_mgl" & long_rows$solute_units == "mg_L"
@@ -12088,13 +12147,42 @@ ref_table <- read.csv(file = file.path(path, "keys", paste0("Site_Reference_Tabl
 #         paste0(solute, "_", Units)
 #       )
 #     ) |>
-#     dplyr::select(-solute, -solute_units, -Units, -unit_count) |>
-#     collapse_repeated_cells(mean_measurement)
-#   tidyr::pivot_wider(
+#     dplyr::select(-solute, -solute_units, -Units, -unit_count)
+#   sample_keys <- setdiff(names(wide_rows), "amount")
+#   has_repeats <- anyDuplicated(wide_rows[sample_keys]) > 0L
+#   if (keep_repeats) {
+#     # keep individual samples available for days using half-limit substitution
+#     wide_rows <- wide_rows |>
+#       dplyr::group_by(dplyr::across(dplyr::all_of(sample_keys))) |>
+#       dplyr::mutate(sample_row = dplyr::row_number()) |>
+#       dplyr::ungroup()
+#   } else {
+#     wide_rows <- collapse_repeated_cells(wide_rows, mean_measurement)
+#   }
+#   result <- tidyr::pivot_wider(
 #     wide_rows,
 #     names_from = standard_name,
 #     values_from = amount
-#   )
+#   ) |>
+#     dplyr::select(-dplyr::any_of("sample_row"))
+#   attr(result, "has_repeated_samples") <- has_repeats
+#   result
+# }
+#
+# # preserve previous grouping on unaffected days after site names and dates match
+# select_daily_inputs <- function(data) {
+#   data |>
+#     dplyr::group_by(Dataset, Raw_Filename, LTER, Stream_Name, date, variable, units) |>
+#     dplyr::mutate(
+#       use_samples = any(value_qualifier == "<", na.rm = TRUE) |
+#         any(is_half_limit_flag(source_lab_flag)) |
+#         !any(averaging_input == "existing"),
+#       keep_input = (use_samples & averaging_input == "samples") |
+#         (!use_samples & averaging_input == "existing")
+#     ) |>
+#     dplyr::filter(keep_input) |>
+#     dplyr::ungroup() |>
+#     dplyr::select(-averaging_input, -use_samples, -keep_input)
 # }
 # # ---- qualifiers and units ----
 # # put one source into the shared format before combining files
@@ -12843,8 +12931,17 @@ ref_table <- read.csv(file = file.path(path, "keys", paste0("Site_Reference_Tabl
 # # ---- prepare each source ----
 # # process each source separately to avoid one large table of mostly empty columns
 # standardize_source <- function(file_name) {
-#   harmonize_source(file_name, data_key, units_key, run_input_dir, source_headers) |>
-#     standardize_source_data(data_key)
+#   raw_samples <- harmonize_source(file_name, data_key, units_key, run_input_dir, source_headers)
+#   has_repeats <- isTRUE(attr(raw_samples, "has_repeated_samples"))
+#   samples <- standardize_source_data(raw_samples, data_key) |>
+#     dplyr::mutate(averaging_input = "samples")
+#   if (!has_repeats) return(samples)
+#   # keep the old grouping available so unaffected daily results do not change
+#   existing <- harmonize_source(file_name, data_key, units_key, run_input_dir, source_headers,
+#     keep_repeats = FALSE) |>
+#     standardize_source_data(data_key) |>
+#     dplyr::mutate(averaging_input = "existing")
+#   dplyr::bind_rows(samples, existing)
 # }
 #
 # ---- end replacement: main-source-reader ----
@@ -14337,6 +14434,9 @@ tidy_v8h <- tidy_v8g %>%
 #   dplyr::select(-date1, -date2, -date3, -day, -month, -year, -date_format)
 # stop_if(anyNA(chemistry_long$date), "unparsed or missing chemistry dates remain")
 #
+# # choose individual samples only where the half-limit rule is needed
+# chemistry_long <- select_daily_inputs(chemistry_long)
+#
 # # retain unverified seine si with a flag and remove confirmed unfiltered si
 # chemistry_long <- review_seine_si(chemistry_long, site_reference,
 #   file.path(root_dir, "keys", "seine_silica_provider_20261022.rds"))
@@ -14553,7 +14653,7 @@ dplyr::glimpse(tidy_v9f)
 #   any(
 #     !is.na(chemistry_long$source_lab_flag) &
 #       chemistry_long$source_lab_flag != "" &
-#       !chemistry_long$source_lab_flag %in% allowed_source_lab_flags
+#       !lab_flags_supported(chemistry_long$source_lab_flag, allowed_source_lab_flags)
 #   ),
 #   "unsupported source lab flags remain"
 # )
@@ -14577,40 +14677,20 @@ dplyr::glimpse(tidy_v9f)
 #   paste("unsupported source method flags:", paste(unknown_method_flags, collapse = ", "))
 # )
 # # daily averages are calculated after unit conversion and date checks
-# # average only detected values when other samples are below or above a limit
-# # flag that the below-limit or above-limit samples were left out of the average
-# # if every result has the same limit sign, average the thresholds and keep the sign
+# # include less-than samples at half their threshold and count them in the flag
+# # prepared daily estimates are already substituted and are not halved again
+# # greater-than handling stays unchanged
 # daily_rows <- chemistry_long |>
 #   dplyr::filter(!is.na(value)) |>
 #   dplyr::group_by(Dataset, Raw_Filename, LTER, Stream_Name, date, variable, units) |>
 #   dplyr::summarise(
-#     detected = sum(is.na(value_qualifier)),
-#     below = sum(value_qualifier == "<", na.rm = TRUE),
-#     above = sum(value_qualifier == ">", na.rm = TRUE),
-#     value = if (detected > 0L) mean(value[is.na(value_qualifier)]) else mean(value),
-#     value_qualifier = if (detected > 0L) NA_character_ else dplyr::first(value_qualifier),
-#     estimated = any(source_lab_flag == "estimated value", na.rm = TRUE),
-#     source_lab_flag = reduce_daily_flag(
-#       source_lab_flag[source_lab_flag != "estimated value"], "source lab"),
+#     Lab_Flag = daily_lab_flag(value_qualifier, source_lab_flag),
+#     value = daily_limit_mean(value, value_qualifier),
+#     value_qualifier = if (all(!is.na(value_qualifier) & value_qualifier == ">")) ">" else NA_character_,
 #     source_method_flag = reduce_daily_flag(source_method_flag, "source method"),
 #     .groups = "drop"
-#   )
-# daily_rows <- daily_rows |>
-#   dplyr::mutate(
-#     calculated_lab_flag = daily_lab_flag(detected, below, above)
-#   )
-# stop_if(
-#   any(
-#     !is.na(daily_rows$calculated_lab_flag) &
-#       !is.na(daily_rows$source_lab_flag) &
-#       daily_rows$calculated_lab_flag != daily_rows$source_lab_flag
-#   ),
-#   "source and qualifier-derived lab flags conflict"
-# )
-# daily_rows <- daily_rows |>
-#   dplyr::mutate(Lab_Flag = add_estimated_lab_flag(
-#     dplyr::coalesce(calculated_lab_flag, source_lab_flag), estimated)) |>
-#   dplyr::select(-detected, -below, -above, -estimated, -calculated_lab_flag, -source_lab_flag)
+#   ) |>
+#   dplyr::relocate(Lab_Flag, .after = source_method_flag)
 # # use the combined file only on dates it actually covers
 # preferred_rows <- daily_rows |>
 #   dplyr::filter(Raw_Filename == deduplicated_filename)
@@ -14697,7 +14777,7 @@ dplyr::glimpse(tidy_v9f)
 #   any(!is.na(master_chemistry$value_qualifier) &
 #         !master_chemistry$value_qualifier %in% allowed_value_qualifiers) ||
 #     any(!is.na(master_chemistry$Lab_Flag) &
-#           !master_chemistry$Lab_Flag %in% valid_lab_flags) ||
+#           !lab_flags_supported(master_chemistry$Lab_Flag, valid_lab_flags)) ||
 #     any(!is.na(master_chemistry$Date_Flag) &
 #           !master_chemistry$Date_Flag %in% allowed_date_flags) ||
 #     !source_method_flags_supported(
@@ -14732,8 +14812,7 @@ dplyr::glimpse(tidy_v9f)
 #   )
 # }
 # stop_if(
-#   any(master_chemistry$value_qualifier == "<" &
-#         master_chemistry$Lab_Flag != "below reported limit", na.rm = TRUE) ||
+#   any(master_chemistry$value_qualifier == "<", na.rm = TRUE) ||
 #     any(master_chemistry$value_qualifier == ">" &
 #           master_chemistry$Lab_Flag != "above reported limit", na.rm = TRUE) ||
 #     any(!is.na(master_chemistry$value_qualifier) & master_chemistry$value <= 0),
@@ -14824,10 +14903,6 @@ dplyr::glimpse(tidy_v9f)
 #   restored_date_rows = sum(master_chemistry$Date_Flag == "restored", na.rm = TRUE),
 #   less_than_rows = sum(master_chemistry$value_qualifier == "<", na.rm = TRUE),
 #   greater_than_rows = sum(master_chemistry$value_qualifier == ">", na.rm = TRUE),
-#   mixed_below_daily_rows = sum(
-#     master_chemistry$Lab_Flag == "below-limit results excluded from daily mean",
-#     na.rm = TRUE
-#   ),
 #   final_rows = nrow(master_chemistry),
 #   final_sites = dplyr::n_distinct(master_chemistry$LTER, master_chemistry$Stream_Name),
 #   final_silicon_sites = dplyr::n_distinct(
@@ -14836,7 +14911,8 @@ dplyr::glimpse(tidy_v9f)
 #   ),
 #   final_silicon_rows = sum(master_chemistry$variable == "DSi")
 # )
-# if (!identical(release_counts, expected_release_counts)) {
+# # keep the reviewed counts while the new averaging rule awaits a full comparison
+# if (!identical(release_counts[names(expected_release_counts)], expected_release_counts)) {
 #   count_text <- paste(
 #     names(release_counts),
 #     release_counts,

@@ -328,7 +328,7 @@ parse_qualified_numbers <- function(values, missing_tokens = character()) {
     is_above = is_above
   )
 }
-# average repeated values while keeping a reported limit when needed
+# reproduce the previous grouping only for days without below-limit samples
 mean_qualified_measurement <- function(values, missing_tokens = character()) {
   parsed <- parse_qualified_numbers(values, missing_tokens)
   detected <- parsed$numbers[
@@ -530,6 +530,52 @@ detect_date_format <- function(date_strings, delimiter = "/") {
 }
 
 # ---- daily flags ----
+# use half the reported threshold only for confirmed less-than results
+# a calculated mean is an estimate, not a new detection threshold
+daily_limit_mean <- function(value, qualifier) {
+  below <- !is.na(qualifier) & qualifier == "<"
+  above <- !is.na(qualifier) & qualifier == ">"
+  if (any(below) && any(above)) {
+    stop("less-than and greater-than results share a daily source key", call. = FALSE)
+  }
+  if (any(below & (!is.finite(value) | value <= 0))) {
+    stop("a less-than result has no usable threshold", call. = FALSE)
+  }
+  value[below] <- value[below] / 2
+  if (any(!above)) return(mean(value[!above]))
+  mean(value)
+}
+
+# name the substituted samples out of all observations used in the daily average
+half_limit_flag <- function(count, total) {
+  if (length(count) != length(total) || anyNA(count) || anyNA(total) ||
+      any(!is.finite(count) | !is.finite(total)) ||
+      any(count < 0 | total < count | count != floor(count) | total != floor(total))) {
+    stop("daily substitution counts must be whole numbers within the observation total", call. = FALSE)
+  }
+  ifelse(count > 0L,
+    paste0("half reported limit used for ", count, " of ", total,
+      ifelse(total == 1L, " observation", " observations"), " in daily average"),
+    NA_character_)
+}
+
+is_half_limit_flag <- function(flag) {
+  matched <- !is.na(flag) & grepl(paste0(
+    "^half reported limit used for [1-9][0-9]* of [1-9][0-9]* observations? in daily average",
+    "(; estimated value)?$"), flag)
+  count <- suppressWarnings(as.numeric(sub(
+    "^half reported limit used for ([0-9]+) of .*$", "\\1", flag[matched])))
+  total <- suppressWarnings(as.numeric(sub(
+    "^half reported limit used for [0-9]+ of ([0-9]+) .*$", "\\1", flag[matched])))
+  matched[matched] <- is.finite(count) & is.finite(total) & count <= total
+  matched
+}
+
+# accept counted substitution flags without listing every possible count
+lab_flags_supported <- function(flags, allowed) {
+  is.na(flags) | flags == "" | flags %in% allowed | is_half_limit_flag(flags)
+}
+
 # an estimate is a measurement, not a detection-limit threshold
 interpret_gems_qualifiers <- function(qualifier, limit_is_clear) {
   qualifier <- dplyr::coalesce(trimws(as.character(qualifier)), "")
@@ -545,7 +591,7 @@ interpret_gems_qualifiers <- function(qualifier, limit_is_clear) {
   list(qualifier = qualifier, lab_flag = lab_flag)
 }
 
-# keep the estimate note alongside any note about excluded daily samples
+# keep the estimate note alongside the daily substitution count
 add_estimated_lab_flag <- function(flag, estimated) {
   dplyr::case_when(
     estimated & !is.na(flag) ~ paste0(flag, "; estimated value"),
@@ -566,18 +612,37 @@ reduce_daily_flag <- function(values, flag_label) {
   }
   flags[[1]]
 }
-# describe how reported limits contributed to one daily value
-daily_lab_flag <- function(detected, below, above) {
-  if (isTRUE(any(below > 0L & above > 0L))) {
+# describe substitutions, observation totals, and estimates in one daily flag
+daily_lab_flag <- function(qualifier, source) {
+  estimated <- any(grepl("(^|; )estimated value$", source))
+  source <- sub("; estimated value$", "", source)
+  source[source == "estimated value"] <- NA_character_
+  below <- !is.na(qualifier) & qualifier == "<"
+  above <- !is.na(qualifier) & qualifier == ">"
+  if (any(below) && any(above)) {
     stop("less-than and greater-than results share a daily source key", call. = FALSE)
   }
-  dplyr::case_when(
-    detected > 0L & below > 0L ~ "below-limit results excluded from daily mean",
-    detected > 0L & above > 0L ~ "above-limit results excluded from daily mean",
-    detected == 0L & below > 0L ~ "below reported limit",
-    detected == 0L & above > 0L ~ "above reported limit",
-    TRUE ~ NA_character_
-  )
+  # prepared estimates carry their original counts and need no new substitution
+  prepared <- is_half_limit_flag(source)
+  if (any(prepared) && any(above)) {
+    stop("source and daily lab flags conflict", call. = FALSE)
+  }
+  count <- sum(below) + sum(as.numeric(sub(
+    "^half reported limit used for ([0-9]+) of .*$", "\\1", source[prepared])))
+  total <- sum(!above & !prepared) + sum(as.numeric(sub(
+    "^half reported limit used for [0-9]+ of ([0-9]+) .*$", "\\1", source[prepared])))
+  flag <- if (count > 0L) {
+    half_limit_flag(count, total)
+  } else if (any(above)) {
+    if (all(above)) "above reported limit" else "above-limit results excluded from daily mean"
+  } else {
+    NA_character_
+  }
+  source_flag <- reduce_daily_flag(source[!prepared], "source lab")
+  if (!is.na(flag) && !is.na(source_flag) && flag != source_flag) {
+    stop("source and daily lab flags conflict", call. = FALSE)
+  }
+  add_estimated_lab_flag(dplyr::coalesce(flag, source_flag), estimated)
 }
 
 # carry site and sample review notes into the final rows
@@ -788,10 +853,10 @@ apply_preferred_source_rules <- function(data, rules, expected_removed) {
 }
 
 # ---- prepare each source ----
-harmonize_source <- function(file_name, data_key, units_key, run_input_dir, source_headers) {
+harmonize_source <- function(file_name, data_key, units_key, run_input_dir, source_headers,
+    keep_repeats = TRUE) {
   mean_measurement <- function(values) {
-    missing_tokens <- unique(c(data_key$NA_indicator, fixed_missing_tokens))
-    mean_qualified_measurement(values, missing_tokens)
+    mean_qualified_measurement(values, unique(c(data_key$NA_indicator, fixed_missing_tokens)))
   }
   key_rows <- data_key |>
     dplyr::filter(
@@ -856,8 +921,10 @@ harmonize_source <- function(file_name, data_key, units_key, run_input_dir, sour
       solute = tolower(gsub("/| |\\-", "_", solute)),
       solute_units = gsub("/| |\\-", "_", normalize_unit_label(solute_units)),
       solute_units = dplyr::na_if(solute_units, "")
-    ) |>
-    collapse_repeated_amounts(data_key$NA_indicator, mean_measurement)
+    )
+  if (!keep_repeats) {
+    long_rows <- collapse_repeated_amounts(long_rows, data_key$NA_indicator, mean_measurement)
+  }
   if (file_name == deduplicated_filename) {
     long_rows$solute_units[
       long_rows$solute == "nh4_mgl" & long_rows$solute_units == "mg_L"
@@ -894,13 +961,42 @@ harmonize_source <- function(file_name, data_key, units_key, run_input_dir, sour
         paste0(solute, "_", Units)
       )
     ) |>
-    dplyr::select(-solute, -solute_units, -Units, -unit_count) |>
-    collapse_repeated_cells(mean_measurement)
-  tidyr::pivot_wider(
+    dplyr::select(-solute, -solute_units, -Units, -unit_count)
+  sample_keys <- setdiff(names(wide_rows), "amount")
+  has_repeats <- anyDuplicated(wide_rows[sample_keys]) > 0L
+  if (keep_repeats) {
+    # keep individual samples available for days using half-limit substitution
+    wide_rows <- wide_rows |>
+      dplyr::group_by(dplyr::across(dplyr::all_of(sample_keys))) |>
+      dplyr::mutate(sample_row = dplyr::row_number()) |>
+      dplyr::ungroup()
+  } else {
+    wide_rows <- collapse_repeated_cells(wide_rows, mean_measurement)
+  }
+  result <- tidyr::pivot_wider(
     wide_rows,
     names_from = standard_name,
     values_from = amount
-  )
+  ) |>
+    dplyr::select(-dplyr::any_of("sample_row"))
+  attr(result, "has_repeated_samples") <- has_repeats
+  result
+}
+
+# preserve previous grouping on unaffected days after site names and dates match
+select_daily_inputs <- function(data) {
+  data |>
+    dplyr::group_by(Dataset, Raw_Filename, LTER, Stream_Name, date, variable, units) |>
+    dplyr::mutate(
+      use_samples = any(value_qualifier == "<", na.rm = TRUE) |
+        any(is_half_limit_flag(source_lab_flag)) |
+        !any(averaging_input == "existing"),
+      keep_input = (use_samples & averaging_input == "samples") |
+        (!use_samples & averaging_input == "existing")
+    ) |>
+    dplyr::filter(keep_input) |>
+    dplyr::ungroup() |>
+    dplyr::select(-averaging_input, -use_samples, -keep_input)
 }
 # ---- qualifiers and units ----
 # put one source into the shared format before combining files

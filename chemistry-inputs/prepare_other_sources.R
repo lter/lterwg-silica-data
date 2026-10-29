@@ -366,6 +366,10 @@ prepare_alpine <- function() {
   filename <- "Alpine_Clean.csv"
   before <- read_source(filename)
   after <- before
+  # keep ammonium on its confirmed nh4 basis for every year
+  ammonium <- before$parameter == "nh4_mgl"
+  assert_count(sum(ammonium & !is_blank(before$value)), 3037L,
+               "Alpine retained ammonium source results")
   value_number <- as_number(before$value)
   source_key <- paste(before$site, before$date, sep = "\r")
   field_rows <- before$parameter == "fldph" & !is.na(value_number)
@@ -537,6 +541,10 @@ prepare_alpine <- function() {
     28L,
     "prepared Alpine retained cold-temperature rows"
   )
+
+  if (!same_character(before$value[ammonium], after$value[ammonium])) {
+    stop("Alpine ammonium source values changed during preparation")
+  }
 
   write_prepared(filename, after)
 }
@@ -931,7 +939,7 @@ prepare_canada_sites <- function() {
     matched_rows = c(2445L, 7151L, 8646L, 8752L, 5450L, 8560L),
     selected_rows = c(2445L, 7149L, 8638L, 8750L, 5448L, 8560L),
     provider_days = c(2445L, 7147L, 8638L, 8750L, 5448L, 8559L),
-    qualified_days = c(409L, 1375L, 1906L, 2240L, 880L, 1283L),
+    all_below_days = c(409L, 1375L, 1906L, 2240L, 880L, 1283L),
     dissolved_si_days = c(48L, 119L, 111L, 153L, 78L, 91L),
     legacy_rows = c(3L, 0L, 0L, 0L, 5L, 1L),
     final_rows = c(2448L, 7147L, 8638L, 8750L, 5453L, 8560L),
@@ -1352,27 +1360,14 @@ prepare_canada_sites <- function() {
     "2041" = "laboratory conductivity fallback"
   )
 
-  # average only detected values when some canada samples are below a limit
-  # if all samples are below the limit, average the thresholds and keep the sign
+  # include each canada sample using half its threshold when it has a less-than flag
   daily_rows <- vector("list", length(daily_groups))
   names(daily_rows) <- names(daily_groups)
   for (group_number in seq_along(daily_groups)) {
     row_index <- daily_groups[[group_number]]
     detected <- !selected$censored[row_index]
-    has_detections <- any(detected)
-    has_limits <- any(!detected)
 
-    # detected measurements alone define the mean on mixed days
-    used_rows <- row_index
-    source_lab_flag <- NA_character_
-    if (has_detections) {
-      used_rows <- row_index[detected]
-      if (has_limits) {
-        source_lab_flag <- "below-limit results excluded from daily mean"
-      }
-    } else {
-      source_lab_flag <- "below reported limit"
-    }
+    source_lab_flag <- half_limit_flag(sum(!detected), length(row_index))
     source_method_values <- unique(unname(
       method_flag_by_code[selected$VMV_CODE[row_index]]
     ))
@@ -1385,13 +1380,11 @@ prepare_canada_sites <- function() {
     } else {
       NA_character_
     }
-    daily_value <- mean(selected$converted_value[used_rows])
+    daily_value <- daily_limit_mean(selected$converted_value[row_index],
+      ifelse(selected$censored[row_index], "<", ""))
     amount <- sprintf("%.17g", daily_value)
-    if (!has_detections) {
-      amount <- paste0("<", amount)
-    }
 
-    # keep original source details from all samples, even those left out of the average
+    # keep original source details from every sample included in the average
     daily_rows[[group_number]] <- data.frame(
       LTER = "Canada",
       Stream_Name = site_plan$stream_name[
@@ -1431,9 +1424,24 @@ prepare_canada_sites <- function() {
   daily <- do.call(rbind, daily_rows)
   rownames(daily) <- NULL
 
+  # count original below-limit samples separately from the calculated daily flags
+  daily_below_count <- vapply(daily_groups, function(rows) {
+    sum(selected$censored[rows])
+  }, integer(1))
+  daily_all_below <- daily_below_count == lengths(daily_groups)
+  daily_mixed <- daily_below_count > 0L & !daily_all_below
+  assert_count(sum(daily_all_below), 8093L, "Canada all-below-limit days")
+  assert_count(sum(daily_mixed), 1L, "Canada mixed detected and below-limit days")
+  assert_count(sum(daily_below_count), 8095L, "Canada below-limit source samples")
+  if (!identical(unname(half_limit_flag(daily_below_count, lengths(daily_groups))),
+      daily$Source_Lab_Flag)) {
+    stop("Canada daily flags lost the original below-limit sample counts")
+  }
+
   assert_count(nrow(daily), 40987L, "official Canada provider daily keys")
-  assert_count(sum(grepl("^<", daily$amount)), 8093L,
-               "official Canada provider qualified daily keys")
+  assert_count(sum(is_half_limit_flag(daily$Source_Lab_Flag)), 8094L,
+               "official Canada daily half-limit flags")
+  if (any(grepl("^<", daily$amount))) stop("an unconverted Canada limit remains")
   assert_count(sum(daily$solute == "NO3"), 2139L,
                "official Canada provider nitrate days")
   assert_count(sum(daily$solute == "DSi"), 600L,
@@ -1460,9 +1468,14 @@ prepare_canada_sites <- function() {
       paste0(site_plan$site_no[site_row], " Canada provider daily keys")
     )
     assert_count(
-      sum(site_daily & grepl("^<", daily$amount)),
-      site_plan$qualified_days[site_row],
-      paste0(site_plan$site_no[site_row], " qualified Canada provider days")
+      sum(site_daily & daily_all_below),
+      site_plan$all_below_days[site_row],
+      paste0(site_plan$site_no[site_row], " all-below-limit Canada days")
+    )
+    assert_count(
+      sum(site_daily & is_half_limit_flag(daily$Source_Lab_Flag)),
+      site_plan$all_below_days[site_row] + sum(site_daily & daily_mixed),
+      paste0(site_plan$site_no[site_row], " half-limit Canada daily flags")
     )
   }
 
@@ -1608,8 +1621,8 @@ prepare_canada_sites <- function() {
   combined <- rbind(daily, legacy)
   assert_count(nrow(combined), 40996L,
                "provider and legacy Canada output rows")
-  assert_count(sum(grepl("^<", combined$amount)), 8093L,
-               "qualified provider and legacy Canada rows")
+  assert_count(sum(is_half_limit_flag(combined$Source_Lab_Flag)), 8094L,
+               "provider and legacy Canada daily half-limit flags")
   assert_count(length(unique(combined$solute)), 35L,
                "prepared Canada solutes")
   assert_count(sum(combined$solute == "NH4"), 0L,
@@ -2656,7 +2669,7 @@ prepare_nt_nsw <- function() {
     label = "NT/NSW"
   )
 
-  # the combined file does not identify the si fraction or reporting basis
+  # the combined file does not identify the si fraction
   legacy_si <- after$Parameter == "Si"
   assert_count(sum(legacy_si, na.rm = TRUE), 7371L, "NT/NSW generic Si rows")
   assert_count(
@@ -2728,7 +2741,6 @@ prepare_nt_nsw <- function() {
     stop("the NT/NSW provider-confirmed silica contains blank values")
   }
 
-  after$Source_Method_Flag <- NA_character_
   si_rows <- after[rep(1L, nrow(reviewed_provider)), , drop = FALSE]
   si_rows[[1L]] <- paste0(
     "MDBA-",
@@ -2742,7 +2754,6 @@ prepare_nt_nsw <- function() {
   si_rows$Value <- reviewed_provider$Value
   si_rows$Unit <- "mg SiO2/L"
   si_rows$Name <- reviewed_provider[["Station Name"]]
-  si_rows$Source_Method_Flag <- "reported as Silica - Soluble (RMWQMP)"
 
   after <- rbind(after[!legacy_si, , drop = FALSE], si_rows)
   rownames(after) <- NULL
@@ -2862,6 +2873,18 @@ normalize_unit <- function(x) {
 validate_long_units_key <- function() {
   data_key <- read_source("SiSyn_Data_Key.csv", directory = key_dir)
   units_key <- read_source("SiSyn_Chem_Units_Key.csv", directory = key_dir)
+  # these reporting bases are confirmed, not assumptions needing a method flag
+  confirmed_units <- list(
+    c("Alpine_Clean.csv", "nh4_mgl", "mg NH4/L"),
+    c("MurrayDarlingChem_Merged.csv", "Si", "mg SiO2/L"),
+    c("NT_NSW_Chem_Cleaned.csv", "Si", "mg SiO2/L")
+  )
+  for (entry in confirmed_units) {
+    selected <- units_key$Raw_Filename == entry[1] & units_key$Variable == entry[2]
+    selected[is.na(selected)] <- FALSE
+    assert_count(sum(selected), 1L, paste(entry[1], entry[2], "units-key rows"))
+    if (units_key$Units[selected] != entry[3]) stop("check the confirmed reporting unit for ", entry[1])
+  }
   canada_alkalinity <- units_key$Raw_Filename %in% canada_site_files &
     units_key$Variable == "alkalinity" & units_key$Units == "uM"
   canada_alkalinity_fixed <- units_key$Raw_Filename %in% canada_site_files &

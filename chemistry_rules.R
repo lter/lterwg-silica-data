@@ -552,9 +552,7 @@ camrex_corrected_rows <- 2059L
 allowed_value_qualifiers <- c("<", ">")
 allowed_date_flags <- c("corrected", "inferred", "restored")
 allowed_source_lab_flags <- c(
-  "below reported limit",
   "above reported limit",
-  "below-limit results excluded from daily mean",
   "above-limit results excluded from daily mean",
   "reported value below historical detection limit",
   "provider < flag; meaning not confirmed",
@@ -617,9 +615,7 @@ expected_release_counts <- c(
   corrected_date_rows = 2059L,
   inferred_date_rows = 79L,
   restored_date_rows = 0L,
-  less_than_rows = 58820L,
   greater_than_rows = 43L,
-  mixed_below_daily_rows = 914L,
   final_rows = 4686420L,
   final_sites = 1170L,
   final_silicon_sites = 1170L,

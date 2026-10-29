@@ -1096,23 +1096,12 @@ average_gems_gap_days <- function(data) {
   days <- data |>
     dplyr::group_by(LTER, Stream_Name, date, solute, solute_units) |>
     dplyr::summarise(
-      detected = sum(sample_qualifier == ""),
-      below = sum(sample_qualifier == "<"),
-      above = sum(sample_qualifier == ">"),
-      value = if (detected > 0L) mean(sample_value[sample_qualifier == ""]) else mean(sample_value),
-      qualifier = if (detected > 0L) NA_character_ else dplyr::first(sample_qualifier),
-      estimated = any(source_lab_flag == "estimated value", na.rm = TRUE),
-      source_lab_flag = reduce_daily_flag(
-        source_lab_flag[source_lab_flag != "estimated value"], "GEMS lab"),
+      source_lab_flag = daily_lab_flag(sample_qualifier, source_lab_flag),
+      value = daily_limit_mean(sample_value, sample_qualifier),
+      qualifier = if (all(sample_qualifier == ">")) ">" else NA_character_,
       source_method_flag = reduce_daily_flag(source_method_flag, "GEMS method"),
       .groups = "drop"
     )
-  calculated_flag <- daily_lab_flag(days$detected, days$below, days$above)
-  conflict <- !is.na(calculated_flag) & !is.na(days$source_lab_flag) &
-    calculated_flag != days$source_lab_flag
-  if (any(conflict)) stop("GEMS source and daily detection-limit flags conflict")
-  days$source_lab_flag <- add_estimated_lab_flag(
-    dplyr::coalesce(calculated_flag, days$source_lab_flag), days$estimated)
   days |>
     dplyr::mutate(amount = format_amount(value, qualifier)) |>
     dplyr::select(LTER, Stream_Name, date, solute, solute_units, amount,

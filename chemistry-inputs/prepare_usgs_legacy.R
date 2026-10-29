@@ -389,8 +389,8 @@ build_usgs_total_nitrogen_replacement <- function(legacy_data) {
   assert_count(sum(selected$above_limit & selected$threshold_uM <= 0), 0L,
                "nonpositive USGS total-nitrogen lower limits")
 
-  # detected usgs nitrogen results define the daily mean when the day also has limits
-  # all-limit days retain their inequality qualifier
+  # check the reviewed mix of original detections and limits on each day
+  # keep individual results below so the master can apply half-limit averaging
   daily_review <- selected[, {
     if (any(detected)) {
       list(

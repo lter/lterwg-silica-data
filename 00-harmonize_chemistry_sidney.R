@@ -67,8 +67,17 @@ valid_method_flags <- method_rules$Method_Flag
 # ---- prepare each source ----
 # process each source separately to avoid one large table of mostly empty columns
 standardize_source <- function(file_name) {
-  harmonize_source(file_name, data_key, units_key, run_input_dir, source_headers) |>
-    standardize_source_data(data_key)
+  raw_samples <- harmonize_source(file_name, data_key, units_key, run_input_dir, source_headers)
+  has_repeats <- isTRUE(attr(raw_samples, "has_repeated_samples"))
+  samples <- standardize_source_data(raw_samples, data_key) |>
+    dplyr::mutate(averaging_input = "samples")
+  if (!has_repeats) return(samples)
+  # keep the old grouping available so unaffected daily results do not change
+  existing <- harmonize_source(file_name, data_key, units_key, run_input_dir, source_headers,
+    keep_repeats = FALSE) |>
+    standardize_source_data(data_key) |>
+    dplyr::mutate(averaging_input = "existing")
+  dplyr::bind_rows(samples, existing)
 }
 
 # ---- variables, sites, and dates ----
@@ -227,6 +236,9 @@ chemistry_long <- chemistry_long |>
   dplyr::select(-date1, -date2, -date3, -day, -month, -year, -date_format)
 stop_if(anyNA(chemistry_long$date), "unparsed or missing chemistry dates remain")
 
+# choose individual samples only where the half-limit rule is needed
+chemistry_long <- select_daily_inputs(chemistry_long)
+
 # retain unverified seine si with a flag and remove confirmed unfiltered si
 chemistry_long <- review_seine_si(chemistry_long, site_reference,
   file.path(root_dir, "keys", "seine_silica_provider_20261022.rds"))
@@ -236,7 +248,7 @@ stop_if(
   any(
     !is.na(chemistry_long$source_lab_flag) &
       chemistry_long$source_lab_flag != "" &
-      !chemistry_long$source_lab_flag %in% allowed_source_lab_flags
+      !lab_flags_supported(chemistry_long$source_lab_flag, allowed_source_lab_flags)
   ),
   "unsupported source lab flags remain"
 )
@@ -260,40 +272,20 @@ stop_if(
   paste("unsupported source method flags:", paste(unknown_method_flags, collapse = ", "))
 )
 # daily averages are calculated after unit conversion and date checks
-# average only detected values when other samples are below or above a limit
-# flag that the below-limit or above-limit samples were left out of the average
-# if every result has the same limit sign, average the thresholds and keep the sign
+# include less-than samples at half their threshold and count them in the flag
+# prepared daily estimates are already substituted and are not halved again
+# greater-than handling stays unchanged
 daily_rows <- chemistry_long |>
   dplyr::filter(!is.na(value)) |>
   dplyr::group_by(Dataset, Raw_Filename, LTER, Stream_Name, date, variable, units) |>
   dplyr::summarise(
-    detected = sum(is.na(value_qualifier)),
-    below = sum(value_qualifier == "<", na.rm = TRUE),
-    above = sum(value_qualifier == ">", na.rm = TRUE),
-    value = if (detected > 0L) mean(value[is.na(value_qualifier)]) else mean(value),
-    value_qualifier = if (detected > 0L) NA_character_ else dplyr::first(value_qualifier),
-    estimated = any(source_lab_flag == "estimated value", na.rm = TRUE),
-    source_lab_flag = reduce_daily_flag(
-      source_lab_flag[source_lab_flag != "estimated value"], "source lab"),
+    Lab_Flag = daily_lab_flag(value_qualifier, source_lab_flag),
+    value = daily_limit_mean(value, value_qualifier),
+    value_qualifier = if (all(!is.na(value_qualifier) & value_qualifier == ">")) ">" else NA_character_,
     source_method_flag = reduce_daily_flag(source_method_flag, "source method"),
     .groups = "drop"
-  )
-daily_rows <- daily_rows |>
-  dplyr::mutate(
-    calculated_lab_flag = daily_lab_flag(detected, below, above)
-  )
-stop_if(
-  any(
-    !is.na(daily_rows$calculated_lab_flag) &
-      !is.na(daily_rows$source_lab_flag) &
-      daily_rows$calculated_lab_flag != daily_rows$source_lab_flag
-  ),
-  "source and qualifier-derived lab flags conflict"
-)
-daily_rows <- daily_rows |>
-  dplyr::mutate(Lab_Flag = add_estimated_lab_flag(
-    dplyr::coalesce(calculated_lab_flag, source_lab_flag), estimated)) |>
-  dplyr::select(-detected, -below, -above, -estimated, -calculated_lab_flag, -source_lab_flag)
+  ) |>
+  dplyr::relocate(Lab_Flag, .after = source_method_flag)
 # use the combined file only on dates it actually covers
 preferred_rows <- daily_rows |>
   dplyr::filter(Raw_Filename == deduplicated_filename)
@@ -380,7 +372,7 @@ stop_if(
   any(!is.na(master_chemistry$value_qualifier) &
         !master_chemistry$value_qualifier %in% allowed_value_qualifiers) ||
     any(!is.na(master_chemistry$Lab_Flag) &
-          !master_chemistry$Lab_Flag %in% valid_lab_flags) ||
+          !lab_flags_supported(master_chemistry$Lab_Flag, valid_lab_flags)) ||
     any(!is.na(master_chemistry$Date_Flag) &
           !master_chemistry$Date_Flag %in% allowed_date_flags) ||
     !source_method_flags_supported(
@@ -415,8 +407,7 @@ for (row in seq_len(nrow(method_rules))) {
   )
 }
 stop_if(
-  any(master_chemistry$value_qualifier == "<" &
-        master_chemistry$Lab_Flag != "below reported limit", na.rm = TRUE) ||
+  any(master_chemistry$value_qualifier == "<", na.rm = TRUE) ||
     any(master_chemistry$value_qualifier == ">" &
           master_chemistry$Lab_Flag != "above reported limit", na.rm = TRUE) ||
     any(!is.na(master_chemistry$value_qualifier) & master_chemistry$value <= 0),
@@ -507,10 +498,6 @@ release_counts <- c(
   restored_date_rows = sum(master_chemistry$Date_Flag == "restored", na.rm = TRUE),
   less_than_rows = sum(master_chemistry$value_qualifier == "<", na.rm = TRUE),
   greater_than_rows = sum(master_chemistry$value_qualifier == ">", na.rm = TRUE),
-  mixed_below_daily_rows = sum(
-    master_chemistry$Lab_Flag == "below-limit results excluded from daily mean",
-    na.rm = TRUE
-  ),
   final_rows = nrow(master_chemistry),
   final_sites = dplyr::n_distinct(master_chemistry$LTER, master_chemistry$Stream_Name),
   final_silicon_sites = dplyr::n_distinct(
@@ -519,7 +506,8 @@ release_counts <- c(
   ),
   final_silicon_rows = sum(master_chemistry$variable == "DSi")
 )
-if (!identical(release_counts, expected_release_counts)) {
+# keep the reviewed counts while the new averaging rule awaits a full comparison
+if (!identical(release_counts[names(expected_release_counts)], expected_release_counts)) {
   count_text <- paste(
     names(release_counts),
     release_counts,

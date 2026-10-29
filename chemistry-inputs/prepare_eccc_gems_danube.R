@@ -590,15 +590,16 @@ canada_selected_source <- canada_source_valid %>%
   dplyr::filter(variable != "alkalinity") %>%
   dplyr::bind_rows(canada_alkalinity_source)
 
-# average only detected values when some samples are below a limit
-# if all samples are below the limit, average the thresholds and keep the sign
+# include each below-limit sample at half its reported threshold
 canada_daily <- canada_selected_source %>%
   dplyr::group_by(Stream_Name, date, variable, units) %>%
   dplyr::summarize(
     any_censored = any(censored),
     all_censored = all(censored),
-    value = if (all_censored) mean(value) else mean(value[detected]),
-    value_qualifier = if (all_censored) "<" else NA_character_,
+    below_count = sum(censored),
+    observation_count = dplyr::n(),
+    value = daily_limit_mean(value, ifelse(censored, "<", "")),
+    value_qualifier = NA_character_,
     source_method_flag = {
       method_flags <- unique(source_method_flag[
         !is.na(source_method_flag) & source_method_flag != ""
@@ -610,6 +611,11 @@ canada_daily <- canada_selected_source %>%
     },
     .groups = "drop"
   )
+
+if (sum(canada_daily$below_count) != sum(canada_selected_source$censored) ||
+    sum(canada_daily$observation_count) != nrow(canada_selected_source)) {
+  stop("the Canada daily substitution counts lost source observations")
+}
 
 canada_sensitive_variables <- c(
   "alkalinity",
@@ -630,12 +636,7 @@ canada_output <- canada_daily %>%
   dplyr::transmute(
     LTER = "Canada",
     Stream_Name,
-    source_lab_flag = dplyr::case_when(
-      any_censored & !all_censored ~
-        "below-limit results excluded from daily mean",
-      all_censored ~ "below reported limit",
-      TRUE ~ NA_character_
-    ),
+    source_lab_flag = half_limit_flag(below_count, observation_count),
     source_method_flag,
     date,
     solute,
@@ -658,24 +659,19 @@ if (
   stop("the reviewed Canada output rows changed")
 }
 
-canada_sensitive_output <- canada_output %>%
-  dplyr::semi_join(
-    canada_raw_map %>%
-      dplyr::filter(variable %in% canada_sensitive_variables) %>%
-      dplyr::select(solute, solute_units),
-    by = c("solute", "solute_units")
-  )
-
-canada_sensitive_review <- canada_sensitive_output %>%
+# check the reviewed original daily groups, not less-than signs on calculated means
+canada_sensitive_review <- canada_daily %>%
+  dplyr::filter(variable %in% canada_sensitive_variables) %>%
+  dplyr::left_join(canada_raw_map, by = c("variable", "units")) %>%
   dplyr::group_by(solute) %>%
   dplyr::summarize(
     rows = dplyr::n(),
-    less_than = sum(grepl("^<", amount)),
+    all_below_days = sum(all_censored),
     .groups = "drop"
   )
 
 canada_sensitive_expected <- tibble::tribble(
-  ~solute, ~rows, ~less_than,
+  ~solute, ~rows, ~all_below_days,
   "alkalinity", 13910L, 52L,
   "conductivity", 232L, 0L,
   "specific conductivity", 11208L, 0L,
@@ -700,7 +696,7 @@ if (
         "=",
         canada_sensitive_review$rows,
         "/",
-        canada_sensitive_review$less_than
+        canada_sensitive_review$all_below_days
       ),
       collapse = "; "
     )
@@ -809,7 +805,7 @@ if (
       canada_output$solute,
       canada_output$solute_units
     ) != 226083L ||
-    sum(grepl("^<", canada_output$amount)) != 11000L ||
+    any(grepl("^<", canada_output$amount)) ||
     any(canada_output$source_method_flag ==
       "soluble reactive SiO2, ECCC", na.rm = TRUE)
 ) {
@@ -820,10 +816,9 @@ if (
 # the final master keeps 11295 total and 2131 gran fallback rows
 if (
   nrow(canada_output) != 226083L ||
-    sum(canada_output$source_lab_flag ==
-      "below reported limit", na.rm = TRUE) != 11000L ||
-    sum(canada_output$source_lab_flag ==
-      "below-limit results excluded from daily mean", na.rm = TRUE) != 517L ||
+    sum(canada_daily$all_censored) != 11000L ||
+    sum(canada_daily$any_censored & !canada_daily$all_censored) != 517L ||
+    sum(is_half_limit_flag(canada_output$source_lab_flag)) != 11517L ||
     sum(canada_output$source_method_flag ==
       "soluble reactive Si, filtered ICP-OES", na.rm = TRUE) != 4366L ||
     any(canada_output$source_method_flag ==
@@ -841,11 +836,10 @@ if (
     "the prepared Canada lab or method flags changed: rows=",
     nrow(canada_output),
     ", below=",
-    sum(canada_output$source_lab_flag == "below reported limit", na.rm = TRUE),
+    sum(canada_daily$all_censored),
     ", mixed=",
     sum(
-      canada_output$source_lab_flag ==
-        "below-limit results excluded from daily mean",
+      canada_daily$any_censored & !canada_daily$all_censored,
       na.rm = TRUE
     ),
     ", field_ph=",
@@ -1102,8 +1096,7 @@ if (nrow(gems_silicon_code_conflicts) > 0L) {
 # 2,976 flags occur on ordinary italian field values such as temperature and ph
 # keep their numeric values and record that the flag meaning still needs review
 
-# average only detected values when some samples are below a limit
-# if all samples are below the limit, average the thresholds and keep the sign
+# include confirmed below-limit chemistry at half its reported threshold
 gems_safe_depth_review <- gems_source %>%
   dplyr::filter(safe) %>%
   dplyr::group_by(Stream_Name, date, variable) %>%
@@ -1133,7 +1126,6 @@ gems_daily <- gems_safe_depth_review %>%
     all_censored = all(censored),
     mixed = any_censored & !all_censored
   ) %>%
-  dplyr::filter(all_censored | !censored) %>%
   dplyr::ungroup() %>%
   dplyr::group_by(
     Stream_Name,
@@ -1145,8 +1137,10 @@ gems_daily <- gems_safe_depth_review %>%
     mixed
   ) %>%
   dplyr::summarize(
-    value = mean(source_value * conversion),
-    value_qualifier = if (dplyr::first(all_censored)) "<" else NA_character_,
+    below_count = sum(censored),
+    observation_count = dplyr::n(),
+    value = daily_limit_mean(source_value * conversion, ifelse(censored, "<", "")),
+    value_qualifier = NA_character_,
     source_method_flag = combine_method_flags(
       dplyr::case_when(
         dplyr::first(parameter_code) == "SiO2-Dis" ~
@@ -1163,6 +1157,13 @@ gems_daily <- gems_safe_depth_review %>%
     ),
     .groups = "drop"
   )
+
+if (sum(gems_daily$below_count) != sum(gems_safe_depth_review$censored[
+    gems_safe_depth_review$depth_order == gems_safe_depth_review$selected_depth]) ||
+    sum(gems_daily$observation_count) != sum(
+      gems_safe_depth_review$depth_order == gems_safe_depth_review$selected_depth)) {
+  stop("the GEMS daily substitution counts lost source observations")
+}
 
 gems_replacements <- gems_daily %>%
   dplyr::filter(any_censored) %>%
@@ -1198,10 +1199,7 @@ if (
     sum(!is.na(gems_review$current_value[gems_review$all_censored])) != 56L ||
     sum(is.na(gems_review$current_value[gems_review$all_censored])) != 4234L ||
     any(is.na(gems_review$current_value[gems_review$mixed])) ||
-    any(!dplyr::near(
-      suppressWarnings(as.numeric(gems_review$amount[gems_review$mixed])),
-      gems_review$current_value[gems_review$mixed]
-    ))
+    any(!is.finite(suppressWarnings(as.numeric(gems_review$amount))))
 ) {
   stop(
     "the reviewed GEMS replacement values changed: replacements=",
@@ -1214,11 +1212,8 @@ if (
     sum(is.na(gems_review$current_value[gems_review$all_censored])),
     ", missing old mixed=",
     sum(is.na(gems_review$current_value[gems_review$mixed])),
-    ", changed old mixed=",
-    sum(!dplyr::near(
-      suppressWarnings(as.numeric(gems_review$amount[gems_review$mixed])),
-      gems_review$current_value[gems_review$mixed]
-    ), na.rm = TRUE)
+    ", invalid new means=",
+    sum(!is.finite(suppressWarnings(as.numeric(gems_review$amount))))
   )
 }
 
@@ -1552,10 +1547,9 @@ if (
       gems_output$solute,
       gems_output$solute_units
     ) != 865002L ||
-    sum(grepl("^<", gems_output$amount)) != 4290L ||
+    any(grepl("^<", gems_output$amount)) ||
     nrow(dplyr::filter(gems_output, solute == "NHX")) != 26668L ||
-    sum(grepl("^<", dplyr::filter(gems_output, solute == "NHX")$amount)) !=
-      494L ||
+    any(grepl("^<", dplyr::filter(gems_output, solute == "NHX")$amount)) ||
     any(gems_output$solute == "NH4")
 ) {
   stop(
@@ -1582,11 +1576,7 @@ gems_source_flags <- gems_daily %>%
     date,
     solute = variable,
     solute_units = units,
-    source_safe_lab_flag = dplyr::case_when(
-      mixed ~ "below-limit results excluded from daily mean",
-      all_censored ~ "below reported limit",
-      TRUE ~ NA_character_
-    )
+    source_safe_lab_flag = half_limit_flag(below_count, observation_count)
   ) %>%
   dplyr::distinct()
 
@@ -1606,10 +1596,7 @@ gems_output <- gems_output %>%
 
 if (
   nrow(gems_output) != 865002L ||
-    sum(gems_output$source_lab_flag ==
-      "below reported limit", na.rm = TRUE) != 4290L ||
-    sum(gems_output$source_lab_flag ==
-      "below-limit results excluded from daily mean", na.rm = TRUE) != 9L ||
+    sum(is_half_limit_flag(gems_output$source_lab_flag)) != 4299L ||
     sum(gems_output$source_lab_flag ==
       "provider < flag; meaning not confirmed", na.rm = TRUE) != 2912L ||
     sum(has_method_flag(
@@ -1701,23 +1688,27 @@ danube_source <- danube_provider %>%
   dplyr::filter(priority == min(priority)) %>%
   dplyr::ungroup()
 
-# average only detected values when some samples are below a limit
-# if all samples are below the limit, average the thresholds and keep the sign
+# use half the detection limit for each below-limit sample before averaging
 danube_daily <- danube_source %>%
   dplyr::group_by(Stream_Name, date, variable) %>%
   dplyr::summarize(
     any_censored = any(censored),
     all_censored = all(censored),
     mixed = any_censored & !all_censored,
-    value = if (all_censored) {
-      mean(detection_limit * conversion)
-    } else {
-      mean(value_calc[!censored] * conversion[!censored])
-    },
-    value_qualifier = if (all_censored) "<" else NA_character_,
+    below_count = sum(censored),
+    observation_count = dplyr::n(),
+    value = daily_limit_mean(
+      ifelse(censored, detection_limit, value_calc) * conversion,
+      ifelse(censored, "<", "")),
+    value_qualifier = NA_character_,
     source_method_flag = NA_character_,
     .groups = "drop"
   )
+
+if (sum(danube_daily$below_count) != sum(danube_source$censored) ||
+    sum(danube_daily$observation_count) != nrow(danube_source)) {
+  stop("the Danube daily substitution counts lost source observations")
+}
 
 # build the prepared file from the original source download
 # do not rely on older generated files for individual sites
@@ -1725,11 +1716,7 @@ danube_output <- danube_daily %>%
   dplyr::transmute(
     LTER = "Danube",
     Stream_Name,
-    source_lab_flag = dplyr::case_when(
-      mixed ~ "below-limit results excluded from daily mean",
-      all_censored ~ "below reported limit",
-      TRUE ~ NA_character_
-    ),
+    source_lab_flag = half_limit_flag(below_count, observation_count),
     source_method_flag,
     date,
     solute = variable,
@@ -1749,12 +1736,9 @@ if (
       danube_output$solute,
       danube_output$solute_units
     ) != 239963L ||
-    sum(grepl("^<", danube_output$amount)) != 5496L ||
+    any(grepl("^<", danube_output$amount)) ||
     any(grepl("^>", danube_output$amount)) ||
-    sum(danube_output$source_lab_flag ==
-      "below-limit results excluded from daily mean", na.rm = TRUE) != 757L ||
-    sum(danube_output$source_lab_flag ==
-      "below reported limit", na.rm = TRUE) != 5496L ||
+    sum(is_half_limit_flag(danube_output$source_lab_flag)) != 6253L ||
     any(!is.na(danube_output$source_method_flag))
 ) {
   stop("the reviewed Danube daily qualifier groups changed")
