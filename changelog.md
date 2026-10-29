@@ -168,6 +168,13 @@ Validation status:
 - Reviewed 11 shortened method notes against the earlier metadata and saved lab workbook. Conversion bases, filtration qualifications, source priorities, and site/date rules stayed consistent. Date notes stayed unchanged. Removed the resolved Murray-Darling method flag from 1,752 results and its metadata note; the new metadata has 210 rows
 - The October 29 averaging validation compares the new local outputs with the successful October 26 local baseline. The separate saved-export comparison reviewed October 26 `_SAB` against October 28 exports and October 28 against September 25. Drive exports and earlier local outputs were not overwritten
 
+September rows without dates:
+
+- Checked all 57 September 25 rows against the original sample records and October 29 chemistry. Recovered 52 with dates, replaced two conductivity entries with readings corrected to 25 °C, and kept three Rio Negro entries excluded because CAMREX record V1=144 has no sampling date
+- Confirmed February 27, 2006 for the 23 Cameroon measurements at Mbalmayo, Olama, and Pont So'o using the provider workbooks. Inferred April 19, 2018 for the ten MGWEIR measurements from sample AZ_S1793 using paired sample AZ_S1792 and the sampling notes; these measurements keep the inferred-date flag
+- Confirmed September 28, 2007 for the ten Petit Bras-David entries. The 11 Vieux-Habitants entries combine measurements from ten dates in 2006–2010; the original dates are present, but the sampling hours are blank. The September potassium and sulfate averages match when repeated identical values are counted once. October keeps the measurements on their individual dates
+- The 57 export rows represent 136 original measurements: 128 kept with dates, five conductivity measurements replaced, and three excluded. Saved one 57-row CSV with the source records, original values, recovered dates, October values, and reasons for exclusions. Raw files, chemistry outputs, and Drive files were not changed
+
 ## Original master datasets created by Paul Julian
 
 - 2020-10-15: initial file (`20201015_masterdata.csv`)

@@ -90,6 +90,22 @@ The metadata comparison also passed after review of 11 shortened method notes. T
 
 GEMS defines `~` as an estimated value. Preparation retains the numeric measurement and sets `Lab_Flag` to `estimated value`; it does not treat the estimate as a detection threshold. If an estimated measurement contributes to a daily mean, the estimate flag is retained alongside any half-limit substitution count.
 
+#### Undated September chemistry
+
+Checked the 57 rows without dates in the September 25 export against the original sample records and October 29 chemistry. Of these, 52 were recovered with dates, two conductivity entries were replaced by readings corrected to 25 °C, and three Rio Negro entries were excluded because their sampling date is missing. October 29 has no rows without dates.
+
+| Source | September rows | Outcome in October 29 |
+| --- | ---: | --- |
+| Cameroon: Mbalmayo, Olama, Pont So'o | 23 | Retained on February 27, 2006; confirmed against the original provider workbooks |
+| Catalina–Jemez: MGWEIR | 10 | Date inferred as April 19, 2018 from paired sample AZ_S1792 and the sampling notes; all ten measurements from AZ_S1793 have an inferred-date flag |
+| Guadeloupe: Petit Bras-David | 10 | Nine measurements retained on September 28, 2007; uncorrected conductivity replaced by the 25 °C reading, from 67.8 to 69.2 uS/cm |
+| Guadeloupe: Vieux-Habitants, Savanne-Beauséjour | 11 | Ten averages traced to individual dated measurements from 2006–2010; the conductivity average replaced by corrected readings on the original dates |
+| Amazon: Rio Negro | 3 | CAMREX record V1=144 has no Sampling.Date; its alkalinity, total organic carbon, and dissolved organic carbon entries remain excluded |
+
+The Vieux-Habitants rows combine measurements from ten dates between May 6, 2006 and October 5, 2010. The original dates are present, but the sampling hours are blank. The September potassium and sulfate averages match when repeated identical values are counted once. October keeps the measurements on their individual dates.
+
+The 57 September rows represent 136 original measurements: 128 kept with dates, five uncorrected conductivity measurements replaced, and three excluded because the date is missing. Dates were checked using sample records, not concentration matches alone. Raw files, chemistry outputs, and Drive files were not changed.
+
 #### Output files
 
 The master has 14 columns: source and site names, date, variable, unit, value, limit sign, and flags. `Site_Flag` repeats on every row for that site. `Lab_Flag`, `Method_Flag`, and `Date_Flag` describe the samples used for that daily result. `Sample_Flag` combines those sample-level flags in one field.
