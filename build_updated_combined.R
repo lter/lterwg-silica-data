@@ -1,5 +1,7 @@
 # ---- saved release inputs ----
 library(data.table)
+script <- sub("^--file=", "", grep("^--file=", commandArgs(FALSE), value = TRUE))
+source(file.path(dirname(script), "bess_coverage.R"))
 
 # read explicit paths so the same build can run outside the original workspace
 args <- commandArgs(TRUE)
@@ -38,12 +40,8 @@ b <- match(site_key(bess), site_key(sites))
 stopifnot(!anyNA(b), all(current[b]),
   all(match_watershed(bess$Shapefile_Name, sites$Watershed_File_Name[b])),
   sum(current) == 1040L, sum(eligible) == 881L)
-days <- as.integer(as.Date(paste0(bess$year + 1L, "-01-01")) - as.Date(paste0(bess$year, "-01-01")))
-valid_total <- is.na(bess$gpp_gC_m2_year) | (is.finite(bess$gpp_gC_m2_year) &
-  bess$gpp_gC_m2_year >= 0 & bess$valid_days == days & bess$valid_area_fraction >= .8)
-if (!isTRUE(all(valid_total & bess$valid_area_fraction >= 0 & bess$valid_area_fraction <= 1))) {
-  stop("BESS annual totals require a full calendar year and at least 80% watershed coverage")
-}
+check_bess_coverage(bess$gpp_gC_m2_year, bess$valid_days, bess$valid_area_fraction, bess$year)
+stopifnot(!anyNA(bess$valid_area_fraction))
 population <- grep("^human_population_.*_[0-9]{4}$", names(saved), value = TRUE)
 population_fields <- unique(sub("_[0-9]{4}$", "", population))
 human <- grep("^human_(dam|fertilizer|wastewater)_", names(saved), value = TRUE)

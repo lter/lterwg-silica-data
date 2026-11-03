@@ -1,5 +1,10 @@
 # ---- spatial columns ----
 
+# load the shared check from the same folder as this script
+script_path <- sys.frame(1)$ofile
+if (is.null(script_path)) script_path <- "combine_chemistry_spatial.R"
+source(file.path(dirname(script_path), "bess_coverage.R"), local = TRUE)
+
 # match annual predictors to the chemistry year and keep static predictors by site
 spatial_column_matches <- function(columns) {
   columns <- setdiff(columns, c("LTER", "Stream_Name", "Site_Flag"))
@@ -59,17 +64,7 @@ write_combined_chemistry <- function(chemistry_file, discharge, spatial, site_me
       stop("BESS annual GPP needs numeric values, valid days, and watershed area fractions")
     }
     year <- as.integer(sub("^bess_gpp_([0-9]{4})_gC_m2_year$", "\\1", column))
-    expected_days <- as.integer(as.Date(paste0(year + 1L, "-01-01")) - as.Date(paste0(year, "-01-01")))
-    values <- spatial[[column]]
-    days <- spatial[[days_column]]
-    area <- spatial[[area_column]]
-    present <- !is.na(values)
-    if (any(!is.na(days) & (!is.finite(days) | days < 0 | days > expected_days | days != floor(days))) ||
-        any(!is.na(area) & (!is.finite(area) | area < 0 | area > 1)) ||
-        any(present & (!is.finite(values) | values < 0 | is.na(days) | is.na(area))) ||
-        any(present & (days != expected_days | area < 0.8), na.rm = TRUE)) {
-      stop("BESS annual GPP or its coverage is invalid")
-    }
+    check_bess_coverage(spatial[[column]], spatial[[days_column]], spatial[[area_column]], year)
   }
   chemistry <- data.table::fread(chemistry_file, na.strings = "", showProgress = FALSE)
   site_metadata <- as.data.frame(site_metadata)

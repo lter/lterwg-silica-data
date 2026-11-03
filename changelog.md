@@ -190,6 +190,12 @@ September rows without dates:
 
 ### 20261102
 
+- Built and checked the updated harmonized spatial CSV and site metadata in the earlier wide format. The spatial file has 1,170 sites and 1,007 columns, with one row per site and separate columns for annual predictor years. The metadata has 1,170 rows in the same site order
+- Filled 298 blank Ferguson fields from the checked October 29 corrected-watershed results for observed-year land cover, elevation, slope, lithology, and soils. Legacy permafrost stays blank for Ferguson
+- Read back both wide CSVs and checked the site keys, saved values, and BESS coverage. Kept all 130 sites without spatial coverage in the site list
+- Shortened the wide spatial headers and added a column dictionary with original names, definitions, units, sources, years where applicable, and file names. Kept the site keys and the year in annual headers. The data rows matched byte for byte after renaming
+- Moved GPP valid days, watershed coverage, flags, and notes to a separate quality CSV with 47,970 site-year rows for 1982–2022. The wide spatial CSV now has 843 columns and keeps the annual GPP totals. Readback matched every retained value and reconstructed all 164 moved columns, including blanks. The site metadata checksum matched
+
 - Added `build_updated_combined.R` to repeat the checked update from the October 29 base and saved spatial inputs
 - Built the updated combined CSV and metadata from the October 29 chemistry, discharge, and spatial export. Added annual BESSv2 GPP for 1982–2022 from the saved extraction for 1,040 sites, including valid-day counts, watershed coverage, and source-zero flags
 - Kept MODIS NPP and both saved greenup cycles as separate fields alongside BESS GPP. Used the six annual ERA5-Land fields in place of overlapping legacy climate, evapotranspiration, and snow columns

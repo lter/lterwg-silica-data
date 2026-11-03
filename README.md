@@ -245,6 +245,26 @@ These scripts belong to the separate spatial workflow checkout, not the chemistr
 - `workflow/release/recover_saved_spatial_results.R` aligns saved spatial results to the chemistry sites, recovers reviewed missing results, keeps site flags, and removes predictors from replaced boundaries. `merge_annual_era5_results()` adds the checked annual updates after that removal, so Ferguson's new ERA5 values are retained while its other old predictors stay excluded.
 - `workflow/release/build_spatial_dataset_files.R` writes separate product CSVs and one site metadata CSV. Its `--era5-updates` option reads the downloaded annual-results RDS when building the updated files. The RDS is an input to the local workflow; the shared predictor and metadata files are CSVs.
 
+#### Updated harmonized spatial export
+
+The November 2 harmonized spatial CSV follows the earlier wide format: one row per site, separate columns for each year of an annual predictor, and one column per static predictor. It combines the saved tables for the Updated dataset, including BESS GPP, MODIS NPP and both greenup cycles, ERA5-Land, land cover, human impacts, river distances, and static watershed predictors. All 1,170 sites are included. The 130 sites without spatial coverage stay in the file.
+
+For Ferguson, the wide export fills 298 blank fields using the checked October 29 results for the corrected watershed. These include land cover for observed source years, elevation, slope, lithology, and soils. Legacy permafrost stays blank because the source does not cover Ferguson.
+
+The wide CSV uses shorter headers such as `gpp_1982`, `greenup_c0_2022`, and `ocean_dist_km`. It keeps `LTER` and `Stream_Name` as the site keys and keeps the year in each annual header. The column dictionary, `20261102_updated_harmonized_spatial_column_dictionary.csv`, gives the original name, definition, units, source, and year where applicable, and identifies which file holds each field.
+
+`20261102_updated_harmonized_spatial.csv` now has 1,170 sites and 843 columns, including the annual GPP totals. GPP valid days, watershed coverage, flags, and notes are in `20261102_updated_harmonized_spatial_gpp_quality.csv`. It has 47,970 rows, one for each site and year from 1982–2022, keyed by `LTER`, `Stream_Name`, and `year`. Every reported BESS annual total passed the full calendar year and 80% watershed coverage checks.
+
+The data rows matched byte for byte after renaming the headers. After moving the quality fields, the readback matched every retained value and reconstructed all 164 moved columns, including blanks, from the quality CSV. The site metadata file has one row per site in the same order, and its checksum matched before and after the update.
+
+To rebuild the four wide release files from saved inputs, run:
+
+```sh
+Rscript build_wide_spatial_release.R PRODUCT_DIR PROVIDER_RDS EXTRACTIONS_RDS LAND_CLASSES_CSV COLUMN_DICTIONARY_CSV OUTPUT_DIR
+```
+
+Use the verified `annual-release-20261102` product folder, Ferguson's checked `provider-results.rds` and `completed-extractions.rds`, the saved `GLC_FCS30D_full_to_simple_class_translation.csv`, and the release column dictionary. Choose a new output directory. The wide and dated combined builds use the same BESS coverage check. A rebuild from these saved inputs matched all four validated wide release files byte for byte.
+
 #### Combined export
 
 The November 2 updated dataset uses the October 29 combined export as its base.
