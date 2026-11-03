@@ -202,6 +202,9 @@ September rows without dates:
 - Added LandScan population, dam, fertilizer, and wastewater summaries, and HydroRIVERS distances to the outlet and ocean. Matched saved results to 881 sites by watershed name and drainage area. Kept unmatched values blank
 - Read back the two local CSVs and checked every combined row against the October 29 base and saved spatial inputs. The combined file has 4,686,420 chemistry rows, 3,593,358 discharge matches, 1,170 sites, and 121 columns. The metadata has 2,116 rows
 
+- Standardized MODIS NPP and BESS GPP to g C/m²/year in the wide spatial release. Multiplied saved MODIS NPP in kilograms by 1,000 and updated the column dictionary. Checked all 25 NPP year columns against the earlier release. Zeros and blanks were preserved, and all other spatial values, including BESS GPP, matched exactly
+- Moved the four checked files to `~/.local/share/sisyn-releases/20261102-updated-harmonized-spatial-grams/`. All four SHA-256 checksums matched after the move. The site metadata and GPP quality files also matched the earlier release byte for byte
+
 ## Original master datasets created by Paul Julian
 
 - 2020-10-15: initial file (`20201015_masterdata.csv`)

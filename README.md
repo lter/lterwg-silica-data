@@ -263,7 +263,9 @@ To rebuild the four wide release files from saved inputs, run:
 Rscript build_wide_spatial_release.R PRODUCT_DIR PROVIDER_RDS EXTRACTIONS_RDS LAND_CLASSES_CSV COLUMN_DICTIONARY_CSV OUTPUT_DIR
 ```
 
-Use the verified `annual-release-20261102` product folder, Ferguson's checked `provider-results.rds` and `completed-extractions.rds`, the saved `GLC_FCS30D_full_to_simple_class_translation.csv`, and the release column dictionary. Choose a new output directory. The wide and dated combined builds use the same BESS coverage check. A rebuild from these saved inputs matched all four validated wide release files byte for byte.
+Use the verified `annual-release-20261102` product folder, Ferguson's checked `provider-results.rds` and `completed-extractions.rds`, the saved `GLC_FCS30D_full_to_simple_class_translation.csv`, and the release column dictionary. Choose a new output directory. The wide and dated combined builds use the same BESS coverage check.
+
+New wide exports report both MODIS NPP and BESS GPP in g C/m²/year. The build multiplies the saved MODIS NPP values in kg C/m²/year by 1,000 and records the output units in the column dictionary. BESS GPP is already in grams. Blank values and zeros are preserved. The original November 2 wide release still uses kilograms for NPP.
 
 #### Combined export
 

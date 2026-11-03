@@ -106,6 +106,25 @@ build_wide_spatial_release <- function(product_dir, provider_file, extraction_fi
     setequal(c(wide_dictionary$original_name, unlist(quality_columns)), names(wide)),
     identical(wide_dictionary$column_name[1:2], keys))
 
+  # convert only the saved npp source columns, whose names specify kilograms
+  npp_years <- 2001:2025
+  npp_source <- paste0("npp_", npp_years, "_kgC_m2_year")
+  npp_rows <- match(paste0("npp_", npp_years), wide_dictionary$column_name)
+  if (!identical(wide_dictionary$original_name[npp_rows], npp_source) ||
+      !identical(wide_dictionary$year[npp_rows], as.character(npp_years))) {
+    stop("the dictionary must match each NPP total to its kilogram source column and year")
+  }
+  for (field in npp_source) {
+    values <- wide[[field]]
+    if (!is.numeric(values) && !all(is.na(values))) {
+      stop("expected numeric MODIS NPP in kilograms: ", field)
+    }
+    wide[[field]] <- values * 1000
+  }
+  dictionary[file == files[1L] & original_name %in% npp_source,
+    `:=`(units = "g C/m²/year",
+      definition = "Annual watershed mean net primary production over valid pixels, converted from kilograms to grams of carbon")]
+
   # stage the four files together and check their readback before release
   stage <- tempfile("wide-spatial-", tmpdir = dirname(output_dir))
   if (!dir.create(stage)) stop("could not create staging directory")
