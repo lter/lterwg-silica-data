@@ -58,7 +58,7 @@ bess_keys <- year_key(bess)
 site_keys <- site_key(sites)
 header <- names(fread(input, nrows = 0L))
 # follow the updated release selection for overlapping legacy products
-retired <- grep("^(temp_|precip_|evapotrans_|snow_)", header, value = TRUE)
+retired <- grep("^(temp_|precip_|evapotrans_|snow_|greenup_cycle1_)", header, value = TRUE)
 keep <- setdiff(header, retired)
 
 # attach annual values on chemistry year and static values on verified site
@@ -81,8 +81,8 @@ enrich <- function(x) {
 # map the new fields and retain existing site and chemistry notes
 sample <- enrich(read_text(input, nrows = 100))
 added <- setdiff(names(sample), keep)
-stopifnot(!anyDuplicated(names(sample)), ncol(sample) == 121L,
-  all(c("npp_kgC_m2_year", "greenup_cycle0_MMDD", "greenup_cycle1_MMDD") %in% keep))
+stopifnot(!anyDuplicated(names(sample)), ncol(sample) == 120L,
+  all(c("npp_kgC_m2_year", "greenup_cycle0_MMDD") %in% keep))
 note <- ifelse(added %in% bess_fields,
   "BESSv2 monthly means weighted by calendar days. Annual 1982-2022, site and watershed matched. GPP in g C/m²/year. Totals require all months and at least 80% area coverage. Original zeros and source flags retained.",
   ifelse(added %in% population_fields,

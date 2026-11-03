@@ -205,6 +205,8 @@ September rows without dates:
 - Standardized MODIS NPP and BESS GPP to g C/m²/year in the wide spatial release. Multiplied saved MODIS NPP in kilograms by 1,000 and updated the column dictionary. Checked all 25 NPP year columns against the earlier release. Zeros and blanks were preserved, and all other spatial values, including BESS GPP, matched exactly
 - Moved the four checked files to `~/.local/share/sisyn-releases/20261102-updated-harmonized-spatial-grams/`. All four SHA-256 checksums matched after the move. The site metadata and GPP quality files also matched the earlier release byte for byte
 
+- Kept first greenup (Cycle 0) in the current CAMREX wide release and Shiny. Removed the 24 Cycle 1 columns and their dictionary entries. Readback confirmed that all remaining spatial values, including CAMREX NPP and its gap-filling percentages, matched the preceding release
+
 ## Original master datasets created by Paul Julian
 
 - 2020-10-15: initial file (`20201015_masterdata.csv`)

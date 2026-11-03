@@ -8,6 +8,7 @@ source(file.path(dirname(script_path), "bess_coverage.R"), local = TRUE)
 # match annual predictors to the chemistry year and keep static predictors by site
 spatial_column_matches <- function(columns) {
   columns <- setdiff(columns, c("LTER", "Stream_Name", "Site_Flag"))
+  columns <- columns[!grepl("^greenup_cycle1_", columns)]
   year_text <- regmatches(columns, regexpr("(?<![0-9])(19|20)[0-9]{2}(?![0-9])", columns, perl = TRUE))
   year <- rep(NA_integer_, length(columns))
   annual <- grepl("(?<![0-9])(19|20)[0-9]{2}(?![0-9])", columns, perl = TRUE)
@@ -165,7 +166,7 @@ write_combined_chemistry <- function(chemistry_file, discharge, spatial, site_me
     "missing discharge or spatial data do not remove chemistry rows",
     "bess_gpp_gC_m2_year is annual gross primary production from BESSv2 monthly mean daily GPP weighted by calendar days",
     "BESS valid days and watershed area fractions accompany each year; missing years are not extrapolated",
-    "saved MODIS NPP and greenup are retained as separate fields when present",
+    "saved MODIS NPP and first-cycle greenup are retained when present",
     "monthly predictor columns are source climatologies, not measurements for the chemistry month"))
   metadata <- data.table::rbindlist(list(site_metadata, chemistry_notes, columns, notes), fill = TRUE)
   metadata_path <- file.path(output_dir, paste0(tag, "_combined_metadata.csv"))
