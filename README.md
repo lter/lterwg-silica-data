@@ -301,6 +301,10 @@ The October 29 combined export passed full readback checks: 4,686,420 chemistry 
 
 The November 2 readback checked every row against the October 29 base and the saved spatial inputs. All 4,686,420 chemistry measurements, 3,593,358 discharge matches, and 1,170 sites carried through, including the 130 sites without spatial data. The local outputs are `20261102_updated_combined.csv` (121 columns) and `20261102_updated_combined_metadata.csv` (2,116 rows).
 
+The November 3 dated rebuild keeps first greenup (Cycle 0) only. Full readback against the saved October 29 base and spatial inputs confirmed 4,686,420 chemistry rows, 1,170 sites, and 3,593,358 discharge matches. The combined CSV has 120 columns and the metadata has 2,092 rows. Cycle 0 is present in the CSV and its metadata mappings.
+
+The checked pair is saved locally in `~/.local/share/sisyn-releases/20261103-dated-combined-cycle0/`. Both SHA-256 checksums matched after the move. Shiny loads separate prepared chemistry and concentration–discharge RDS files and a spatial RDS for site summaries. The dated CSV and metadata are a separate release.
+
 The earlier discharge and spatial changes were committed in `4e94fcf`. This assembly work does not rerun chemistry or change WRTDS, raw files, or shared files.
 
 ### WRTDS (`01`)

@@ -207,6 +207,11 @@ September rows without dates:
 
 - Kept first greenup (Cycle 0) in the current CAMREX wide release and Shiny. Removed the 24 Cycle 1 columns and their dictionary entries. Readback confirmed that all remaining spatial values, including CAMREX NPP and its gap-filling percentages, matched the preceding release
 
+### 20261103
+
+- Rebuilt the dated chemistry, discharge, and spatial CSV from the saved October 29 base with first greenup (Cycle 0) only. Full readback passed for all 4,686,420 chemistry rows, 1,170 sites, and 3,593,358 discharge matches. The combined CSV has 120 columns and the metadata has 2,092 rows. Checked that Cycle 0 is present and Cycle 1 is absent from the data and metadata mappings
+- Moved both checked files to `~/.local/share/sisyn-releases/20261103-dated-combined-cycle0/`. Both SHA-256 checksums matched after the move. Shiny uses separate prepared chemistry, concentration–discharge, and spatial RDS files
+
 ## Original master datasets created by Paul Julian
 
 - 2020-10-15: initial file (`20201015_masterdata.csv`)
