@@ -26,7 +26,7 @@ These scripts put chemistry files into the same format and combine them into mas
 
 Keep the files together in the downloaded or cloned repository folder. Open `run_full_chemistry_workflow.R` in RStudio and click **Source**. Choose where to save the results and sign in to Google when prompted. There are no paths to edit or files to download by hand.
 
-The full chemistry validation passed on October 26, including the additional GEMS chemistry and the agreed Canada Si conversion. The shared keys and lab rules matched the validated copies. That chemistry code was committed and pushed on October 27 as `4c15c54`, `Finalize master chemistry workflow, source checks, and metadata`. The October 29 local rerun and comparison also passed with the half-limit averaging rule described below. The new outputs remain local. The older `_SAB` chemistry files on Drive are from the earlier version, which filled only Si gaps; they are not the final validated master.
+The full chemistry validation passed on October 26, including the additional GEMS chemistry and the agreed Canada Si conversion. The shared keys and lab rules matched the validated copies. That chemistry code was committed and pushed on October 27 as `4c15c54`, `Finalize master chemistry workflow, source checks, and metadata`. The October 29 local rerun and comparison also passed with the half-limit averaging rule described below. The October 29 chemistry and metadata were uploaded to Drive and verified against the local files. The September 25, October 26 `_SAB`, and October 28 exports and their available matching metadata were archived without deleting them.
 
 The GEMS additions include 65,510 non-Si daily measurements. The earlier averaging rule excluded below-limit samples from 106 mixed daily averages; those averages now include the samples at half their reported limits. Above-limit samples remain excluded from 15 mixed daily averages, as recorded in their flags. Estimated-value flags also survive daily averaging. Another 249 additions use the shallowest sample depth and carry that method flag. These flags apply only to the affected results, not every row in the network.
 
@@ -188,7 +188,7 @@ The original-source checks run during preparation, without overwriting the downl
 
 The historical LUQ areas also match Table 1 of [Schaefer et al. (2000)](https://research.fs.usda.gov/treesearch/download/30121.pdf): 6.7, 6.34, and 35 hectares. The live Site Reference Table now records those conversion areas and original discharge sources in `CQ_Notes` and `q_source_URL`. Its spatial areas remain 0.07, 0.07, and 0.28 km². Their citation now points to [Wymore et al. (2017), Table 1](https://doi.org/10.1002/2016WR020016), rather than the mapped boundaries. `Spatial_Notes` separately describes the mapped areas. Twelve cells were updated and read back; all other cells stayed unchanged.
 
-All 776 required discharge files now pass the saved-data checks. The earlier failures, including the seven PIE unit conflicts, have been resolved against the original sources. The LUQ checks confirmed the historical conversion areas, unchanged later discharge, and separation from spatial drainage areas. Output uploading remains off in the discharge script, and the older source-file editing examples at its end are disabled. These discharge changes remain local and have not been committed or pushed.
+All 776 required discharge files now pass the saved-data checks. The earlier failures, including the seven PIE unit conflicts, have been resolved against the original sources. The LUQ checks confirmed the historical conversion areas, unchanged later discharge, and separation from spatial drainage areas. Output uploading remains off in the discharge script, and the older source-file editing examples at its end are disabled. The discharge changes were committed in `4e94fcf`.
 
 The seven PIE files have now been compared with the original sources. All already contain m³/s: five USGS files match 731 checked daily values each after multiplying cfs by 0.028316846592. Cart Creek matches 168 daily means from [PIE 111.5](https://portal.edirepository.org/nis/mapbrowse?packageid=knb-lter-pie.111.5), using `Discharge` in L/s divided by 1,000, not the older rating-curve column. All 122 YSI-Ipswich dates match daily `Flow` means from [PIE 114.5](https://portal.edirepository.org/nis/mapbrowse?packageid=knb-lter-pie.114.5), also divided by 1,000. The local reference copy uses `cms` for these seven files so they are not converted twice. Other unexpected unit conflicts still stop the run.
 
@@ -231,13 +231,7 @@ Ferguson now uses 25 connected upstream catchments from [BoM Geofabric](https://
 
 Ferguson's ERA5 results were extracted using the corrected boundary and are included in the shared spatial CSV. The Site Reference Table's watershed source link and extraction note match the metadata on Drive and Box. The source-link correction changed no spatial values or other reference-table cells.
 
-Ferguson still needs the following predictors extracted using the corrected boundary:
-
-- Land cover and long-term climate
-- MODIS evapotranspiration, NPP, greenup, and snow
-- Elevation, slope, geology, soils, and permafrost
-
-Those fields remain blank with an explanatory note. They must not be filled from the older watershed's results.
+The local October 29 combined export also includes Ferguson's corrected-boundary land cover, MODIS, long-term climate, elevation, slope, geology, and soils. The source checks passed. Permafrost stays missing because the legacy Northern Hemisphere product does not cover Ferguson. The shared October 28 spatial files still contain only the earlier ERA5 update for this site; they have not been replaced.
 
 #### What the spatial scripts do
 
@@ -251,13 +245,38 @@ These scripts belong to the separate spatial workflow checkout, not the chemistr
 - `workflow/release/recover_saved_spatial_results.R` aligns saved spatial results to the chemistry sites, recovers reviewed missing results, keeps site flags, and removes predictors from replaced boundaries. `merge_annual_era5_results()` adds the checked annual updates after that removal, so Ferguson's new ERA5 values are retained while its other old predictors stay excluded.
 - `workflow/release/build_spatial_dataset_files.R` writes separate product CSVs and one site metadata CSV. Its `--era5-updates` option reads the downloaded annual-results RDS when building the updated files. The RDS is an input to the local workflow; the shared predictor and metadata files are CSVs.
 
-#### What remains before the final combined export
+#### Combined export
+
+The November 2 updated dataset uses the October 29 combined export as its base.
+It adds annual BESSv2 GPP, LandScan population, dam, fertilizer, and wastewater
+summaries, and HydroRIVERS distances to the outlet and ocean. The saved human
+impact and routing results matched 881 sites by watershed name and drainage area.
+Population matches by chemistry year. Ocean distance stays blank for closed basins.
+
+The saved BESS extraction covers 1,040 sites from 1982–2022. Annual GPP sums
+monthly mean daily rates weighted by calendar days and is reported in g C/m²/year.
+Totals require all 12 months and at least 80% watershed coverage. The export keeps
+valid-day counts, area fractions, and source-zero flags. It also keeps MODIS NPP
+and both saved greenup cycles as separate fields. The six annual ERA5-Land fields
+replace the overlapping legacy climate, evapotranspiration, and snow columns.
 
 The saved chemistry, daily discharge, and spatial joins have passed. There are 3,593,358 chemistry measurements with matching discharge and 1,093,062 without usable matching flow. Missing discharge or spatial values do not remove chemistry rows.
 
-The final assembly still needs to write the combined dataset and check the exported file. Match discharge by `LTER`, `Stream_Name`, and date; annual predictors by site and year; and static predictors by site. Keep chemistry and discharge flags on each row and longer explanations in metadata. Use year-matched predictor columns rather than repeating every year's columns on every chemistry row. Do not extend ERA5 beyond 2000-2025 or fill Ferguson's remaining predictors with old values.
+`combine_chemistry_spatial.R` assembles a base export from finalized chemistry, checked daily discharge, and a site-level spatial table. To reproduce the November 2 update from the saved October 29 base, run:
 
-Chemistry has not been rerun during this work. The updated discharge and spatial code and these documentation edits have not been committed or pushed.
+```sh
+Rscript build_updated_combined.R BASE_CSV BASE_METADATA ANNUAL_GPP_RDS SAVED_SPATIAL_CSV OUTPUT_DIR
+```
+
+Use the October 29 combined CSV and its metadata, the saved BESS `annual-gpp.rds`, and the saved `final_spatial_era5_modis_human_point_1196_20260916.csv`. Choose a new local output directory. Add `--preflight` to check the inputs and output columns before writing.
+
+Discharge matches by `LTER`, `Stream_Name`, and date; annual predictors match by site and chemistry year; static predictors match by site. The combined CSV keeps the chemistry row order, values, and flags, and adds `Qcms`, `Q_Flag`, `year`, and the matched predictors. Monthly predictor columns retain the source climatologies. Annual columns outside the available source years stay blank. The separate metadata CSV keeps the existing chemistry and site notes and records each spatial source column, its output name, and its matching year. Both CSVs are read back and checked before the combined file is marked complete.
+
+The October 29 combined export passed full readback checks: 4,686,420 chemistry measurements at 1,170 sites, with 3,593,358 matching discharge values and 1,093,062 without usable discharge. Chemistry values, flags, and row order stayed unchanged. Ferguson's corrected-boundary MODIS, observed-year land cover, long-term climate, elevation, slope, geology, and soils are included. Permafrost remains missing because the legacy source does not cover the site. The update changed only Ferguson's elevation, slope, and soil fields. No combined output has been uploaded.
+
+The November 2 readback checked every row against the October 29 base and the saved spatial inputs. All 4,686,420 chemistry measurements, 3,593,358 discharge matches, and 1,170 sites carried through, including the 130 sites without spatial data. The local outputs are `20261102_updated_combined.csv` (121 columns) and `20261102_updated_combined_metadata.csv` (2,116 rows).
+
+The earlier discharge and spatial changes were committed in `4e94fcf`. This assembly work does not rerun chemistry or change WRTDS, raw files, or shared files.
 
 ### WRTDS (`01`)
 

@@ -175,6 +175,27 @@ September rows without dates:
 - Confirmed September 28, 2007 for the ten Petit Bras-David entries. The 11 Vieux-Habitants entries combine measurements from ten dates in 2006–2010; the original dates are present, but the sampling hours are blank. The September potassium and sulfate averages match when repeated identical values are counted once. October keeps the measurements on their individual dates
 - The 57 export rows represent 136 original measurements: 128 kept with dates, five conductivity measurements replaced, and three excluded. Saved one 57-row CSV with the source records, original values, recovered dates, October values, and reasons for exclusions. Raw files, chemistry outputs, and Drive files were not changed
 
+- Added `combine_chemistry_spatial.R` to join finalized chemistry with checked daily discharge and spatial predictors. Annual predictors match the chemistry year; static predictors match the site. Missing matches keep their chemistry rows. The export keeps chemistry values and flags, applies the Walker discharge rule, and reads back the combined CSV and metadata to check them
+- Fixed the spatial update check to compare numeric values exactly when adding Ferguson changes an integer column to decimals. Changed values, missing-value positions, site names, or flags at other sites still stop the assembly
+- Fixed the local MODIS handoff for Ferguson, where Earth Engine omitted the empty `Discharge_File_Name` field. The handoff checks the site and watershed against the saved reference table before restoring the field. All 50 cached rows and four MODIS product checks passed; Ferguson still has no assigned discharge file
+- Finished Ferguson's elevation, slope, and soil checks and updated the combined CSV and metadata. Elevation matched the three saved sites. Reproduced their older slope results and confirmed the corrected calculation is unchanged with more surrounding cells. Soil classes and percentages matched the saved sites after retrying the source download with HTTP/1.1. Full readback and comparison with the earlier export passed; only Ferguson's elevation, slope, and soil fields changed. Chemistry, discharge, other sites, WRTDS, raw files, and shared files stayed unchanged
+- Corrected the README status for the earlier discharge and spatial changes committed in `4e94fcf`, and recorded the verified October 29 chemistry upload and archive of older exports
+
+### 20261030
+
+- Selected BESSv2 daily GPP as the one productivity source for new spatial and combined exports. Removed MODIS NPP and greenup from those outputs and the active productivity run settings. Existing exports and raw files are unchanged
+- Prepared the release builder to require checked BESS annual summaries with site and watershed matches, full calendar-year coverage for reported totals, and watershed area fractions. GPP uses g C/m²/year and is not filled from NPP or extrapolated to missing years. No BESS downloads or extractions were run
+- Kept replacement greenup dates unselected while reviewing seasonal timing from BESS and canopy greening from long-record NDVI
+- Passed focused checks for site and year matching, leap years, missing values, incomplete totals, invalid coverage, duplicate site-years, removal of old MODIS fields, metadata column matches, and release settings. These checks used small examples in memory; the combined export was not rebuilt
+
+### 20261102
+
+- Added `build_updated_combined.R` to repeat the checked update from the October 29 base and saved spatial inputs
+- Built the updated combined CSV and metadata from the October 29 chemistry, discharge, and spatial export. Added annual BESSv2 GPP for 1982–2022 from the saved extraction for 1,040 sites, including valid-day counts, watershed coverage, and source-zero flags
+- Kept MODIS NPP and both saved greenup cycles as separate fields alongside BESS GPP. Used the six annual ERA5-Land fields in place of overlapping legacy climate, evapotranspiration, and snow columns
+- Added LandScan population, dam, fertilizer, and wastewater summaries, and HydroRIVERS distances to the outlet and ocean. Matched saved results to 881 sites by watershed name and drainage area. Kept unmatched values blank
+- Read back the two local CSVs and checked every combined row against the October 29 base and saved spatial inputs. The combined file has 4,686,420 chemistry rows, 3,593,358 discharge matches, 1,170 sites, and 121 columns. The metadata has 2,116 rows
+
 ## Original master datasets created by Paul Julian
 
 - 2020-10-15: initial file (`20201015_masterdata.csv`)
