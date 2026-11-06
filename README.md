@@ -110,12 +110,12 @@ The 57 September rows represent 136 original measurements: 128 kept with dates, 
 
 The master has 14 columns: source and site names, date, variable, unit, value, limit sign, and flags. `Site_Flag` repeats on every row for that site. `Lab_Flag`, `Method_Flag`, and `Date_Flag` describe the samples used for that daily result. `Sample_Flag` combines those sample-level flags in one field.
 
-Long explanations are saved once in `YYYYMMDD_masterdata_chem_metadata.csv` under `chemistry-run/master/metadata`. It opens in Excel or R. `Note_Type` tells you whether a row contains a date note or method note. Fields that do not apply are blank.
+Long explanations are saved in `YYYYMMDD_masterdata_chem_metadata.csv` under `chemistry-run/master/metadata`. It opens in Excel or R. `Note_Type` tells you whether a row contains a date note or method note. Each method note keeps its source, site, and variable, with one row per source, site, variable, and full method flag rather than one row per daily measurement. Method-note dates are blank; the flags on the master rows identify the affected dates. Fields that do not apply are blank.
 
 To add those notes back to the master in R:
 
 - For date notes, keep rows where `Note_Type == "date"` and match on `Dataset`, `Raw_Filename`, `LTER`, `Stream_Name`, `date`, and `Date_Flag`
-- For method notes, keep rows where `Note_Type == "method"` and match the full `Method_Flag` text, including combined flags
+- For method notes, keep rows where `Note_Type == "method"` and match on `Dataset`, `Raw_Filename`, `LTER`, `Stream_Name`, `variable`, and the full `Method_Flag` text, including combined flags
 - Keep only the matching columns and `Date_Note` or `Method_Note` for each join, and read `date` the same way in both files
 
 These matches restore the explanations without adding chemistry rows or requiring new site or sample IDs.
@@ -216,14 +216,27 @@ The spatial site list comes from finalized master chemistry, not a separate stat
 
 PIE sites `12`, `15`, and `20`, and Western Australia's `Ferguson River - Dowdells Rd Bridge`, now each have all six annual ERA5-Land variables for 2000-2025. All 26 Earth Engine tasks completed, and all 104 site-year records and 624 values were checked against the merged data. The six variables are precipitation, temperature, evapotranspiration, potential evaporation, snow-cover fraction, and snow-water equivalent. The other 1,166 sites were unchanged by this merge.
 
-The current files were synced and verified on October 28:
+The current downloadable release is in **Updated dataset** within the shared [Driver Variables folder on Google Drive](https://drive.google.com/drive/folders/1Z-qlt9okoZ4eE-VVsbHiVVSu7V5nEkqK), with matching copies on Box. The six files, including the README, matched byte for byte on November 6; Box uploads were verified from the sync responses.
 
-- [Spatial predictors CSV](https://drive.google.com/file/d/17Dbv-jV2E_aDg311Xqrm6DoyKSITL5ZA/view): `spatial_predictors_glass_climate_era5_land_modis_glc_20261028.csv`
-- [Site metadata CSV](https://drive.google.com/file/d/1bavvkMZIrEkFBLWXlRujBXVAbBHBWYvb/view): `site_metadata_20261028.csv`
+| Service | Current files | Archived files |
+|---|---|---|
+| Google Drive | [Updated dataset](https://drive.google.com/drive/folders/1dh2uxghBGCeYZZZiBIuA407yzNAcR-9O) | [Archive](https://drive.google.com/drive/folders/1ELbbxbed1YZr0oM61e89_Aia6uSZ6c6r) |
+| Box | [Updated dataset](https://app.box.com/folder/435176209940) | [archive](https://app.box.com/folder/409143582863) |
 
-Matching copies are in `SiSyn/spatial-data-extractions/spatial-data` on Box. Both Drive downloads matched the local files by checksum. The Box copies matched too, and the Box sync client confirmed both uploads with no conflicts. The existing Drive file links were kept. Older dated releases were left untouched.
+Each current folder contains:
 
-The predictor CSV keeps the site names, coordinates, drainage area, site flag, and predictor values. The metadata CSV contains source links, watershed details, discharge information, coverage, and longer notes. Human impacts and distance to coast are not included in this release. The land-cover columns cover 1985-2022, not 1900 onward.
+- `20261102_updated_harmonized_spatial.csv`: spatial values, one row per site
+- `20261102_updated_harmonized_spatial_metadata.csv`: site and watershed details, sources, coverage, flags, and notes
+- `20261102_updated_harmonized_spatial_column_dictionary.csv`: field definitions, stored units, years, and the file holding each field
+- `README-Updated.md`: file links, product coverage, matching instructions, and quality notes
+
+The nested **Supporting files** folder holds `20261102_updated_harmonized_spatial_gpp_quality.csv` and `ferguson_611026_verified.gpkg`. Match the GPP quality file by `LTER`, `Stream_Name`, and `year`. Match annual spatial values to chemistry by site and observation year; static values match by site. Unavailable years stay blank.
+
+The Box path is `SiSyn/spatial-data-extractions/spatial-data/Updated dataset/`. Its archive holds the older October 15 and October 28 predictor CSVs, the October 28 metadata CSV, and `release-20260820/` and `release-20260917/`. The Drive archive holds earlier products and **Chemistry and spatial snapshot (2026-11-03)**, which retains the older combined CSV and metadata. Archived files were moved without deletion.
+
+Box's `raw/`, `current-updated-release/`, `harmonized/current/`, and `shiny-app-inputs/` remain in place as workflow or app inputs. Use the current CSV folder above for the downloadable release.
+
+The current spatial CSV includes human impacts and river distances, with land-cover columns for 1985-2022. All six annual ERA5-Land fields cover 2000-2025 in this saved release. The 1984-1999 extension is not yet included. The current README and column dictionary describe the remaining product periods and units.
 
 #### Ferguson's boundary and remaining predictors
 
@@ -231,7 +244,7 @@ Ferguson now uses 25 connected upstream catchments from [BoM Geofabric](https://
 
 Ferguson's ERA5 results were extracted using the corrected boundary and are included in the shared spatial CSV. The Site Reference Table's watershed source link and extraction note match the metadata on Drive and Box. The source-link correction changed no spatial values or other reference-table cells.
 
-The local October 29 combined export also includes Ferguson's corrected-boundary land cover, MODIS, long-term climate, elevation, slope, geology, and soils. The source checks passed. Permafrost stays missing because the legacy Northern Hemisphere product does not cover Ferguson. The shared October 28 spatial files still contain only the earlier ERA5 update for this site; they have not been replaced.
+The local October 29 combined export also includes Ferguson's corrected-boundary land cover, MODIS, long-term climate, elevation, slope, geology, and soils. The source checks passed. Permafrost stays missing because the legacy Northern Hemisphere product does not cover Ferguson. The shared October 28 spatial files contained only the earlier ERA5 update for this site and are now archived. The current wide release is linked above.
 
 #### What the spatial scripts do
 
@@ -249,11 +262,11 @@ These scripts belong to the separate spatial workflow checkout, not the chemistr
 
 The November 2 harmonized spatial CSV follows the earlier wide format: one row per site, separate columns for each year of an annual predictor, and one column per static predictor. It combines the saved tables for the Updated dataset, including BESS GPP, MODIS NPP and first greenup (Cycle 0), ERA5-Land, land cover, human impacts, river distances, and static watershed predictors. All 1,170 sites are included. The 130 sites without spatial coverage stay in the file.
 
-For Ferguson, the wide export fills 298 blank fields using the checked October 29 results for the corrected watershed. These include land cover for observed source years, elevation, slope, lithology, and soils. Legacy permafrost stays blank because the source does not cover Ferguson.
+For Ferguson, the initial wide export filled 298 blank fields using the checked October 29 results for the corrected watershed. These included land cover for observed source years, elevation, slope, lithology, and soils. The current shared CSV omits soil columns. Legacy permafrost stays blank because the source does not cover Ferguson.
 
 The wide CSV uses shorter headers such as `gpp_1982`, `greenup_c0_2022`, and `ocean_dist_km`. It keeps `LTER` and `Stream_Name` as the site keys and keeps the year in each annual header. The column dictionary, `20261102_updated_harmonized_spatial_column_dictionary.csv`, gives the original name, definition, units, source, and year where applicable, and identifies which file holds each field.
 
-`20261102_updated_harmonized_spatial.csv` has 1,170 sites and 819 columns in the base Cycle 0 build, or 844 columns in the CAMREX release with NPP gap-filling fields, including the annual GPP totals. GPP valid days, watershed coverage, flags, and notes are in `20261102_updated_harmonized_spatial_gpp_quality.csv`. It has 47,970 rows, one for each site and year from 1982–2022, keyed by `LTER`, `Stream_Name`, and `year`. Every reported BESS annual total passed the full calendar year and 80% watershed coverage checks.
+The current shared `20261102_updated_harmonized_spatial.csv` has **1,170 sites and 831 columns**, including annual GPP totals and CAMREX NPP gap-filling fields. Earlier local builds had 819 columns in the base Cycle 0 version or 844 columns in the CAMREX version with soils. GPP valid days, watershed coverage, flags, and notes are in `20261102_updated_harmonized_spatial_gpp_quality.csv` under **Supporting files**. It has 47,970 rows, one for each site and year from 1982–2022, keyed by `LTER`, `Stream_Name`, and `year`. Every reported BESS annual total passed the full calendar year and 80% watershed coverage checks.
 
 The data rows matched byte for byte after renaming the headers. After moving the quality fields, the readback matched every retained value and reconstructed all 164 moved columns, including blanks, from the quality CSV. The site metadata file has one row per site in the same order, and its checksum matched before and after the update.
 
@@ -267,7 +280,7 @@ Use the verified `annual-release-20261102` product folder, Ferguson's checked `p
 
 Pass the verified `updated-annual-camrex-npp.rds` as the last argument to rebuild the CAMREX release. The build matches the six sites by network and stream name, checks coordinates, and fills 150 blank annual NPP values after converting kilograms to grams. It also adds the 150 matching gap-filling percentages and their dictionary entries.
 
-New wide exports report both MODIS NPP and BESS GPP in g C/m²/year. The build multiplies the saved MODIS NPP values in kg C/m²/year by 1,000 and records the output units in the column dictionary. BESS GPP is already in grams. Blank values and zeros are preserved. The original November 2 wide release still uses kilograms for NPP.
+The current shared wide export reports both MODIS NPP and BESS GPP in g C/m²/year. The build multiplies the saved MODIS NPP values in kg C/m²/year by 1,000 and records the output units in the column dictionary. BESS GPP is already in grams. Blank values and zeros are preserved. An earlier November 2 version used kilograms for NPP.
 
 #### Combined export
 
@@ -297,7 +310,7 @@ Use the October 29 combined CSV and its metadata, the saved BESS `annual-gpp.rds
 
 Discharge matches by `LTER`, `Stream_Name`, and date; annual predictors match by site and chemistry year; static predictors match by site. The combined CSV keeps the chemistry row order, values, and flags, and adds `Qcms`, `Q_Flag`, `year`, and the matched predictors. Monthly predictor columns retain the source climatologies. Annual columns outside the available source years stay blank. The separate metadata CSV keeps the existing chemistry and site notes and records each spatial source column, its output name, and its matching year. Both CSVs are read back and checked before the combined file is marked complete.
 
-The October 29 combined export passed full readback checks: 4,686,420 chemistry measurements at 1,170 sites, with 3,593,358 matching discharge values and 1,093,062 without usable discharge. Chemistry values, flags, and row order stayed unchanged. Ferguson's corrected-boundary MODIS, observed-year land cover, long-term climate, elevation, slope, geology, and soils are included. Permafrost remains missing because the legacy source does not cover the site. The update changed only Ferguson's elevation, slope, and soil fields. No combined output has been uploaded.
+The October 29 combined export passed full readback checks: 4,686,420 chemistry measurements at 1,170 sites, with 3,593,358 matching discharge values and 1,093,062 without usable discharge. Chemistry values, flags, and row order stayed unchanged. Ferguson's corrected-boundary MODIS, observed-year land cover, long-term climate, elevation, slope, geology, and soils are included. Permafrost remains missing because the legacy source does not cover the site. The update changed only Ferguson's elevation, slope, and soil fields. A later dated combined snapshot is retained in the Drive archive described above.
 
 The November 2 readback checked every row against the October 29 base and the saved spatial inputs. All 4,686,420 chemistry measurements, 3,593,358 discharge matches, and 1,170 sites carried through, including the 130 sites without spatial data. The local outputs are `20261102_updated_combined.csv` (121 columns) and `20261102_updated_combined_metadata.csv` (2,116 rows).
 

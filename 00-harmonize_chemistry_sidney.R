@@ -520,18 +520,19 @@ if (!identical(release_counts[names(expected_release_counts)], expected_release_
 # ---- output ----
 output_file <- file.path(output_dir, paste0(gsub("-", "", Sys.Date()), "_masterdata_chem.csv"))
 
-# keep long explanations once in metadata and leave all flags on chemistry rows
+# keep date events and site-specific method notes outside the daily chemistry rows
 date_note_keys <- c("Dataset", "Raw_Filename", "LTER", "Stream_Name", "date", "Date_Flag")
+method_note_keys <- c("Dataset", "Raw_Filename", "LTER", "Stream_Name", "variable", "Method_Flag")
 output_date_notes <- master_chemistry |>
   dplyr::filter(!is.na(Date_Note)) |>
   dplyr::distinct(dplyr::across(dplyr::all_of(c(date_note_keys, "Date_Note"))))
 output_method_notes <- master_chemistry |>
   dplyr::filter(!is.na(Method_Note)) |>
-  dplyr::distinct(Method_Flag, Method_Note)
+  dplyr::distinct(dplyr::across(dplyr::all_of(c(method_note_keys, "Method_Note"))))
 stop_if(
   anyDuplicated(output_date_notes[date_note_keys]) > 0L ||
-    anyDuplicated(output_method_notes$Method_Flag) > 0L,
-  "the metadata needs one explanation per date event or method flag"
+    anyDuplicated(output_method_notes[method_note_keys]) > 0L,
+  "the metadata needs one explanation per date event or source, site, variable, and method flag"
 )
 metadata <- list(date_notes = output_date_notes, method_notes = output_method_notes)
 metadata_dir <- file.path(dirname(output_dir), "metadata")
