@@ -553,8 +553,7 @@ prepare_amazon <- function(source_dir, provider_dir, output_dir) {
 
   legacy <- hybam[
     hybam$nom == "Manacapuru" &
-      hybam$solute %in% legacy_rules$source_variable,
-    ,
+      hybam$solute %in% legacy_rules$source_variable, ,
     drop = FALSE
   ]
   assert_count(nrow(legacy), 2631L, "mapped earlier HYBAM rows")
@@ -665,8 +664,7 @@ prepare_amazon <- function(source_dir, provider_dir, output_dir) {
 
   combined <- rbind(camrex_prepared, hybam_combined)
   combined <- combined[
-    order(combined$date, combined$solute, combined$solute_units),
-    ,
+    order(combined$date, combined$solute, combined$solute_units), ,
     drop = FALSE
   ]
   rownames(combined) <- NULL
@@ -964,28 +962,44 @@ select_gems_si_gaps <- function(reactive, station_map, direct_keys, exclusions) 
 prepare_gems_si_gaps <- function(input_dir, provider_dir, key_dir, return_sites = FALSE) {
   archive <- file.path(provider_dir, "gems_gemstat", "GFQA_v3.zip")
   stations <- read.csv(unz(archive, "GEMStat_station_metadata.csv"),
-    colClasses = "character", check.names = FALSE, fileEncoding = "latin1")
+    colClasses = "character", check.names = FALSE, fileEncoding = "latin1"
+  )
   reference <- read.csv(file.path(key_dir, "Site_Reference_Table.csv"),
-    colClasses = "character", check.names = FALSE)
-  canada_sites <- read.csv(file.path(provider_dir, "canada_eccc",
-    "Water-Qual-Eau-Sites-National.csv"), colClasses = "character")
+    colClasses = "character", check.names = FALSE
+  )
+  canada_sites <- read.csv(file.path(
+    provider_dir, "canada_eccc",
+    "Water-Qual-Eau-Sites-National.csv"
+  ), colClasses = "character")
 
   # match canada by the original station number, not the nearest coordinates
   canada_map <- stations |>
-    dplyr::transmute(gems_station = `GEMS Station Number`,
-      SITE_NO = toupper(`Local Station Number`)) |>
+    dplyr::transmute(
+      gems_station = `GEMS Station Number`,
+      SITE_NO = toupper(`Local Station Number`)
+    ) |>
     dplyr::inner_join(canada_sites, by = "SITE_NO") |>
     dplyr::transmute(gems_station, LTER = "Canada", Stream_Name = trimws(SITE_NAME)) |>
-    dplyr::semi_join(dplyr::filter(reference,
-      LTER == "Canada", Include_in_Master_Chem == "Yes"),
-      by = c("LTER", "Stream_Name"))
-  reactive <- read.csv(unz(archive, "Silicon.csv"), colClasses = "character",
-    check.names = FALSE)
+    dplyr::semi_join(
+      dplyr::filter(
+        reference,
+        LTER == "Canada", Include_in_Master_Chem == "Yes"
+      ),
+      by = c("LTER", "Stream_Name")
+    )
+  reactive <- read.csv(unz(archive, "Silicon.csv"),
+    colClasses = "character",
+    check.names = FALSE
+  )
   reactive <- reactive |>
-    dplyr::filter(`Parameter Code` == "SiO2-Rea",
-      `Analysis Method Code` %in% gems_filtered_reactive_methods, Unit == "mg/l") |>
-    dplyr::transmute(gems_station = `GEMS Station Number`, date = `Sample Date`,
-      source_value = as.numeric(Value), qualifier = trimws(`Value Flags`))
+    dplyr::filter(
+      `Parameter Code` == "SiO2-Rea",
+      `Analysis Method Code` %in% gems_filtered_reactive_methods, Unit == "mg/l"
+    ) |>
+    dplyr::transmute(
+      gems_station = `GEMS Station Number`, date = `Sample Date`,
+      source_value = as.numeric(Value), qualifier = trimws(`Value Flags`)
+    )
   canada_map <- dplyr::semi_join(canada_map, reactive, by = "gems_station")
   check_reviewed_count(nrow(canada_map), 49L, "reviewed Canada/GEMS silicon matches")
 
@@ -1002,30 +1016,36 @@ prepare_gems_si_gaps <- function(input_dir, provider_dir, key_dir, return_sites 
   canada <- as.data.frame(data.table::fread(
     file.path(input_dir, "Canada_ECCC_AllSites_chemistry.csv"),
     select = c("LTER", "Stream_Name", "date", "solute", "amount"),
-    colClasses = "character", showProgress = FALSE))
+    colClasses = "character", showProgress = FALSE
+  ))
   legacy <- as.data.frame(data.table::fread(
     file.path(input_dir, "20221030_masterdata_chem_V2.csv"),
     select = c("LTER", "site", "Sampling.Date", "variable", "value"),
-    colClasses = "character", showProgress = FALSE))
+    colClasses = "character", showProgress = FALSE
+  ))
   combined <- as.data.frame(data.table::fread(
     file.path(input_dir, "Deduplicated_Sites_AllSites_chemistry.csv"),
     select = c("LTER", "Stream_Name", "date", "solute", "amount"),
-    colClasses = "character", showProgress = FALSE))
+    colClasses = "character", showProgress = FALSE
+  ))
   direct <- dplyr::bind_rows(
     dplyr::transmute(canada, LTER, Stream_Name, date, solute, amount),
-    dplyr::transmute(legacy, LTER, Stream_Name = site, date = Sampling.Date,
-      solute = variable, amount = value),
+    dplyr::transmute(legacy, LTER,
+      Stream_Name = site, date = Sampling.Date,
+      solute = variable, amount = value
+    ),
     dplyr::transmute(combined, LTER, Stream_Name, date, solute, amount)
   ) |>
     dplyr::filter(tolower(solute) %in% c("dsi", "sio2_mgl")) |>
     dplyr::mutate(numeric_value = suppressWarnings(as.numeric(
-      sub("^[<>]\\s*", "", trimws(amount))))) |>
+      sub("^[<>]\\s*", "", trimws(amount))
+    ))) |>
     dplyr::filter(is.finite(numeric_value)) |>
     dplyr::distinct(LTER, Stream_Name, date)
 
   matched <- dplyr::semi_join(reactive, station_map, by = "gems_station")
   if (any(!is.finite(matched$source_value)) || anyNA(as.Date(matched$date)) ||
-      any(!matched$qualifier %in% c("", "<"))) {
+    any(!matched$qualifier %in% c("", "<"))) {
     stop("a reviewed GEMS reactive silicon result has an unsupported value, date, or qualifier")
   }
   gaps <- select_gems_si_gaps(matched, station_map, direct, gems_si_exclusions)
@@ -1033,17 +1053,24 @@ prepare_gems_si_gaps <- function(input_dir, provider_dir, key_dir, return_sites 
   observed <- vapply(names(gems_si_expected_days), function(network) {
     sum(days$LTER == network)
   }, integer(1))
-  check_reviewed_counts(observed, gems_si_expected_days,
-    paste(names(gems_si_expected_days), "GEMS silicon gap days"))
-  check_reviewed_count(sum(gaps$qualifier == "<"), 1L,
-    "GEMS silicon gap records below the reported limit")
+  check_reviewed_counts(
+    observed, gems_si_expected_days,
+    paste(names(gems_si_expected_days), "GEMS silicon gap days")
+  )
+  check_reviewed_count(
+    sum(gaps$qualifier == "<"), 1L,
+    "GEMS silicon gap records below the reported limit"
+  )
 
   # keep source rows for the usual daily averaging and qualifier rules
   additions <- gaps |>
-    dplyr::transmute(LTER, Stream_Name, date, solute = "DSi", solute_units = "uM",
+    dplyr::transmute(LTER, Stream_Name, date,
+      solute = "DSi", solute_units = "uM",
       amount = paste0(qualifier, format(source_value * 1000 / 60.0835,
-        digits = 15, scientific = FALSE, trim = TRUE)),
-      source_lab_flag = NA_character_, source_method_flag = gems_reactive_si_flag)
+        digits = 15, scientific = FALSE, trim = TRUE
+      )),
+      source_lab_flag = NA_character_, source_method_flag = gems_reactive_si_flag
+    )
   additions
 }
 
@@ -1056,8 +1083,10 @@ read_gems_direct_keys <- function(input_dir, key_dir, station_map) {
     dplyr::filter(Data_type == "chemistry") |>
     dplyr::mutate(Variable = tolower(Variable))
   reference <- read.csv(file.path(key_dir, "Site_Reference_Table.csv"), na.strings = "")
-  files <- unique(c(data_key$Raw_Filename[data_key$Dataset %in% c("Canada", "USGS")],
-    "20221030_masterdata_chem_V2.csv", deduplicated_filename))
+  files <- unique(c(
+    data_key$Raw_Filename[data_key$Dataset %in% c("Canada", "USGS")],
+    "20221030_masterdata_chem_V2.csv", deduplicated_filename
+  ))
   files <- files[files %in% list.files(input_dir)]
   headers <- read_source_headers(input_dir, files)
   names <- dplyr::bind_rows(
@@ -1075,8 +1104,10 @@ read_gems_direct_keys <- function(input_dir, key_dir, station_map) {
     direct <- harmonize_source(files[row], data_key, units_key, input_dir, headers) |>
       standardize_source_data(data_key) |>
       dplyr::filter(is.finite(value)) |>
-      dplyr::transmute(name_key = stringr::str_to_lower(stringr::str_squish(Stream_Name)),
-        date, variable, units) |>
+      dplyr::transmute(
+        name_key = stringr::str_to_lower(stringr::str_squish(Stream_Name)),
+        date, variable, units
+      ) |>
       dplyr::inner_join(names, by = "name_key") |>
       dplyr::semi_join(station_map, by = c("LTER", "Stream_Name")) |>
       dplyr::mutate(date = as.character(as.Date(date))) |>
@@ -1104,8 +1135,10 @@ average_gems_gap_days <- function(data) {
     )
   days |>
     dplyr::mutate(amount = format_amount(value, qualifier)) |>
-    dplyr::select(LTER, Stream_Name, date, solute, solute_units, amount,
-      source_lab_flag, source_method_flag)
+    dplyr::select(
+      LTER, Stream_Name, date, solute, solute_units, amount,
+      source_lab_flag, source_method_flag
+    )
 }
 
 # fill only missing variables at the stations already reviewed for gems overlap
@@ -1118,20 +1151,30 @@ prepare_gems_chemistry_gaps <- function(input_dir, provider_dir, key_dir) {
   additions <- vector("list", nrow(parameters))
   for (row in seq_len(nrow(parameters))) {
     rule <- parameters[row, ]
-    source <- data.table::fread(cmd = sprintf("unzip -p %s %s",
-      shQuote(archive), shQuote(rule$source_entry)), encoding = "Latin-1",
-      colClasses = "character", na.strings = "", showProgress = FALSE)
+    source <- data.table::fread(
+      cmd = sprintf(
+        "unzip -p %s %s",
+        shQuote(archive), shQuote(rule$source_entry)
+      ), encoding = "Latin-1",
+      colClasses = "character", na.strings = "", showProgress = FALSE
+    )
     # the master distinguishes oxygen concentration and saturation by their units
     source <- tibble::as_tibble(source) |>
-      dplyr::filter(`GEMS Station Number` %in% sites$gems_station,
-        `Parameter Code` == rule$parameter_code, Unit == rule$provider_units) |>
-      dplyr::transmute(gems_station = `GEMS Station Number`, date = `Sample Date`,
+      dplyr::filter(
+        `GEMS Station Number` %in% sites$gems_station,
+        `Parameter Code` == rule$parameter_code, Unit == rule$provider_units
+      ) |>
+      dplyr::transmute(
+        gems_station = `GEMS Station Number`, date = `Sample Date`,
         variable = if (rule$variable == "do percent") "dissolved oxygen" else rule$variable,
         units = rule$units, source_value = suppressWarnings(as.numeric(Value)),
         qualifier = dplyr::coalesce(trimws(`Value Flags`), ""),
-        depth = suppressWarnings(as.numeric(Depth))) |>
-      dplyr::filter(is.finite(source_value), source_value != -9999,
-        !is.na(date), date != "") |>
+        depth = suppressWarnings(as.numeric(Depth))
+      ) |>
+      dplyr::filter(
+        is.finite(source_value), source_value != -9999,
+        !is.na(date), date != ""
+      ) |>
       dplyr::inner_join(sites, by = "gems_station") |>
       dplyr::anti_join(direct, by = c("LTER", "Stream_Name", "date", "variable", "units"))
     if (!nrow(source)) next
@@ -1140,8 +1183,10 @@ prepare_gems_chemistry_gaps <- function(input_dir, provider_dir, key_dir) {
     }
     source <- source |>
       dplyr::group_by(LTER, Stream_Name, date, variable, units) |>
-      dplyr::mutate(depth_order = dplyr::coalesce(depth, Inf),
-        multiple_depths = dplyr::n_distinct(depth[!is.na(depth)]) > 1L) |>
+      dplyr::mutate(
+        depth_order = dplyr::coalesce(depth, Inf),
+        multiple_depths = dplyr::n_distinct(depth[!is.na(depth)]) > 1L
+      ) |>
       dplyr::filter(depth_order == min(depth_order)) |>
       dplyr::ungroup()
     # keep estimates and uncertain physical-variable flags separate from lab limits
@@ -1149,22 +1194,28 @@ prepare_gems_chemistry_gaps <- function(input_dir, provider_dir, key_dir) {
     source$qualifier <- flags$qualifier
     source$lab_flag <- flags$lab_flag
     additions[[row]] <- source |>
-      dplyr::transmute(LTER, Stream_Name, date, solute = rule$variable,
+      dplyr::transmute(LTER, Stream_Name, date,
+        solute = rule$variable,
         solute_units = rule$units,
         amount = paste0(qualifier, format(source_value * rule$conversion,
-          digits = 15, scientific = FALSE, trim = TRUE)),
+          digits = 15, scientific = FALSE, trim = TRUE
+        )),
         source_lab_flag = lab_flag,
         source_method_flag = dplyr::if_else(multiple_depths,
-          "shallowest sample depth used", NA_character_))
+          "shallowest sample depth used", NA_character_
+        )
+      )
   }
   other <- average_gems_gap_days(dplyr::bind_rows(additions))
   keys <- other |>
     dplyr::transmute(LTER, Stream_Name, date,
       variable = dplyr::if_else(solute == "do percent", "dissolved oxygen", solute),
-      units = solute_units) |>
+      units = solute_units
+    ) |>
     dplyr::distinct()
   if (nrow(dplyr::inner_join(keys, direct,
-      by = c("LTER", "Stream_Name", "date", "variable", "units")))) {
+    by = c("LTER", "Stream_Name", "date", "variable", "units")
+  ))) {
     stop("a GEMS addition overlaps a direct chemistry result")
   }
   dplyr::bind_rows(silicon, other)

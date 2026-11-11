@@ -23,8 +23,10 @@ qualifier_dir <- required_path("SISYN_CHEM_QUALIFIER_OUTPUT_DIR")
 key_dir <- required_path("SISYN_CHEM_KEY_DIR")
 canada_provider_dir <- required_path("SISYN_CHEM_CANADA_PROVIDER_DIR")
 cameroon_provider_zip <- required_path("SISYN_CAMEROON_PROVIDER_ZIP")
-check_file_versions(cameroon_provider_zip, "8b9238192be6fca67e70bbb3cc697168",
-  "Cameroon provider ZIP")
+check_file_versions(
+  cameroon_provider_zip, "8b9238192be6fca67e70bbb3cc697168",
+  "Cameroon provider ZIP"
+)
 
 canada_provider_files <- sort(list.files(
   canada_provider_dir,
@@ -68,20 +70,28 @@ arc_provider_metadata <- file.path(
   arc_provider_dir,
   "1988-2010_Kling_Akchem_eml.xml"
 )
-check_file_versions(nt_nsw_provider_file, "5832d9fb5276ed53e75a84c6e0f4bf89",
-  "NT/NSW silica provider file")
-check_file_versions(japan_provider_file, "69c4167a601ebd77cc890a79e3a13251",
-  "Japan provider file")
-check_file_versions(netherlands_provider_file, "dd92c6ab6756479e569bb11312185ac4",
-  "Netherlands provider file")
+check_file_versions(
+  nt_nsw_provider_file, "5832d9fb5276ed53e75a84c6e0f4bf89",
+  "NT/NSW silica provider file"
+)
+check_file_versions(
+  japan_provider_file, "69c4167a601ebd77cc890a79e3a13251",
+  "Japan provider file"
+)
+check_file_versions(
+  netherlands_provider_file, "dd92c6ab6756479e569bb11312185ac4",
+  "Netherlands provider file"
+)
 expected_arc_provider_md5 <- c(
   "a3db20ce1bb2a460a7ee9544a7d87980",
   "9fcb805438e69755aa436d52d6a48d30",
   "0d3f435c4154ac18d333732bd97f30dd",
   "774af538a9b09bcb4ec50900584dd6d3"
 )
-check_file_versions(c(arc_provider_files, arc_provider_metadata),
-  expected_arc_provider_md5, "ARC provider files")
+check_file_versions(
+  c(arc_provider_files, arc_provider_metadata),
+  expected_arc_provider_md5, "ARC provider files"
+)
 
 canada_site_files <- c(
   paste0(
@@ -211,32 +221,6 @@ read_source <- function(filename, directory = input_dir) {
   read_source_csv(filename, directory, preferred_dir = preferred_dir)
 }
 
-as_number <- function(x) {
-  suppressWarnings(as.numeric(x))
-}
-
-assert_values <- function(observed, expected, label, tolerance = 1e-10) {
-  observed <- as.numeric(observed)
-  expected <- as.numeric(expected)
-
-  if (
-    length(observed) != length(expected) ||
-      any(is.na(observed) != is.na(expected)) ||
-      any(abs(observed - expected) > tolerance, na.rm = TRUE)
-  ) {
-    stop(label, " changed")
-  }
-}
-
-same_character <- function(x, y) {
-  identical(as.character(x), as.character(y)) &&
-    identical(is.na(x), is.na(y))
-}
-
-normalize_site_name <- function(x) {
-  tolower(gsub("[[:space:]]+", " ", trimws(as.character(x))))
-}
-
 find_tds_labeled_tn <- function(data, tolerance = 1e-9) {
   # exact back-conversion identifies tn entries copied from paired tds values
   amount <- as_number(data$amount)
@@ -280,19 +264,27 @@ normalize_reviewed_dates <- function(
     "( [0-9]{1,2}:[0-9]{2})?$"
   )
 
-  assert_count(sum(nonblank), expected_nonblank,
-               paste0(label, " nonblank dates"))
-  assert_count(sum(nonblank & !grepl(source_pattern, date_text)), 0L,
-               paste0(label, " unrecognized dates"))
+  assert_count(
+    sum(nonblank), expected_nonblank,
+    paste0(label, " nonblank dates")
+  )
+  assert_count(
+    sum(nonblank & !grepl(source_pattern, date_text)), 0L,
+    paste0(label, " unrecognized dates")
+  )
 
   date_only <- sub("[[:space:]].*$", "", date_text[nonblank])
   time_suffix <- sub("^[^[:space:]]+", "", date_text[nonblank])
   parts <- do.call(rbind, strsplit(date_only, "/", fixed = TRUE))
   year_width <- nchar(parts[, 3])
-  assert_count(sum(year_width == 2L), expected_two_digit,
-               paste0(label, " two-digit source years"))
-  assert_count(sum(year_width == 4L), expected_four_digit,
-               paste0(label, " four-digit source years"))
+  assert_count(
+    sum(year_width == 2L), expected_two_digit,
+    paste0(label, " two-digit source years")
+  )
+  assert_count(
+    sum(year_width == 4L), expected_four_digit,
+    paste0(label, " four-digit source years")
+  )
 
   first_part <- as.integer(parts[, 1])
   second_part <- as.integer(parts[, 2])
@@ -326,8 +318,10 @@ normalize_reviewed_dates <- function(
   if (!identical(range(parsed), as.Date(expected_range))) {
     stop(label, " date range changed")
   }
-  assert_count(length(unique(parsed)), expected_unique,
-               paste0(label, " unique dates"))
+  assert_count(
+    length(unique(parsed)), expected_unique,
+    paste0(label, " unique dates")
+  )
 
   normalized <- as.character(x)
   normalized[nonblank] <- paste0(format(parsed, "%Y-%m-%d"), time_suffix)
@@ -368,8 +362,10 @@ prepare_alpine <- function() {
   after <- before
   # keep ammonium on its confirmed nh4 basis for every year
   ammonium <- before$parameter == "nh4_mgl"
-  assert_count(sum(ammonium & !is_blank(before$value)), 3037L,
-               "Alpine retained ammonium source results")
+  assert_count(
+    sum(ammonium & !is_blank(before$value)), 3037L,
+    "Alpine retained ammonium source results"
+  )
   value_number <- as_number(before$value)
   source_key <- paste(before$site, before$date, sep = "\r")
   field_rows <- before$parameter == "fldph" & !is.na(value_number)
@@ -431,11 +427,11 @@ prepare_alpine <- function() {
   }
   suspect_fluoride <-
     before[[1L]] == "8363" &
-    before$site == "andrewscreek" &
-    before$date == "1986-09-09" &
-    before$parameter == "f_mgl" &
-    before$value == "6" &
-    before$flag == "1"
+      before$site == "andrewscreek" &
+      before$date == "1986-09-09" &
+      before$parameter == "f_mgl" &
+      before$value == "6" &
+      before$flag == "1"
 
   assert_count(sum(field_rows), 2075L, "Alpine field pH rows")
   assert_count(length(field_keys), 1782L, "Alpine field pH keys")
@@ -443,29 +439,47 @@ prepare_alpine <- function() {
   assert_count(length(lab_keys), 2519L, "Alpine lab pH keys")
   assert_count(length(overlapping_keys), 1589L, "Alpine overlapping pH keys")
   assert_count(sum(overlapping_lab), 1832L, "Alpine overlapping lab pH rows")
-  assert_count(length(setdiff(lab_keys, field_keys)), 930L,
-               "Alpine lab-only pH keys")
-  assert_count(sum(field_conductivity), 2964L,
-               "Alpine field conductivity rows")
-  assert_count(length(field_conductivity_keys), 2557L,
-               "Alpine field conductivity keys")
-  assert_count(sum(lab_conductivity), 2961L,
-               "Alpine lab conductivity rows")
-  assert_count(length(lab_conductivity_keys), 2568L,
-               "Alpine lab conductivity keys")
-  assert_count(length(overlapping_conductivity_keys), 2421L,
-               "Alpine overlapping conductivity keys")
-  assert_count(sum(overlapping_lab_conductivity), 2785L,
-               "Alpine overlapping lab conductivity rows")
+  assert_count(
+    length(setdiff(lab_keys, field_keys)), 930L,
+    "Alpine lab-only pH keys"
+  )
+  assert_count(
+    sum(field_conductivity), 2964L,
+    "Alpine field conductivity rows"
+  )
+  assert_count(
+    length(field_conductivity_keys), 2557L,
+    "Alpine field conductivity keys"
+  )
+  assert_count(
+    sum(lab_conductivity), 2961L,
+    "Alpine lab conductivity rows"
+  )
+  assert_count(
+    length(lab_conductivity_keys), 2568L,
+    "Alpine lab conductivity keys"
+  )
+  assert_count(
+    length(overlapping_conductivity_keys), 2421L,
+    "Alpine overlapping conductivity keys"
+  )
+  assert_count(
+    sum(overlapping_lab_conductivity), 2785L,
+    "Alpine overlapping lab conductivity rows"
+  )
   assert_count(
     length(setdiff(lab_conductivity_keys, field_conductivity_keys)),
     147L,
     "Alpine lab-only conductivity keys"
   )
-  assert_count(sum(low_temperature, na.rm = TRUE), 28L,
-               "Alpine low-temperature rows")
-  assert_count(sum(suspect_fluoride, na.rm = TRUE), 1L,
-               "Alpine suspect fluoride row")
+  assert_count(
+    sum(low_temperature, na.rm = TRUE), 28L,
+    "Alpine low-temperature rows"
+  )
+  assert_count(
+    sum(suspect_fluoride, na.rm = TRUE), 1L,
+    "Alpine suspect fluoride row"
+  )
 
   # keep field ph and conductivity when field and lab share a site-day
   after$source_method_flag <- NA_character_
@@ -495,8 +509,10 @@ prepare_alpine <- function() {
     1067L,
     "Alpine retained lab pH rows"
   )
-  assert_count(sum(after$source_method_flag == "field pH", na.rm = TRUE),
-               2075L, "Alpine field pH method flags")
+  assert_count(
+    sum(after$source_method_flag == "field pH", na.rm = TRUE),
+    2075L, "Alpine field pH method flags"
+  )
   assert_count(
     sum(after$source_method_flag == "laboratory pH fallback", na.rm = TRUE),
     1067L,
@@ -736,13 +752,19 @@ prepare_japan <- function() {
   assert_count(nrow(before), 346L, "Japan source rows")
   assert_count(sum(nh4_rows, na.rm = TRUE), 68L, "Japan ammonium rows")
   assert_count(nrow(nh4_provider), 68L, "Japan provider ammonium rows")
-  assert_count(sum(nh4_provider$qualifier == "<", na.rm = TRUE), 27L,
-               "Japan provider ammonium limits")
+  assert_count(
+    sum(nh4_provider$qualifier == "<", na.rm = TRUE), 27L,
+    "Japan provider ammonium limits"
+  )
   assert_count(length(po4_rows), 74L, "Japan source phosphate rows")
-  assert_count(nrow(po4_provider), 15L,
-               "Japan provider dissolved phosphate rows")
-  assert_count(sum(po4_provider$qualifier == "<", na.rm = TRUE), 1L,
-               "Japan provider dissolved phosphate limits")
+  assert_count(
+    nrow(po4_provider), 15L,
+    "Japan provider dissolved phosphate rows"
+  )
+  assert_count(
+    sum(po4_provider$qualifier == "<", na.rm = TRUE), 1L,
+    "Japan provider dissolved phosphate limits"
+  )
 
   nh4_order <- match(before$date[nh4_rows], nh4_provider$date)
   if (anyNA(nh4_order)) {
@@ -788,10 +810,14 @@ prepare_japan <- function() {
   rownames(after) <- NULL
 
   assert_count(nrow(after), 287L, "prepared Japan rows")
-  assert_count(sum(after$solute == "po4_mgl"), 15L,
-               "prepared Japan dissolved phosphate rows")
-  assert_count(sum(grepl("^<", after$amount)), 28L,
-               "prepared Japan qualified rows")
+  assert_count(
+    sum(after$solute == "po4_mgl"), 15L,
+    "prepared Japan dissolved phosphate rows"
+  )
+  assert_count(
+    sum(grepl("^<", after$amount)), 28L,
+    "prepared Japan qualified rows"
+  )
   write_prepared(filename, after)
 }
 
@@ -854,14 +880,15 @@ prepare_netherlands <- function() {
   for (plan_row in seq_len(nrow(plan))) {
     rule <- plan[plan_row, , drop = FALSE]
     source_target <- before$solute == rule$solute
-    assert_count(sum(source_target, na.rm = TRUE), rule$source_rows,
-                 paste0("Netherlands ", rule$solute, " source rows"))
+    assert_count(
+      sum(source_target, na.rm = TRUE), rule$source_rows,
+      paste0("Netherlands ", rule$solute, " source rows")
+    )
 
     observations <- provider$observations[
       provider$observations$target_name == rule$target &
         is.finite(provider$observations$value_numeric) &
-        abs(provider$observations$value_numeric) < 1e10,
-      ,
+        abs(provider$observations$value_numeric) < 1e10, ,
       drop = FALSE
     ]
     provider_site <- unname(station_names[observations$station_id])
@@ -879,18 +906,26 @@ prepare_netherlands <- function() {
       !is.na(observations$limit_symbol)])
     limited <- source_target & source_key %in% limit_key
 
-    assert_count(sum(matched, na.rm = TRUE), rule$matched_rows,
-                 paste0("Netherlands ", rule$solute, " provider matches"))
-    assert_count(sum(source_target & !matched, na.rm = TRUE),
-                 rule$excluded_rows,
-                 paste0("Netherlands ", rule$solute, " excluded rows"))
-    assert_count(sum(limited, na.rm = TRUE), rule$limit_rows,
-                 paste0("Netherlands ", rule$solute, " limit rows"))
+    assert_count(
+      sum(matched, na.rm = TRUE), rule$matched_rows,
+      paste0("Netherlands ", rule$solute, " provider matches")
+    )
+    assert_count(
+      sum(source_target & !matched, na.rm = TRUE),
+      rule$excluded_rows,
+      paste0("Netherlands ", rule$solute, " excluded rows")
+    )
+    assert_count(
+      sum(limited, na.rm = TRUE), rule$limit_rows,
+      paste0("Netherlands ", rule$solute, " limit rows")
+    )
     unmatched_only <- source_target & !matched &
       !source_site_day %in% unique(source_site_day[matched])
-    assert_count(length(unique(source_site_day[unmatched_only])),
-                 rule$unmatched_only_days,
-                 paste0("Netherlands ", rule$solute, " unmatched-only days"))
+    assert_count(
+      length(unique(source_site_day[unmatched_only])),
+      rule$unmatched_only_days,
+      paste0("Netherlands ", rule$solute, " unmatched-only days")
+    )
     if (!identical(
       sort(unique(before$Stream_Name[source_target])),
       sort(unique(before$Stream_Name[matched]))
@@ -912,11 +947,12 @@ prepare_netherlands <- function() {
   rownames(after) <- NULL
   after$solute_units[after$solute == "nh4_mgl"] <- "mg NH4/L"
   assert_count(nrow(after), 204512L, "prepared Netherlands rows")
-  assert_count(sum(grepl("^<", after$amount)), 56L,
-               "prepared Netherlands qualified rows")
+  assert_count(
+    sum(grepl("^<", after$amount)), 56L,
+    "prepared Netherlands qualified rows"
+  )
   write_prepared(filename, after)
 }
-
 
 
 # ---- individual canada source records ----
@@ -971,14 +1007,22 @@ prepare_canada_sites <- function() {
   ug_to_um <- function(mass) 1 / mass
 
   mapping <- do.call(rbind, list(
-    mapping_rows(c("107941", "6207"), "ALUMINUM DISSOLVED", "µG/L",
-                 "Al", "uM", ug_to_um(26.9815385)),
-    mapping_rows("13788", "ALUMINUM DISSOLVED", "MG/L",
-                 "Al", "uM", mg_to_um(26.9815385)),
-    mapping_rows(c("101535", "8264"), "BROMIDE DISSOLVED", "MG/L",
-                 "Br", "uM", mg_to_um(79.904)),
-    mapping_rows(c("1180", "13087", "1978"), "CALCIUM DISSOLVED", "MG/L",
-                 "Ca", "uM", mg_to_um(40.078)),
+    mapping_rows(
+      c("107941", "6207"), "ALUMINUM DISSOLVED", "µG/L",
+      "Al", "uM", ug_to_um(26.9815385)
+    ),
+    mapping_rows(
+      "13788", "ALUMINUM DISSOLVED", "MG/L",
+      "Al", "uM", mg_to_um(26.9815385)
+    ),
+    mapping_rows(
+      c("101535", "8264"), "BROMIDE DISSOLVED", "MG/L",
+      "Br", "uM", mg_to_um(79.904)
+    ),
+    mapping_rows(
+      c("1180", "13087", "1978"), "CALCIUM DISSOLVED", "MG/L",
+      "Ca", "uM", mg_to_um(40.078)
+    ),
     mapping_rows(
       c("108311", "17209", "8262", "1958"),
       c(rep("CHLORIDE DISSOLVED", 3L), "CHLORIDE"),
@@ -989,50 +1033,78 @@ prepare_canada_sites <- function() {
       "FLUORIDE DISSOLVED", "MG/L", "F", "uM",
       mg_to_um(18.998403163)
     ),
-    mapping_rows(c("107953", "6219"), "IRON DISSOLVED", "µG/L",
-                 "Fe", "uM", ug_to_um(55.845)),
-    mapping_rows("13801", "IRON DISSOLVED", "MG/L",
-                 "Fe", "uM", mg_to_um(55.845)),
+    mapping_rows(
+      c("107953", "6219"), "IRON DISSOLVED", "µG/L",
+      "Fe", "uM", ug_to_um(55.845)
+    ),
+    mapping_rows(
+      "13801", "IRON DISSOLVED", "MG/L",
+      "Fe", "uM", mg_to_um(55.845)
+    ),
     mapping_rows(
       c("1181", "13095", "1980"),
       "POTASSIUM DISSOLVED/FILTERED", "MG/L", "K", "uM",
       mg_to_um(39.0983)
     ),
-    mapping_rows(c("107956", "6222"), "LITHIUM DISSOLVED", "µG/L",
-                 "Li", "uM", ug_to_um(6.94)),
-    mapping_rows("13803", "LITHIUM DISSOLVED", "MG/L",
-                 "Li", "uM", mg_to_um(6.94)),
-    mapping_rows(c("1179", "13093", "1979"), "MAGNESIUM DISSOLVED", "MG/L",
-                 "Mg", "uM", mg_to_um(24.305)),
-    mapping_rows(c("107957", "6223"), "MANGANESE DISSOLVED", "µG/L",
-                 "Mn", "uM", ug_to_um(54.938044)),
-    mapping_rows("13805", "MANGANESE DISSOLVED", "MG/L",
-                 "Mn", "uM", mg_to_um(54.938044)),
+    mapping_rows(
+      c("107956", "6222"), "LITHIUM DISSOLVED", "µG/L",
+      "Li", "uM", ug_to_um(6.94)
+    ),
+    mapping_rows(
+      "13803", "LITHIUM DISSOLVED", "MG/L",
+      "Li", "uM", mg_to_um(6.94)
+    ),
+    mapping_rows(
+      c("1179", "13093", "1979"), "MAGNESIUM DISSOLVED", "MG/L",
+      "Mg", "uM", mg_to_um(24.305)
+    ),
+    mapping_rows(
+      c("107957", "6223"), "MANGANESE DISSOLVED", "µG/L",
+      "Mn", "uM", ug_to_um(54.938044)
+    ),
+    mapping_rows(
+      "13805", "MANGANESE DISSOLVED", "MG/L",
+      "Mn", "uM", mg_to_um(54.938044)
+    ),
     mapping_rows(
       c("1178", "13097", "1981"),
       "SODIUM DISSOLVED/FILTERED", "MG/L", "Na", "uM",
       mg_to_um(22.98976928)
     ),
-    mapping_rows(c("107968", "6229"), "STRONTIUM DISSOLVED", "µG/L",
-                 "Sr", "uM", ug_to_um(87.62)),
-    mapping_rows("13815", "STRONTIUM DISSOLVED", "MG/L",
-                 "Sr", "uM", mg_to_um(87.62)),
+    mapping_rows(
+      c("107968", "6229"), "STRONTIUM DISSOLVED", "µG/L",
+      "Sr", "uM", ug_to_um(87.62)
+    ),
+    mapping_rows(
+      "13815", "STRONTIUM DISSOLVED", "MG/L",
+      "Sr", "uM", mg_to_um(87.62)
+    ),
     # keep dissolved silicon reported on a si mass basis
-    mapping_rows(c("1175", "13812"), "SILICON DISSOLVED", "MG/L",
-                 "DSi", "uM", mg_to_um(28.0855)),
-    mapping_rows(c("107975", "6235"), "ZINC DISSOLVED", "µG/L",
-                 "Zn", "uM", ug_to_um(65.38)),
-    mapping_rows("13825", "ZINC DISSOLVED", "MG/L",
-                 "Zn", "uM", mg_to_um(65.38)),
-    mapping_rows("7557", "AMMONIA DISSOLVED", "MG/L",
-                 "NHX", "uM", mg_to_um(14.0067)),
+    mapping_rows(
+      c("1175", "13812"), "SILICON DISSOLVED", "MG/L",
+      "DSi", "uM", mg_to_um(28.0855)
+    ),
+    mapping_rows(
+      c("107975", "6235"), "ZINC DISSOLVED", "µG/L",
+      "Zn", "uM", ug_to_um(65.38)
+    ),
+    mapping_rows(
+      "13825", "ZINC DISSOLVED", "MG/L",
+      "Zn", "uM", mg_to_um(65.38)
+    ),
+    mapping_rows(
+      "7557", "AMMONIA DISSOLVED", "MG/L",
+      "NHX", "uM", mg_to_um(14.0067)
+    ),
     mapping_rows(
       c("1099", "1970", "444", "8263"),
       c(rep("NITROGEN NITRITE", 3L), "NITROGEN DISSOLVED NITRITE"),
       "MG/L", "NO2", "uM", mg_to_um(14.0067)
     ),
-    mapping_rows(c("7315", "8266"), "DISSOLVED NITROGEN NITRATE", "MG/L",
-                 "NO3", "uM", mg_to_um(14.0067)),
+    mapping_rows(
+      c("7315", "8266"), "DISSOLVED NITROGEN NITRATE", "MG/L",
+      "NO3", "uM", mg_to_um(14.0067)
+    ),
     mapping_rows(
       c("1110", "2233"),
       c("DISSOLVED NITRITE/NITRATE", "NITRATE AND NITRITE (AS N)"),
@@ -1048,46 +1120,78 @@ prepare_canada_sites <- function() {
       c(rep("SULPHATE DISSOLVED", 3L), "SULPHATE"),
       "MG/L", "SO4", "uM", mg_to_um(96.060)
     ),
-    mapping_rows(c("108768", "1130", "1967", "9326"),
-                 "NITROGEN TOTAL", "MG/L", "TN", "uM",
-                 mg_to_um(14.0067)),
-    mapping_rows(c("109108", "15406", "2013", "25359"),
-                 "PHOSPHORUS TOTAL", "MG/L", "TP", "uM",
-                 mg_to_um(30.973761998)),
-    mapping_rows(c("109107", "1204", "15102", "2010"),
-                 "PHOSPHORUS TOTAL DISSOLVED", "MG/L", "tdp", "uM",
-                 mg_to_um(30.973761998)),
-    mapping_rows(c("108767", "1968", "7657"),
-                 "NITROGEN TOTAL DISSOLVED", "MG/L",
-                 "tot dissolved N", "uM", mg_to_um(14.0067)),
-    mapping_rows(c("10101", "10111", "1131", "9134"),
-                 "ALKALINITY TOTAL CACO3", "MG/L",
-                 "alkalinity", "ueq/L", 1000 / 50.04345),
-    mapping_rows("1963", "COLOUR TRUE", "CTU",
-                 "colour PCU", "PCU", 1),
-    mapping_rows(c("100300", "101252", "1974", "201144"),
-                 "CARBON DISSOLVED INORGANIC", "MG/L",
-                 "dissolved inorg C", "uM", mg_to_um(12.011)),
-    mapping_rows(c("106008", "201145", "6104"),
-                 "CARBON DISSOLVED ORGANIC", "MG/L",
-                 "dissolved org C", "uM", mg_to_um(12.011)),
-    mapping_rows(c("1064", "110002"), "OXYGEN DISSOLVED", "MG/L",
-                 "dissolved oxygen", "uM", mg_to_um(31.998)),
-    mapping_rows(c("2235", "6009"), "CARBON TOTAL ORGANIC", "MG/L",
-                 "tot org C", "uM", mg_to_um(12.011)),
-    mapping_rows(c("10401", "1145", "1961"), "RESIDUE NONFILTERABLE", "MG/L",
-                 "tss   dry mass", "mg/L", 1),
-    mapping_rows(c("157", "2074"), "TURBIDITY", "NTU",
-                 "turbidity", "NTU", 1),
-    mapping_rows(c("1125", "15544"), "TEMPERATURE (WATER)", "DEG C",
-                 "temp", "C", 1),
-    mapping_rows(c("109026", "10301", "1075", "1965"),
-                 c("PH (FIELD)", rep("PH", 3L)), "PH",
-                 "pH", NA_character_, 1),
-    mapping_rows(c("109027", "2", "2041"),
-                 c("SPECIFIC CONDUCTANCE (FIELD)",
-                   rep("SPECIFIC CONDUCTANCE", 2L)),
-                 "µS/CM", "specific conductivity", "uS/cm", 1)
+    mapping_rows(
+      c("108768", "1130", "1967", "9326"),
+      "NITROGEN TOTAL", "MG/L", "TN", "uM",
+      mg_to_um(14.0067)
+    ),
+    mapping_rows(
+      c("109108", "15406", "2013", "25359"),
+      "PHOSPHORUS TOTAL", "MG/L", "TP", "uM",
+      mg_to_um(30.973761998)
+    ),
+    mapping_rows(
+      c("109107", "1204", "15102", "2010"),
+      "PHOSPHORUS TOTAL DISSOLVED", "MG/L", "tdp", "uM",
+      mg_to_um(30.973761998)
+    ),
+    mapping_rows(
+      c("108767", "1968", "7657"),
+      "NITROGEN TOTAL DISSOLVED", "MG/L",
+      "tot dissolved N", "uM", mg_to_um(14.0067)
+    ),
+    mapping_rows(
+      c("10101", "10111", "1131", "9134"),
+      "ALKALINITY TOTAL CACO3", "MG/L",
+      "alkalinity", "ueq/L", 1000 / 50.04345
+    ),
+    mapping_rows(
+      "1963", "COLOUR TRUE", "CTU",
+      "colour PCU", "PCU", 1
+    ),
+    mapping_rows(
+      c("100300", "101252", "1974", "201144"),
+      "CARBON DISSOLVED INORGANIC", "MG/L",
+      "dissolved inorg C", "uM", mg_to_um(12.011)
+    ),
+    mapping_rows(
+      c("106008", "201145", "6104"),
+      "CARBON DISSOLVED ORGANIC", "MG/L",
+      "dissolved org C", "uM", mg_to_um(12.011)
+    ),
+    mapping_rows(
+      c("1064", "110002"), "OXYGEN DISSOLVED", "MG/L",
+      "dissolved oxygen", "uM", mg_to_um(31.998)
+    ),
+    mapping_rows(
+      c("2235", "6009"), "CARBON TOTAL ORGANIC", "MG/L",
+      "tot org C", "uM", mg_to_um(12.011)
+    ),
+    mapping_rows(
+      c("10401", "1145", "1961"), "RESIDUE NONFILTERABLE", "MG/L",
+      "tss   dry mass", "mg/L", 1
+    ),
+    mapping_rows(
+      c("157", "2074"), "TURBIDITY", "NTU",
+      "turbidity", "NTU", 1
+    ),
+    mapping_rows(
+      c("1125", "15544"), "TEMPERATURE (WATER)", "DEG C",
+      "temp", "C", 1
+    ),
+    mapping_rows(
+      c("109026", "10301", "1075", "1965"),
+      c("PH (FIELD)", rep("PH", 3L)), "PH",
+      "pH", NA_character_, 1
+    ),
+    mapping_rows(
+      c("109027", "2", "2041"),
+      c(
+        "SPECIFIC CONDUCTANCE (FIELD)",
+        rep("SPECIFIC CONDUCTANCE", 2L)
+      ),
+      "µS/CM", "specific conductivity", "uS/cm", 1
+    )
   ))
 
   expected_solutes <- c(
@@ -1137,10 +1241,10 @@ prepare_canada_sites <- function() {
   available_info <- !bad_info
   bad_variable[available_info] <-
     mapping$Provider_Variable[available_info] !=
-    variable_info$VARIABLE[mapping_info[available_info]]
+      variable_info$VARIABLE[mapping_info[available_info]]
   bad_units[available_info] <-
     mapping$Provider_Units[available_info] !=
-    variable_info[["UNIT_UNITÉ"]][mapping_info[available_info]]
+      variable_info[["UNIT_UNITÉ"]][mapping_info[available_info]]
   allowed_missing_info <- mapping$VMV_CODE == "1125"
   if (
     !identical(mapping$VMV_CODE[bad_info], "1125") ||
@@ -1176,8 +1280,10 @@ prepare_canada_sites <- function() {
       comment.char = ""
     )
     if (!all(required_columns %in% names(provider_part))) {
-      stop("the reviewed Canada provider columns changed in ",
-           basename(provider_file))
+      stop(
+        "the reviewed Canada provider columns changed in ",
+        basename(provider_file)
+      )
     }
     provider_part <- provider_part[
       provider_part$SITE_NO %in% site_plan$site_no,
@@ -1190,12 +1296,14 @@ prepare_canada_sites <- function() {
   provider <- do.call(rbind, provider_parts)
   rownames(provider) <- NULL
 
-  assert_count(nrow(provider), 128469L,
-               "six-site Canada provider source rows")
+  assert_count(
+    nrow(provider), 128469L,
+    "six-site Canada provider source rows"
+  )
   assert_count(
     sum(provider$VMV_CODE == "2021" &
-          provider$VARIABLE == "COLOUR TRUE" &
-          provider[["UNIT_UNITÉ"]] == "REL UNIT"),
+      provider$VARIABLE == "COLOUR TRUE" &
+      provider[["UNIT_UNITÉ"]] == "REL UNIT"),
     1573L,
     "excluded Canada relative-unit colour rows"
   )
@@ -1225,18 +1333,24 @@ prepare_canada_sites <- function() {
       any(is.na(mapped$numeric_value)) ||
       any(!is.finite(mapped$converted_value)) ||
       any(!is_blank(mapped$FLAG_MARQUEUR) &
-            trimws(mapped$FLAG_MARQUEUR) != "<") ||
+        trimws(mapped$FLAG_MARQUEUR) != "<") ||
       any(mapped$censored & mapped$converted_value <= 0)
   ) {
     stop("the reviewed Canada provider values, dates, or flags changed")
   }
 
-  assert_count(nrow(mapped), 41004L,
-               "mapped Canada provider rows before method precedence")
-  assert_count(sum(mapped$censored), 8095L,
-               "mapped Canada provider censored rows")
-  assert_count(sum(mapped$solute == "DSi"), 600L,
-               "mapped Canada dissolved-silicon rows")
+  assert_count(
+    nrow(mapped), 41004L,
+    "mapped Canada provider rows before method precedence"
+  )
+  assert_count(
+    sum(mapped$censored), 8095L,
+    "mapped Canada provider censored rows"
+  )
+  assert_count(
+    sum(mapped$solute == "DSi"), 600L,
+    "mapped Canada dissolved-silicon rows"
+  )
   for (site_row in seq_len(nrow(site_plan))) {
     assert_count(
       sum(mapped$SITE_NO == site_plan$site_no[site_row]),
@@ -1280,8 +1394,10 @@ prepare_canada_sites <- function() {
       is_blank(mapped$MDL_LDM) &
       abs(mapped$numeric_value - plan$value) < 1e-12
     target[is.na(target)] <- FALSE
-    assert_count(sum(target), 1L,
-                 paste0("reviewed Canada cold value ", plan$sample_id))
+    assert_count(
+      sum(target), 1L,
+      paste0("reviewed Canada cold value ", plan$sample_id)
+    )
     cold_review <- cold_review | target
   }
   assert_count(sum(cold_review), 4L, "reviewed Canada cold rows")
@@ -1291,8 +1407,10 @@ prepare_canada_sites <- function() {
     cold_review_plan$value,
     "prepared Canada reviewed cold-temperature values"
   )
-  assert_count(nrow(mapped), 41004L,
-               "mapped Canada provider rows after cold-value review")
+  assert_count(
+    nrow(mapped), 41004L,
+    "mapped Canada provider rows after cold-value review"
+  )
 
   # use field ph and conductance first when lab values occur on the same day
   site_day <- paste(mapped$SITE_NO, mapped$date, sep = "\r")
@@ -1304,19 +1422,29 @@ prepare_canada_sites <- function() {
     site_day %in% field_conductance_days
   precedence_drop <- drop_lab_ph | drop_lab_conductance
 
-  assert_count(sum(drop_lab_ph), 7L,
-               "Canada lab pH rows superseded by field pH")
-  assert_count(sum(drop_lab_conductance), 7L,
-               "Canada lab conductance rows superseded by field conductance")
-  assert_count(sum(precedence_drop & mapped$censored), 0L,
-               "censored Canada rows removed by method precedence")
+  assert_count(
+    sum(drop_lab_ph), 7L,
+    "Canada lab pH rows superseded by field pH"
+  )
+  assert_count(
+    sum(drop_lab_conductance), 7L,
+    "Canada lab conductance rows superseded by field conductance"
+  )
+  assert_count(
+    sum(precedence_drop & mapped$censored), 0L,
+    "censored Canada rows removed by method precedence"
+  )
 
   selected <- mapped[!precedence_drop, , drop = FALSE]
   rownames(selected) <- NULL
-  assert_count(nrow(selected), 40990L,
-               "selected Canada provider rows before daily aggregation")
-  assert_count(sum(selected$censored), 8095L,
-               "selected Canada provider censored rows")
+  assert_count(
+    nrow(selected), 40990L,
+    "selected Canada provider rows before daily aggregation"
+  )
+  assert_count(
+    sum(selected$censored), 8095L,
+    "selected Canada provider censored rows"
+  )
   for (site_row in seq_len(nrow(site_plan))) {
     assert_count(
       sum(selected$SITE_NO == site_plan$site_no[site_row]),
@@ -1326,7 +1454,8 @@ prepare_canada_sites <- function() {
   }
 
   unit_key <- ifelse(is.na(selected$solute_units), "<blank>",
-                     selected$solute_units)
+    selected$solute_units
+  )
   daily_key <- paste(
     selected$SITE_NO,
     selected$date,
@@ -1336,10 +1465,14 @@ prepare_canada_sites <- function() {
   )
   daily_groups <- split(seq_len(nrow(selected)), daily_key)
   group_sizes <- lengths(daily_groups)
-  assert_count(sum(group_sizes > 1L), 3L,
-               "Canada provider repeated daily keys")
-  assert_count(sum(group_sizes - 1L), 3L,
-               "Canada provider repeated daily rows")
+  assert_count(
+    sum(group_sizes > 1L), 3L,
+    "Canada provider repeated daily keys"
+  )
+  assert_count(
+    sum(group_sizes - 1L), 3L,
+    "Canada provider repeated daily rows"
+  )
 
   collapse_provenance <- function(x) {
     values <- as.character(x)
@@ -1380,8 +1513,10 @@ prepare_canada_sites <- function() {
     } else {
       NA_character_
     }
-    daily_value <- daily_limit_mean(selected$converted_value[row_index],
-      ifelse(selected$censored[row_index], "<", ""))
+    daily_value <- daily_limit_mean(
+      selected$converted_value[row_index],
+      ifelse(selected$censored[row_index], "<", "")
+    )
     amount <- sprintf("%.17g", daily_value)
 
     # keep original source details from every sample included in the average
@@ -1433,19 +1568,27 @@ prepare_canada_sites <- function() {
   assert_count(sum(daily_all_below), 8093L, "Canada all-below-limit days")
   assert_count(sum(daily_mixed), 1L, "Canada mixed detected and below-limit days")
   assert_count(sum(daily_below_count), 8095L, "Canada below-limit source samples")
-  if (!identical(unname(half_limit_flag(daily_below_count, lengths(daily_groups))),
-      daily$Source_Lab_Flag)) {
+  if (!identical(
+    unname(half_limit_flag(daily_below_count, lengths(daily_groups))),
+    daily$Source_Lab_Flag
+  )) {
     stop("Canada daily flags lost the original below-limit sample counts")
   }
 
   assert_count(nrow(daily), 40987L, "official Canada provider daily keys")
-  assert_count(sum(is_half_limit_flag(daily$Source_Lab_Flag)), 8094L,
-               "official Canada daily half-limit flags")
+  assert_count(
+    sum(is_half_limit_flag(daily$Source_Lab_Flag)), 8094L,
+    "official Canada daily half-limit flags"
+  )
   if (any(grepl("^<", daily$amount))) stop("an unconverted Canada limit remains")
-  assert_count(sum(daily$solute == "NO3"), 2139L,
-               "official Canada provider nitrate days")
-  assert_count(sum(daily$solute == "DSi"), 600L,
-               "official Canada dissolved-silicon days")
+  assert_count(
+    sum(daily$solute == "NO3"), 2139L,
+    "official Canada provider nitrate days"
+  )
+  assert_count(
+    sum(daily$solute == "DSi"), 600L,
+    "official Canada dissolved-silicon days"
+  )
   assert_count(
     sum(daily$Source_Method_Flag == "dissolved Si, ECCC", na.rm = TRUE),
     600L,
@@ -1554,11 +1697,15 @@ prepare_canada_sites <- function() {
       source_data$solute == plan$solute &
       source_data$solute_units == plan$solute_units
     keep[is.na(keep)] <- FALSE
-    assert_count(sum(keep), 1L,
-                 paste0("legacy-only Canada row ", legacy_index))
+    assert_count(
+      sum(keep), 1L,
+      paste0("legacy-only Canada row ", legacy_index)
+    )
     source_row <- source_data[keep, , drop = FALSE]
-    assert_values(as_number(source_row$amount), plan$expected_amount,
-                  paste0("legacy-only Canada amount ", legacy_index))
+    assert_values(
+      as_number(source_row$amount), plan$expected_amount,
+      paste0("legacy-only Canada amount ", legacy_index)
+    )
     if (grepl("^[<>]", source_row$amount)) {
       stop("a legacy-only Canada row unexpectedly has a qualifier")
     }
@@ -1596,8 +1743,10 @@ prepare_canada_sites <- function() {
     excluded_source$solute == "NO3" &
     excluded_source$solute_units == "uM"
   excluded_nitrate[is.na(excluded_nitrate)] <- FALSE
-  assert_count(sum(excluded_nitrate), 1L,
-               "withdrawn legacy Kootenay nitrate row")
+  assert_count(
+    sum(excluded_nitrate), 1L,
+    "withdrawn legacy Kootenay nitrate row"
+  )
   assert_values(
     as_number(excluded_source$amount[excluded_nitrate]),
     2.54823502468401,
@@ -1619,14 +1768,22 @@ prepare_canada_sites <- function() {
   }
 
   combined <- rbind(daily, legacy)
-  assert_count(nrow(combined), 40996L,
-               "provider and legacy Canada output rows")
-  assert_count(sum(is_half_limit_flag(combined$Source_Lab_Flag)), 8094L,
-               "provider and legacy Canada daily half-limit flags")
-  assert_count(length(unique(combined$solute)), 35L,
-               "prepared Canada solutes")
-  assert_count(sum(combined$solute == "NH4"), 0L,
-               "prepared Canada NH4 rows")
+  assert_count(
+    nrow(combined), 40996L,
+    "provider and legacy Canada output rows"
+  )
+  assert_count(
+    sum(is_half_limit_flag(combined$Source_Lab_Flag)), 8094L,
+    "provider and legacy Canada daily half-limit flags"
+  )
+  assert_count(
+    length(unique(combined$solute)), 35L,
+    "prepared Canada solutes"
+  )
+  assert_count(
+    sum(combined$solute == "NH4"), 0L,
+    "prepared Canada NH4 rows"
+  )
 
   for (site_row in seq_len(nrow(site_plan))) {
     plan <- site_plan[site_row, , drop = FALSE]
@@ -1635,21 +1792,24 @@ prepare_canada_sites <- function() {
     after <- combined[combined$.site_no == plan$site_no, , drop = FALSE]
     after$.site_no <- NULL
     after <- after[
-      order(after$date, after$solute, after$solute_units, after$amount),
-      ,
+      order(after$date, after$solute, after$solute_units, after$amount), ,
       drop = FALSE
     ]
     rownames(after) <- NULL
 
-    assert_count(nrow(after), plan$final_rows,
-                 paste0(filename, " prepared rows"))
+    assert_count(
+      nrow(after), plan$final_rows,
+      paste0(filename, " prepared rows")
+    )
     assert_count(
       sum(after$Provider_Record_Source == "legacy-only whitelist"),
       plan$legacy_rows,
       paste0(filename, " legacy-only rows")
     )
-    assert_count(sum(after$solute == "NH4"), 0L,
-                 paste0(filename, " prepared NH4 rows"))
+    assert_count(
+      sum(after$solute == "NH4"), 0L,
+      paste0(filename, " prepared NH4 rows")
+    )
     assert_count(
       sum(after$solute == "DSi"),
       plan$dissolved_si_days,
@@ -1694,22 +1854,30 @@ prepare_seine_base <- function() {
     "‰ vs SMOW" = 1L
   )
 
-  assert_count(sum(sediment_calcium, na.rm = TRUE), 69L,
-               "Seine sediment-calcium rows")
+  assert_count(
+    sum(sediment_calcium, na.rm = TRUE), 69L,
+    "Seine sediment-calcium rows"
+  )
   assert_count(sum(isotope, na.rm = TRUE), 1L, "Seine isotope rows")
-  if (!identical(as.integer(sulfate_counts[names(expected_sulfate_counts)]),
-                 as.integer(expected_sulfate_counts))) {
+  if (!identical(
+    as.integer(sulfate_counts[names(expected_sulfate_counts)]),
+    as.integer(expected_sulfate_counts)
+  )) {
     stop("Seine sulfate-unit counts changed")
   }
 
   plain_sulfate <- after$chemical == "Sulfates" & after$units == "mg/L"
-  assert_count(sum(!is.na(as_number(after$value[plain_sulfate]))), 357L,
-               "Seine numeric plain-unit sulfate rows")
+  assert_count(
+    sum(!is.na(as_number(after$value[plain_sulfate]))), 357L,
+    "Seine numeric plain-unit sulfate rows"
+  )
   plain_keys <- unique(paste(after$Stream_Name[plain_sulfate &
     !is.na(as_number(after$value))], after$date[plain_sulfate &
     !is.na(as_number(after$value))], sep = "\r"))
-  assert_count(length(plain_keys), 347L,
-               "Seine distinct plain-unit sulfate keys")
+  assert_count(
+    length(plain_keys), 347L,
+    "Seine distinct plain-unit sulfate keys"
+  )
 
   change_masks <- list(
     calcium = after$chemical == "Calcium" & after$units == "mg(Ca)/L",
@@ -1741,8 +1909,10 @@ prepare_seine_base <- function() {
   after <- after[!(sediment_calcium | isotope), , drop = FALSE]
   rownames(after) <- NULL
   sulfate_labels <- after$chemical == "Sulfates"
-  assert_count(sum(sulfate_labels, na.rm = TRUE), 12715L,
-               "Seine sulfate labels")
+  assert_count(
+    sum(sulfate_labels, na.rm = TRUE), 12715L,
+    "Seine sulfate labels"
+  )
   after$chemical[sulfate_labels] <- "SO4"
 
   assert_count(nrow(after), 43639L, "prepared Seine base rows")
@@ -1750,12 +1920,18 @@ prepare_seine_base <- function() {
     "mg(Ca)/kg", "‰ vs SMOW", "mg(Ca)/L", "mg(Mg)/L", "mg(K)/L",
     "mg(S)/L", "mg(SO4)/L"
   )), 0L, "prepared Seine old unit labels")
-  assert_count(sum(after$chemical == "Sulfates", na.rm = TRUE), 0L,
-               "prepared Seine old sulfate labels")
-  assert_count(sum(after$chemical == "SO4" & after$units == "mg S/L"),
-               8930L, "prepared Seine sulfate-as-sulfur rows")
-  assert_count(sum(after$chemical == "SO4" & after$units == "mg SO4/L"),
-               3785L, "prepared Seine sulfate-as-sulfate rows")
+  assert_count(
+    sum(after$chemical == "Sulfates", na.rm = TRUE), 0L,
+    "prepared Seine old sulfate labels"
+  )
+  assert_count(
+    sum(after$chemical == "SO4" & after$units == "mg S/L"),
+    8930L, "prepared Seine sulfate-as-sulfur rows"
+  )
+  assert_count(
+    sum(after$chemical == "SO4" & after$units == "mg SO4/L"),
+    3785L, "prepared Seine sulfate-as-sulfate rows"
+  )
 
   write_prepared(filename, after)
 }
@@ -1774,10 +1950,14 @@ prepare_cleaned_seine <- function() {
   assert_count(sum(invalid_do, na.rm = TRUE), 1L, "Seine invalid oxygen row")
   assert_count(sum(invalid_nh3, na.rm = TRUE), 1L, "Seine invalid ammonia row")
   # keep the reported oxygen and ammonia values for later outlier review
-  assert_values(as_number(after$DO_mgl[invalid_do]), 95,
-                "prepared Seine reviewed oxygen value")
-  assert_values(as_number(after$NH3..mg.l.[invalid_nh3]), -0.002,
-                "prepared Seine reviewed ammonia value")
+  assert_values(
+    as_number(after$DO_mgl[invalid_do]), 95,
+    "prepared Seine reviewed oxygen value"
+  )
+  assert_values(
+    as_number(after$NH3..mg.l.[invalid_nh3]), -0.002,
+    "prepared Seine reviewed ammonia value"
+  )
   after$date <- normalize_reviewed_dates(
     after$date,
     date_order = "mdy",
@@ -1842,20 +2022,34 @@ prepare_murray <- function() {
   overlap_keys <- intersect(primary_keys, fallback_keys)
   fallback_overlap <- fallback_alkalinity & source_key %in% overlap_keys
 
-  assert_count(sum(primary_alkalinity), 2063L,
-               "Murray-Darling primary alkalinity rows")
-  assert_count(length(primary_keys), 2063L,
-               "Murray-Darling primary alkalinity keys")
-  assert_count(sum(fallback_alkalinity), 121L,
-               "Murray-Darling fallback alkalinity rows")
-  assert_count(length(fallback_keys), 121L,
-               "Murray-Darling fallback alkalinity keys")
-  assert_count(length(overlap_keys), 94L,
-               "Murray-Darling alkalinity overlap keys")
-  assert_count(sum(fallback_overlap), 94L,
-               "Murray-Darling superseded fallback alkalinity rows")
-  assert_count(length(setdiff(fallback_keys, primary_keys)), 27L,
-               "Murray-Darling fallback-only alkalinity keys")
+  assert_count(
+    sum(primary_alkalinity), 2063L,
+    "Murray-Darling primary alkalinity rows"
+  )
+  assert_count(
+    length(primary_keys), 2063L,
+    "Murray-Darling primary alkalinity keys"
+  )
+  assert_count(
+    sum(fallback_alkalinity), 121L,
+    "Murray-Darling fallback alkalinity rows"
+  )
+  assert_count(
+    length(fallback_keys), 121L,
+    "Murray-Darling fallback alkalinity keys"
+  )
+  assert_count(
+    length(overlap_keys), 94L,
+    "Murray-Darling alkalinity overlap keys"
+  )
+  assert_count(
+    sum(fallback_overlap), 94L,
+    "Murray-Darling superseded fallback alkalinity rows"
+  )
+  assert_count(
+    length(setdiff(fallback_keys, primary_keys)), 27L,
+    "Murray-Darling fallback-only alkalinity keys"
+  )
 
   primary_values <- stats::setNames(
     value[primary_alkalinity],
@@ -1887,22 +2081,34 @@ prepare_murray <- function() {
     c("Alk_CaCO3", "BiCarbAlk_CaCO3")
   water_temperature_labels <- after$shortname == "Water_Temp"
   other_temperature_labels <- after$shortname == "Temp"
-  assert_count(sum(alkalinity_labels), 2184L,
-               "Murray-Darling alkalinity labels")
-  assert_count(sum(water_temperature_labels), 15141L,
-               "Murray-Darling water-temperature labels")
-  assert_count(sum(other_temperature_labels), 18882L,
-               "Murray-Darling unmapped temperature labels")
+  assert_count(
+    sum(alkalinity_labels), 2184L,
+    "Murray-Darling alkalinity labels"
+  )
+  assert_count(
+    sum(water_temperature_labels), 15141L,
+    "Murray-Darling water-temperature labels"
+  )
+  assert_count(
+    sum(other_temperature_labels), 18882L,
+    "Murray-Darling unmapped temperature labels"
+  )
   after$shortname[alkalinity_labels] <- "alkalinity"
 
-  assert_count(sum(after$shortname %in%
-    c("Alk_CaCO3", "BiCarbAlk_CaCO3")), 0L,
-    "prepared Murray-Darling old alkalinity labels")
-  assert_count(sum(after$shortname == "alkalinity"), 2184L,
-               "prepared Murray-Darling alkalinity labels")
-  assert_count(sum(after$shortname == "alkalinity" &
-    !is.na(as_number(after$Value))), 2090L,
-    "prepared Murray-Darling retained alkalinity rows")
+  assert_count(
+    sum(after$shortname %in%
+      c("Alk_CaCO3", "BiCarbAlk_CaCO3")), 0L,
+    "prepared Murray-Darling old alkalinity labels"
+  )
+  assert_count(
+    sum(after$shortname == "alkalinity"), 2184L,
+    "prepared Murray-Darling alkalinity labels"
+  )
+  assert_count(
+    sum(after$shortname == "alkalinity" &
+      !is.na(as_number(after$Value))), 2090L,
+    "prepared Murray-Darling retained alkalinity rows"
+  )
   assert_count(
     sum(after$source_method_flag == "total alkalinity", na.rm = TRUE),
     2063L,
@@ -1916,10 +2122,14 @@ prepare_murray <- function() {
     27L,
     "Murray-Darling bicarbonate fallback method flags"
   )
-  assert_count(sum(after$shortname == "Water_Temp"), 15141L,
-               "prepared Murray-Darling water-temperature labels")
-  assert_count(sum(after$shortname == "Temp"), 18882L,
-               "prepared Murray-Darling unmapped temperature labels")
+  assert_count(
+    sum(after$shortname == "Water_Temp"), 15141L,
+    "prepared Murray-Darling water-temperature labels"
+  )
+  assert_count(
+    sum(after$shortname == "Temp"), 18882L,
+    "prepared Murray-Darling unmapped temperature labels"
+  )
   temperature_rows <- before$shortname %in% c("Temp", "Water_Temp")
   if (
     !same_character(
@@ -1959,17 +2169,23 @@ prepare_murray <- function() {
   value <- as_number(after$Value)
   zero_conductivity <- after$shortname == "Conduct" & value == 0
   zero_field_ec <- after$shortname == "Field_EC" & value == 0
-  assert_count(sum(zero_conductivity, na.rm = TRUE), 30L,
-               "Murray-Darling zero-conductivity rows")
-  assert_count(sum(zero_field_ec, na.rm = TRUE), 38L,
-               "Murray-Darling zero field-EC rows")
+  assert_count(
+    sum(zero_conductivity, na.rm = TRUE), 30L,
+    "Murray-Darling zero-conductivity rows"
+  )
+  assert_count(
+    sum(zero_field_ec, na.rm = TRUE), 38L,
+    "Murray-Darling zero field-EC rows"
+  )
   # keep reported zero conductivity for later outlier review
 
   if (!same_character(before$Value[zero_field_ec], after$Value[zero_field_ec])) {
     stop("Murray-Darling unkeyed field EC changed")
   }
-  assert_count(sum(after$Site %in% names(site_map)), 0L,
-               "prepared Murray-Darling old names")
+  assert_count(
+    sum(after$Site %in% names(site_map)), 0L,
+    "prepared Murray-Darling old names"
+  )
   write_prepared(filename, after)
 }
 
@@ -2030,10 +2246,14 @@ prepare_cameroon <- function() {
 
   assert_count(nrow(after), 3088L, "Cameroon rows")
   # these are the first, legitimate june 16 records in the 2021 sequences
-  assert_count(sum(after$Date == "06/16/21", na.rm = TRUE), 6L,
-               "Cameroon retained June 2021 rows")
-  assert_count(sum(after$Date == "06/16/22", na.rm = TRUE), 0L,
-               "Cameroon absent June 2022 block")
+  assert_count(
+    sum(after$Date == "06/16/21", na.rm = TRUE), 6L,
+    "Cameroon retained June 2021 rows"
+  )
+  assert_count(
+    sum(after$Date == "06/16/22", na.rm = TRUE), 0L,
+    "Cameroon absent June 2022 block"
+  )
   if (!identical(range(sample_date), as.Date(c("1994-08-11", "2022-11-04")))) {
     stop("Cameroon date range changed")
   }
@@ -2109,8 +2329,10 @@ prepare_cameroon <- function() {
     provider_file <- provider_files[
       basename(provider_files) == plan$workbook
     ]
-    assert_count(length(provider_file), 1L,
-                 paste0(plan$site, " Cameroon provider workbook"))
+    assert_count(
+      length(provider_file), 1L,
+      paste0(plan$site, " Cameroon provider workbook")
+    )
     provider <- readxl::read_excel(provider_file)
     expected_provider_columns <- if (plan$site == "Nsimi_outlet") {
       c(provider_columns, "POC")
@@ -2136,8 +2358,10 @@ prepare_cameroon <- function() {
     }
 
     existing <- before$Site == plan$site & before$Date == "06/16/21"
-    assert_count(sum(existing, na.rm = TRUE), 1L,
-                 paste0(plan$site, " retained Cameroon 2021 row"))
+    assert_count(
+      sum(existing, na.rm = TRUE), 1L,
+      paste0(plan$site, " retained Cameroon 2021 row")
+    )
     first_index <- plan$first_excel_row - 1L
     for (measurement_index in seq_along(prepared_measurements)) {
       prepared_name <- prepared_measurements[measurement_index]
@@ -2147,7 +2371,7 @@ prepare_cameroon <- function() {
       if (
         xor(is.na(prepared_value), is.na(provider_value)) ||
           (!is.na(prepared_value) &&
-             abs(prepared_value - provider_value) > 1e-10)
+            abs(prepared_value - provider_value) > 1e-10)
       ) {
         stop(
           "the retained Cameroon 2021 value changed for ", plan$site,
@@ -2189,17 +2413,25 @@ prepare_cameroon <- function() {
   after <- rbind(after, do.call(rbind, restored_rows))
   rownames(after) <- NULL
   assert_count(nrow(after), 3094L, "prepared Cameroon rows")
-  assert_count(sum(after$Date == "06/16/21", na.rm = TRUE), 6L,
-               "prepared Cameroon June 2021 rows")
-  assert_count(sum(after$Date == "06/16/22", na.rm = TRUE), 6L,
-               "restored Cameroon June 2022 rows")
+  assert_count(
+    sum(after$Date == "06/16/21", na.rm = TRUE), 6L,
+    "prepared Cameroon June 2021 rows"
+  )
+  assert_count(
+    sum(after$Date == "06/16/22", na.rm = TRUE), 6L,
+    "restored Cameroon June 2022 rows"
+  )
 
   unresolved_sulfate <- after$Site == "Olama" &
     after$Date == "12/15/03" & tolower(trimws(after$SO4)) == "nd"
-  assert_count(sum(unresolved_sulfate, na.rm = TRUE), 1L,
-               "Cameroon unresolved sulfate row")
-  assert_count(sum(tolower(trimws(after$SO4)) == "nd", na.rm = TRUE), 1L,
-               "Cameroon unresolved sulfate total")
+  assert_count(
+    sum(unresolved_sulfate, na.rm = TRUE), 1L,
+    "Cameroon unresolved sulfate row"
+  )
+  assert_count(
+    sum(tolower(trimws(after$SO4)) == "nd", na.rm = TRUE), 1L,
+    "Cameroon unresolved sulfate total"
+  )
   # exclude nd sulfate from the working input because no threshold is given
   after$SO4[unresolved_sulfate] <- NA_character_
   after$Date <- normalize_reviewed_dates(
@@ -2245,24 +2477,32 @@ validate_guadeloupe_sources <- function() {
     if (!identical(names(data), expected_columns)) {
       stop(filename, " no longer has the original source columns")
     }
-    assert_count(nrow(data), expected_rows[[filename]],
-                 paste0(filename, " source rows"))
+    assert_count(
+      nrow(data), expected_rows[[filename]],
+      paste0(filename, " source rows")
+    )
 
     source_date <- trimws(data$Date)
-    assert_count(sum(is_blank(source_date)), 0L,
-                 paste0(filename, " blank source dates"))
+    assert_count(
+      sum(is_blank(source_date)), 0L,
+      paste0(filename, " blank source dates")
+    )
     parsed_date <- as.Date(source_date, format = "%Y-%m-%d")
     if (anyNA(parsed_date) || any(format(parsed_date, "%Y-%m-%d") != source_date)) {
       stop(filename, " has an invalid source date")
     }
-    assert_count(length(unique(parsed_date)), expected_dates[[filename]],
-                 paste0(filename, " source dates"))
+    assert_count(
+      length(unique(parsed_date)), expected_dates[[filename]],
+      paste0(filename, " source dates")
+    )
 
     source_hour <- trimws(data$Hour)
     invalid_hour <- !is_blank(source_hour) &
       !grepl("^[0-9]{2}:[0-9]{2}$", source_hour)
-    assert_count(sum(invalid_hour), 0L,
-                 paste0(filename, " invalid source times"))
+    assert_count(
+      sum(invalid_hour), 0L,
+      paste0(filename, " invalid source times")
+    )
   }
 
   invisible(TRUE)
@@ -2322,8 +2562,10 @@ prepare_camrex <- function() {
   }
 
   assert_count(nrow(after), 170L, "prepared CAMREX rows")
-  assert_count(sum(after$Site.Stream.Name %in% names(site_map)), 0L,
-               "prepared CAMREX old names")
+  assert_count(
+    sum(after$Site.Stream.Name %in% names(site_map)), 0L,
+    "prepared CAMREX old names"
+  )
   write_prepared(filename, after)
 }
 
@@ -2337,17 +2579,19 @@ prepare_niva <- function() {
   osteglo <- before$station_code == "ØSTEGLO"
   suspect_conductivity <-
     before$station_id == "29782" &
-    before$station_code == "NOREVEF" &
-    (
-      (before$sample_date == "1/6/04 0:00" & before$`COND_mS/m` == "506") |
-      (before$sample_date == "2/5/04 0:00" & before$`COND_mS/m` == "800") |
-      (before$sample_date == "3/8/04 0:00" & before$`COND_mS/m` == "86.7")
-    )
+      before$station_code == "NOREVEF" &
+      (
+        (before$sample_date == "1/6/04 0:00" & before$`COND_mS/m` == "506") |
+          (before$sample_date == "2/5/04 0:00" & before$`COND_mS/m` == "800") |
+          (before$sample_date == "3/8/04 0:00" & before$`COND_mS/m` == "86.7")
+      )
 
   assert_count(nrow(before), 3677L, "NIVA rows")
   assert_count(sum(osteglo, na.rm = TRUE), 538L, "NIVA ØSTEGLO rows")
-  assert_count(sum(suspect_conductivity, na.rm = TRUE), 3L,
-               "NIVA suspect conductivity rows")
+  assert_count(
+    sum(suspect_conductivity, na.rm = TRUE), 3L,
+    "NIVA suspect conductivity rows"
+  )
   # keep reported conductivity values for later outlier review
   assert_values(
     as_number(after$`COND_mS/m`[suspect_conductivity]),
@@ -2379,10 +2623,14 @@ prepare_niva_geogenic <- function() {
   sulfate <- before$Parameter_id == "SO4" & before$unit == "mg/l"
 
   assert_count(nrow(before), 6434L, "NIVA geogenic rows")
-  assert_count(sum(osteglo, na.rm = TRUE), 496L,
-               "NIVA geogenic ØSTEGLO rows")
-  assert_count(sum(sulfate, na.rm = TRUE), 1160L,
-               "NIVA geogenic sulfate rows")
+  assert_count(
+    sum(osteglo, na.rm = TRUE), 496L,
+    "NIVA geogenic ØSTEGLO rows"
+  )
+  assert_count(
+    sum(sulfate, na.rm = TRUE), 1160L,
+    "NIVA geogenic sulfate rows"
+  )
 
   after$Stream_Name[osteglo] <- "OSTEGLO"
   after$unit[sulfate] <- "mg SO4/L"
@@ -2397,8 +2645,10 @@ prepare_niger <- function() {
   before <- read_source(filename)
 
   assert_count(nrow(before), 85L, "Niger rows")
-  assert_count(sum(before$Stream_Name == "Niger", na.rm = TRUE), 85L,
-               "Niger normalized source names")
+  assert_count(
+    sum(before$Stream_Name == "Niger", na.rm = TRUE), 85L,
+    "Niger normalized source names"
+  )
   assert_count(sum(is_blank(before$Stream_Name)), 0L, "Niger blank names")
 
   write_prepared(filename, before)
@@ -2430,8 +2680,10 @@ validate_elbe_name <- function() {
   filename <- "ElbeRiverChem.csv"
   data <- read_source(filename, directory = qualifier_dir)
   assert_count(nrow(data), 233L, "Elbe rows")
-  assert_count(sum(data$Stream_Name == "Elbe", na.rm = TRUE), 233L,
-               "Elbe normalized source names")
+  assert_count(
+    sum(data$Stream_Name == "Elbe", na.rm = TRUE), 233L,
+    "Elbe normalized source names"
+  )
   assert_count(sum(is_blank(data$Stream_Name)), 0L, "Elbe blank source names")
 }
 
@@ -2451,8 +2703,10 @@ prepare_krycklan_cations <- function() {
     before$K.ug.l == "52438"
 
   assert_count(nrow(before), 7930L, "Krycklan cation rows")
-  assert_count(sum(suspect, na.rm = TRUE), 1L,
-               "Krycklan reviewed potassium row")
+  assert_count(
+    sum(suspect, na.rm = TRUE), 1L,
+    "Krycklan reviewed potassium row"
+  )
   write_prepared(filename, before)
 }
 
@@ -2464,13 +2718,15 @@ prepare_canada <- function() {
   after <- before
   withdrawn_nitrate <-
     before$SITE_NO == "BC08NF0001" &
-    before$DATE_TIME_HEURE == "2022-12-05 09:48:00" &
-    before$VARIABLE == "DISSOLVED NITROGEN NITRATE" &
-    before$VALUE_VALEUR == "0.158" &
-    before$UNIT_UNITE == "MG/L"
+      before$DATE_TIME_HEURE == "2022-12-05 09:48:00" &
+      before$VARIABLE == "DISSOLVED NITROGEN NITRATE" &
+      before$VALUE_VALEUR == "0.158" &
+      before$UNIT_UNITE == "MG/L"
   withdrawn_nitrate[is.na(withdrawn_nitrate)] <- FALSE
-  assert_count(sum(withdrawn_nitrate), 1L,
-               "withdrawn legacy Kootenay nitrate row")
+  assert_count(
+    sum(withdrawn_nitrate), 1L,
+    "withdrawn legacy Kootenay nitrate row"
+  )
   # the current original source download no longer contains this older result
   after <- after[!withdrawn_nitrate, , drop = FALSE]
   rownames(after) <- NULL
@@ -2500,8 +2756,10 @@ prepare_canada <- function() {
   original_values <- after$VALUE_VALEUR
   for (variable in names(unit_map)) {
     target <- after$VARIABLE == variable & after$UNIT_UNITE == "MG/L"
-    assert_count(sum(target, na.rm = TRUE), expected[[variable]],
-                 paste0("legacy Canada ", variable, " rows"))
+    assert_count(
+      sum(target, na.rm = TRUE), expected[[variable]],
+      paste0("legacy Canada ", variable, " rows")
+    )
     after$UNIT_UNITE[target] <- unit_map[[variable]]
   }
   if (!same_character(original_values, after$VALUE_VALEUR)) {
@@ -2510,8 +2768,10 @@ prepare_canada <- function() {
 
   # keep extractable silicon in the prepared input for source transparency
   # the master workflow excludes it because method f055 confirms no filtration
-  assert_count(sum(extractable_silicon, na.rm = TRUE), 1549L,
-               "legacy Canada extractable silicon rows")
+  assert_count(
+    sum(extractable_silicon, na.rm = TRUE), 1549L,
+    "legacy Canada extractable silicon rows"
+  )
   assert_count(nrow(after), 11747L, "prepared legacy Canada rows")
 
   write_prepared(filename, after)
@@ -2526,8 +2786,10 @@ prepare_catalina <- function() {
   inferred <- after$SiteCode == "MG_WEIR" &
     after$SampleCode == "AZ_S1793" & is_blank(after$DateTime)
 
-  assert_count(sum(inferred, na.rm = TRUE), 1L,
-               "Catalina inferred-date sample")
+  assert_count(
+    sum(inferred, na.rm = TRUE), 1L,
+    "Catalina inferred-date sample"
+  )
   after$DateTime[inferred] <- "2018-04-19"
 
   date_text <- trimws(after$DateTime)
@@ -2558,8 +2820,8 @@ prepare_catalina <- function() {
 
   # do not alter the reported ph, oxygen, or temperature values here
   if (!same_character(before$pH, after$pH) ||
-      !same_character(before$DO, after$DO) ||
-      !same_character(before$Temp, after$Temp)) {
+    !same_character(before$DO, after$DO) ||
+    !same_character(before$Temp, after$Temp)) {
     stop("Catalina measurement values changed during date preparation")
   }
 
@@ -2610,8 +2872,10 @@ prepare_nt_nsw <- function() {
     after$Date == "27/09/1995" &
     after$Value == "4.6" &
     after$Unit == "micrograms/litre"
-  assert_count(sum(zinc_source, na.rm = TRUE), 1L,
-               "NT/NSW source zinc row")
+  assert_count(
+    sum(zinc_source, na.rm = TRUE), 1L,
+    "NT/NSW source zinc row"
+  )
   # the portal reports this result in micrograms per litre
   # convert it only in the working copy used by the chemistry workflow
   after$Value[zinc_source] <- "0.0046"
@@ -2647,8 +2911,10 @@ prepare_nt_nsw <- function() {
   for (pair_row in seq_len(nrow(unit_pairs))) {
     target <- after$Parameter == unit_pairs$parameter[pair_row] &
       after$Unit == unit_pairs$source_unit[pair_row]
-    assert_count(sum(target, na.rm = TRUE), unit_pairs$expected_rows[pair_row],
-                 "NT/NSW molecular-basis unit rows")
+    assert_count(
+      sum(target, na.rm = TRUE), unit_pairs$expected_rows[pair_row],
+      "NT/NSW molecular-basis unit rows"
+    )
     after$Unit[target] <- unit_pairs$target_unit[pair_row]
   }
   ph_unit <- after$Parameter == "pH" & after$Unit == "/"
@@ -2698,8 +2964,7 @@ prepare_nt_nsw <- function() {
   provider_soluble <- provider$Parameter == "Silica - Soluble"
   provider_unit <- tolower(trimws(provider$Unit)) == "mg/l"
   reviewed_provider <- provider[
-    provider_station & provider_soluble & provider_unit & valid_provider_date,
-    ,
+    provider_station & provider_soluble & provider_unit & valid_provider_date, ,
     drop = FALSE
   ]
 
@@ -2715,18 +2980,23 @@ prepare_nt_nsw <- function() {
     sep = "\r"
   )
   reviewed_provider <- reviewed_provider[
-    provider_keys %in% legacy_keys,
-    ,
+    provider_keys %in% legacy_keys, ,
     drop = FALSE
   ]
   provider_keys <- provider_keys[provider_keys %in% legacy_keys]
 
-  assert_count(length(unique(legacy_keys)), 3165L,
-               "NT/NSW project silica site-days")
-  assert_count(nrow(reviewed_provider), 1752L,
-               "NT/NSW provider-confirmed soluble silica rows")
-  assert_count(length(unique(provider_keys)), 1752L,
-               "NT/NSW provider-confirmed soluble silica site-days")
+  assert_count(
+    length(unique(legacy_keys)), 3165L,
+    "NT/NSW project silica site-days"
+  )
+  assert_count(
+    nrow(reviewed_provider), 1752L,
+    "NT/NSW provider-confirmed soluble silica rows"
+  )
+  assert_count(
+    length(unique(provider_keys)), 1752L,
+    "NT/NSW provider-confirmed soluble silica site-days"
+  )
   assert_count(
     sum(reviewed_provider[["Station No."]] == "409025"),
     878L,
@@ -2755,7 +3025,20 @@ prepare_nt_nsw <- function() {
   si_rows$Unit <- "mg SiO2/L"
   si_rows$Name <- reviewed_provider[["Station Name"]]
 
-  after <- rbind(after[!legacy_si, , drop = FALSE], si_rows)
+  # retain generic si only at approved stations, using the stated si assumption
+  # the original concentration values and confirmed sio2 provider rows stay unchanged
+  site_reference <- read.csv(file.path(key_dir, "Site_Reference_Table.csv"),
+    colClasses = "character", na.strings = ""
+  )
+  assumed_names <- site_reference$Stream_Name[which(site_reference$LTER == "Australia" &
+    site_reference$Include_in_Master_Chem == "Yes" &
+    method_flag_present(site_reference$Flag, "Si basis assumed as Si"))]
+  assumed_si <- after[legacy_si & after$Name %in% assumed_names, , drop = FALSE]
+  if (!setequal(unique(assumed_si$Name), assumed_names)) {
+    stop("an approved Australian station has no generic silicon records")
+  }
+  assumed_si$Unit <- "mg Si/L"
+  after <- rbind(after[!legacy_si, , drop = FALSE], si_rows, assumed_si)
   rownames(after) <- NULL
 
   write_prepared(filename, after)
@@ -2770,14 +3053,18 @@ prepare_mcm <- function() {
   andersen_h1 <- after$location == "Andersen Creek at F5"
   aiken_f5 <- after$location == "Aiken Creek at f5"
 
-  assert_count(sum(andersen_h1, na.rm = TRUE), 11L,
-               "McMurdo Andersen H1 rows")
+  assert_count(
+    sum(andersen_h1, na.rm = TRUE), 11L,
+    "McMurdo Andersen H1 rows"
+  )
   if (!identical(unique(after$strmgageid[andersen_h1]), "andrsn_h1")) {
     stop("McMurdo Andersen gage identity changed")
   }
   assert_count(sum(aiken_f5, na.rm = TRUE), 13L, "McMurdo Aiken F5 rows")
-  assert_count(sum(!is.na(as_number(after$alkalinity_meql))), 1949L,
-               "McMurdo raw alkalinity rows")
+  assert_count(
+    sum(!is.na(as_number(after$alkalinity_meql))), 1949L,
+    "McMurdo raw alkalinity rows"
+  )
 
   after$location[andersen_h1] <- "Andersen Creek at H1"
   after$location[aiken_f5] <- "Aiken Creek at F5"
@@ -2834,9 +3121,12 @@ prepare_deduplicated_sites <- function() {
   filename <- "Deduplicated_Sites_AllSites_chemistry.csv"
   before <- read_source(filename)
   assert_count(nrow(before), 39129L, "deduplicated chemistry rows")
-  assert_count(sum(before$solute %in% c("TN", "TDS", "tot dissolved solids"),
-                   na.rm = TRUE), 0L,
-               "deduplicated uppercase TN or TDS rows")
+  assert_count(
+    sum(before$solute %in% c("TN", "TDS", "tot dissolved solids"),
+      na.rm = TRUE
+    ), 0L,
+    "deduplicated uppercase TN or TDS rows"
+  )
   write_prepared(filename, before)
 }
 
@@ -2876,14 +3166,20 @@ validate_long_units_key <- function() {
   # these reporting bases are confirmed, not assumptions needing a method flag
   confirmed_units <- list(
     c("Alpine_Clean.csv", "nh4_mgl", "mg NH4/L"),
-    c("MurrayDarlingChem_Merged.csv", "Si", "mg SiO2/L"),
-    c("NT_NSW_Chem_Cleaned.csv", "Si", "mg SiO2/L")
+    c("MurrayDarlingChem_Merged.csv", "Si", "mg SiO2/L")
   )
   for (entry in confirmed_units) {
     selected <- units_key$Raw_Filename == entry[1] & units_key$Variable == entry[2]
     selected[is.na(selected)] <- FALSE
     assert_count(sum(selected), 1L, paste(entry[1], entry[2], "units-key rows"))
     if (units_key$Units[selected] != entry[3]) stop("check the confirmed reporting unit for ", entry[1])
+  }
+  # the combined australian file keeps assumed si separate from confirmed sio2
+  nt_si <- units_key$Raw_Filename == "NT_NSW_Chem_Cleaned.csv" & units_key$Variable == "Si"
+  nt_si[is.na(nt_si)] <- FALSE
+  assert_count(sum(nt_si), 2L, "NT/NSW separate Si and SiO2 units-key rows")
+  if (!setequal(units_key$Units[nt_si], c("mg Si/L", "mg SiO2/L"))) {
+    stop("check the separate NT/NSW silicon reporting units")
   }
   canada_alkalinity <- units_key$Raw_Filename %in% canada_site_files &
     units_key$Variable == "alkalinity" & units_key$Units == "uM"
@@ -2892,12 +3188,18 @@ validate_long_units_key <- function() {
   canada_nh4 <- units_key$Raw_Filename %in% canada_site_files &
     units_key$Variable == "NH4" & units_key$Units == "uM"
 
-  assert_count(sum(canada_alkalinity), 0L,
-               "old six-site Canada alkalinity key rows")
-  assert_count(sum(canada_alkalinity_fixed), 6L,
-               "fixed six-site Canada alkalinity key rows")
-  assert_count(sum(canada_nh4), 0L,
-               "old six-site Canada NH4 key rows")
+  assert_count(
+    sum(canada_alkalinity), 0L,
+    "old six-site Canada alkalinity key rows"
+  )
+  assert_count(
+    sum(canada_alkalinity_fixed), 6L,
+    "fixed six-site Canada alkalinity key rows"
+  )
+  assert_count(
+    sum(canada_nh4), 0L,
+    "old six-site Canada NH4 key rows"
+  )
   for (filename in canada_site_files[2:4]) {
     assert_count(
       sum(
@@ -2935,14 +3237,22 @@ validate_long_units_key <- function() {
   seine_old_sulfate <- units_key$Raw_Filename ==
     "Seine_baseGeo_Naides.csv" & units_key$Variable == "Sulfates"
 
-  assert_count(sum(murray_alkalinity), 1L,
-               "Murray-Darling alkalinity key rows")
-  assert_count(sum(murray_old_alkalinity), 0L,
-               "Murray-Darling old alkalinity key rows")
-  assert_count(sum(murray_temperature), 1L,
-               "Murray-Darling temperature key rows")
-  assert_count(sum(murray_unmapped_temperature), 0L,
-               "Murray-Darling unmapped temperature key rows")
+  assert_count(
+    sum(murray_alkalinity), 1L,
+    "Murray-Darling alkalinity key rows"
+  )
+  assert_count(
+    sum(murray_old_alkalinity), 0L,
+    "Murray-Darling old alkalinity key rows"
+  )
+  assert_count(
+    sum(murray_temperature), 1L,
+    "Murray-Darling temperature key rows"
+  )
+  assert_count(
+    sum(murray_unmapped_temperature), 0L,
+    "Murray-Darling unmapped temperature key rows"
+  )
   assert_count(sum(seine_sulfate), 2L, "Seine sulfate key rows")
   assert_count(sum(seine_old_sulfate), 0L, "Seine old sulfate key rows")
 
@@ -3051,8 +3361,7 @@ validate_long_units_key <- function() {
     }
 
     covered_pairs <- observed_pairs[
-      observed_pairs$solute %in% keyed,
-      ,
+      observed_pairs$solute %in% keyed, ,
       drop = FALSE
     ]
     for (pair_row in seq_len(nrow(covered_pairs))) {
@@ -3075,8 +3384,7 @@ validate_long_units_key <- function() {
   }
 
   missing_rows <- missing_rows[
-    order(missing_rows$Raw_Filename, missing_rows$Variable, missing_rows$Units),
-    ,
+    order(missing_rows$Raw_Filename, missing_rows$Variable, missing_rows$Units), ,
     drop = FALSE
   ]
   rownames(missing_rows) <- NULL

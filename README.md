@@ -6,6 +6,16 @@
 
 ## Script Explanations
 
+Start with the runner for the work you need. Keep the source inputs and release
+checks together in the dated run folder so a later run can use the same inputs.
+
+| Work | Entry point |
+|---|---|
+| Build master chemistry and its notes | [`run_full_chemistry_workflow.R`](run_full_chemistry_workflow.R) |
+| Prepare watersheds and run AppEEARS or the local spatial extraction | [`lterwg-silica-spatial`](https://github.com/lter/lterwg-silica-spatial) |
+| Run Earth Engine and build the checked spatial tables | [`data-workflow_spatial`](https://github.com/global-river-chem/data-workflow_spatial) |
+| Join the checked chemistry, discharge, and spatial inputs | [`combine_chemistry_spatial.R`](combine_chemistry_spatial.R) |
+
 ### Data Harmonizing (`00`)
 
 These scripts put chemistry files into the same format and combine them into master chemistry.
@@ -24,19 +34,22 @@ These scripts put chemistry files into the same format and combine them into mas
 
 #### Running the Updated Chemistry Workflow
 
-Keep the files together in the downloaded or cloned repository folder. Open `run_full_chemistry_workflow.R` in RStudio and click **Source**. Choose where to save the results and sign in to Google when prompted. There are no paths to edit or files to download by hand.
+Keep the files together in the repository folder. The RStudio entry point is
+`run_full_chemistry_workflow.R`. Open it, click **Source**, and choose where to
+save the run. Use the local command below for a rerun from saved inputs.
 
 The full chemistry validation passed on October 26, including the additional GEMS chemistry and the agreed Canada Si conversion. The shared keys and lab rules matched the validated copies. That chemistry code was committed and pushed on October 27 as `4c15c54`, `Finalize master chemistry workflow, source checks, and metadata`. The October 29 local rerun and comparison also passed with the half-limit averaging rule described below. The October 29 chemistry and metadata were uploaded to Drive and verified against the local files. The September 25, October 26 `_SAB`, and October 28 exports and their available matching metadata were archived without deleting them.
 
 The GEMS additions include 65,510 non-Si daily measurements. The earlier averaging rule excluded below-limit samples from 106 mixed daily averages; those averages now include the samples at half their reported limits. Above-limit samples remain excluded from 15 mixed daily averages, as recorded in their flags. Estimated-value flags also survive daily averaging. Another 249 additions use the shallowest sample depth and carry that method flag. These flags apply only to the affected results, not every row in the network.
 
-The updated chemistry package needs nine R files and this README:
+The updated chemistry package needs ten R files and this README:
 
 ```text
 run_full_chemistry_workflow.R
 00-harmonize_chemistry_sidney.R
 chemistry_functions.R
 chemistry_rules.R
+recover_bnz_chemistry.R
 README.md
 chemistry-inputs/
   prepare_chemistry.R
@@ -52,6 +65,7 @@ Only the runner needs to be opened and run manually. The other scripts are calle
 - `00-harmonize_chemistry_sidney.R` reads the 77 prepared inputs using the Data Key, standardizes variables and units, matches sites, calculates daily results, and writes the 14-column master and separate notes CSV.
 - `chemistry_functions.R` contains the repeated reading, reshaping, conversion, flag, and checking functions. It also reads the lab workbook's `Workflow rules` tab, checks which variables each flag can describe, and checks that the original inputs have not changed.
 - `chemistry_rules.R` keeps the code's reviewed choices together, including source overlaps, chemical forms, date inferences, and expected counts. It does not replace the Data Key, Units Key, Site Reference Table, or lab workbook.
+- `recover_bnz_chemistry.R` adds the checked BNZ source rows and their method notes. The chemistry runner and the DSi recovery workflow both use this file at its current path.
 - `chemistry-inputs/prepare_chemistry.R` controls the preparation order, prepares the Amazon files, selects sources where files overlap, adds GEMS results only where the preferred direct source lacks a matching result, and collects the 77 inputs for master chemistry.
 - `chemistry-inputs/prepare_eccc_gems_danube.R` reads the original ECCC, GEMS, and Danube downloads. It keeps parameter and method information, applies the checked chemical forms and units, preserves limit signs, and builds their combined chemistry files and local key updates.
 - `chemistry-inputs/prepare_other_sources.R` handles the remaining datasets' names, units, sample fractions, date decisions, and field-versus-lab choices. Its named source sections include the Seine fraction checks and the flagged Catalina and Cameroon date inferences.
@@ -60,9 +74,43 @@ Only the runner needs to be opened and run manually. The other scripts are calle
 
 Each source has a named section you can find through RStudio's section menu. Kathi Jo's original script and the optional `review-only` copy are for reference; neither is needed for this run. None of the preparation scripts needs to be run separately.
 
-The split passed full background validation on October 26 at 11:11 p.m. Pacific. All 77 prepared files, the final master CSV, and the metadata CSV are byte-for-byte identical to the successful run before the split. The master still has 4,686,420 measurements at 1,170 sites. All 236 raw chemistry files and the other inputs stayed unchanged. Uploading was off during validation.
+The October 26 validation matched all 77 prepared inputs, the master CSV, and the metadata CSV byte for byte to the run before the script split. That release contained 4,686,420 measurements at 1,170 sites.
 
-The script installs missing R packages, downloads the shared inputs and live keys, checks the setup, and runs master chemistry. Each run creates a new dated folder in the location you choose. Existing local files are left alone. No Box download is needed. After the checks pass, the finished master and its notes file are saved locally and uploaded to the [shared master-data folder](https://drive.google.com/drive/folders/1dTENIB5W2ClgW0z-8NbjqARiaGO2_A7W), the same destination used by Kathi Jo's original script. The inputs are not uploaded or changed.
+The RStudio runner installs missing packages and reads the shared source files,
+supporting ZIP, and live keys. The November recovery also requires two saved
+snapshots in the evidence folder:
+
+| Evidence file | MD5 of the checked November input |
+|---|---|
+| `chemistry_gap_sources_20261108.rds` | `3d68f34d70196423c7874a9bbde37788` |
+| `chemistry_portal_sources_20261108.rds` | `d5d45c99f05c5b26a4b69fd5558b272e` |
+
+The saved October 22 supporting ZIP predates these inputs. The runner checks
+for them before downloading the 236 source files.
+For a rerun with the November evidence, pass the saved input folders and a new
+work folder:
+
+```sh
+Rscript run_full_chemistry_workflow.R SOURCE_DIR PROVIDER_DIR KEY_DIR EVIDENCE_DIR NEW_WORK_DIR
+```
+
+#### November 8 chemistry release
+
+The checked source master has 4,987,150 records at 1,229 sites. The published
+split uses exact `LTER` and `Stream_Name` keys for the data and the notes.
+
+| File | Coverage | MD5 |
+|---|---|---|
+| [Stream chemistry](https://drive.google.com/file/d/1H4bhBl3dtSQLT3Ngc_ah4DhSoitIF9Bv/view) | 4,949,677 records, 1,216 sites | `8d1524ed81c4671b08242e31a69821fb` |
+| [Stream notes](https://drive.google.com/file/d/1om7Tfgw-DN8JQ_b8iGIl03r4mZq2n5aB/view) | 1,224 notes | `4f5623c1bd289ba560275d298bd5aacc` |
+| [Non-stream chemistry](https://drive.google.com/file/d/1NyGnOtrcSHRQVvAxhoneMI-Av7Ox29Jd/view) | 37,473 records, 13 sites | `476418160d3270eed1d9d40bc9f09088` |
+| [Non-stream notes](https://drive.google.com/file/d/1wmhkYNrIGgRuNZ6aKjwI7PewxkWsdbcx/view) | 3 notes | `d2042c1207606998a4252f2cdb553701` |
+
+The non-stream folder holds ten ARC soil-water points and three Seine estuary
+stations. The two data files together account for every record in the checked
+source master, MD5 `5b25d793583d5497fa66ebe18b5f805e`. The master records
+daily chemistry. To verify sampling events, trace results to the original
+sample IDs or source sample records.
 
 #### What passed
 
@@ -126,7 +174,13 @@ Canada VMV 109113 uses the agreed Si basis because the original method metadata 
 
 ColoradoAlpine ammonium is reported as NH4, not NH4-N. The Units Key uses mg NH4/L and the workflow converts it using ammonium's molecular mass for all years. The 3,037 source results already contribute 2,195 daily NH4 values at the retained river sites in the validated master; the earlier note saying they were excluded was incorrect. No duplicate records need to be added.
 
-Murray-Darling silica uses the confirmed SiO2 mass basis. Its existing conversion stays unchanged. The reporting-basis uncertainty flag and note are removed, including the RMWQMP rule for the 1,752 Silica - Soluble records. Other method, lab, date, and site flags are retained. Generic source Si records without an identified sample fraction are still excluded; confirming the mass basis does not establish that those samples were dissolved.
+The 1,752 provider-confirmed Silica - Soluble records at Yarrawonga and Burtundy use the confirmed SiO2 mass basis and keep their existing conversion. Generic source records labeled Si in mg/L at the 25 approved Australian sites are retained using the agreed elemental-Si assumption. These records carry both `Si basis assumed as Si` and `Si sample fraction not documented` in `Method_Flag`. Original concentrations are unchanged; the working units key records the assumption before conversion to uM.
+
+All seven EastRiverSFA sites with silicon are retained using the source's elemental-Si basis in ug Si/L. Their silicon records carry `Si sample fraction not documented`. Berville-sur-Mer 1, Honfleur 1, and Tancarville 1 are retained as Seine estuary stations with a site flag. The existing Seine sample-fraction checks still apply: confirmed unfiltered silicon is excluded, and uncertain fraction records keep `Si filtration not confirmed`. Other site and sample flags remain.
+
+At the 17 approved Danube sites, source code `2.3.10` explicitly reports silica as SiO2 in mg/L. The workflow converts those values using the SiO2 molecular mass and adds `Si sample fraction not documented`. It does not add an elemental-Si basis assumption. Documented dissolved-silicon code `2.3.11` retains priority when both source codes occur on the same day.
+
+The chemistry master checked on November 9 contains 4,987,150 measurements at 1,229 sites. It includes the 52 approved restorations checked on November 7: 25 Australian, 17 Danube, seven EastRiverSFA, and three Seine estuary sites. It also restores three Chilean sites and Japan's Kawabe River at Yanase with recovered silica and sample-fraction uncertainty flags, and adds BNZ stations CB, PC and PJ with the approved silica sample-fraction flags. McMurdo nitrogen, BNZ chloride, and nitrate from three matched Guadeloupe river stations are included. Source quality and below-limit flags are retained. The checked spatial snapshot described below matches all 1,229 site keys, with unfinished fields blank; the full combined-data release still awaits its remaining source and watershed checks.
 
 The October 28 focused checks matched all 2,195 retained Alpine daily NH4 values and all 1,752 RMWQMP Si values to the saved master. Live keys and lab notes were read back and verified, with unrelated cells unchanged. The active preparation code and its commented review copy agree. No chemistry was rerun during that check. The October 29 full local run and comparison subsequently passed with the same measurement and site totals and the RMWQMP flag removed. Existing Drive exports were not replaced and retain the earlier flags.
 
@@ -210,33 +264,53 @@ Quiock's saved export contains values in m3/hour despite its m3/s column heading
 
 ### Spatial data and the combined dataset
 
+The next spatial release has two versions, both matched to the finalized chemistry site list. Each version retains every approved site and records missing or inapplicable predictors in its metadata. Product years extend only through each source's latest available complete year.
+
+| Version | Climate, ET, and snow | Other products |
+|---|---|---|
+| Expanded GlASS | Original GlASS sources and definitions: GPCP precipitation, GHCN-CAMS temperature, MODIS ET, and MODIS snow | Original GlASS productivity, greenup, land cover, terrain, geology, soils, and permafrost products, plus human impacts and river distance to coast |
+| ERA5-Land | ERA5-Land precipitation, temperature, actual ET, snow cover, and SWE; original PET/PEV excluded | BESS GPP, MODIS NPP and first greenup, land cover and checked static predictors, plus human impacts and river distance to coast |
+
+Both versions use the same checked human-impact and routing results where applicable. Each has its own site metadata, column dictionary, and source coverage notes. The archived GlASS file is a reference input; the expanded GlASS version is a separate output.
+
 #### Current coverage and shared files
 
-The spatial site list comes from finalized master chemistry, not a separate station list. The October 28 saved-data validation passed with 1,170 sites. ERA5-Land values are present at 1,040 sites; 130 sites still lack spatial data and retain their missing-data notes. Those sites stay in the dataset rather than being dropped.
+The November 9 checked partial release has 1,229 site keys in both spatial
+tables. Use the same keys, `LTER` and `Stream_Name`, to join either table to the
+published stream chemistry subset. Join annual fields by chemistry year as well.
 
-PIE sites `12`, `15`, and `20`, and Western Australia's `Ferguson River - Dowdells Rd Bridge`, now each have all six annual ERA5-Land variables for 2000-2025. All 26 Earth Engine tasks completed, and all 104 site-year records and 624 values were checked against the merged data. The six variables are precipitation, temperature, evapotranspiration, potential evaporation, snow-cover fraction, and snow-water equivalent. The other 1,166 sites were unchanged by this merge.
+| File | Contents |
+|---|---|
+| [GlASS spatial](https://drive.google.com/file/d/1MHL5VEFGRm8eWKcO0EhEN3UE1kFxsaj4/view) | Original GlASS climate and MODIS definitions, with shared drivers |
+| [ERA5-Land spatial](https://drive.google.com/file/d/19oVEPjvyFnNJ5dMmZiISzHHamFi3Es2j/view) | Checked ERA5-Land values and shared drivers |
+| [Site metadata](https://drive.google.com/file/d/1OSkLENmbrFTbhJ1oD_EO68uAfUbNz3cu/view) | Coverage, source notes, watershed checks, and river-distance flags |
+| [Column dictionary](https://drive.google.com/file/d/1Lvd-_v48yOKjsnGnFFhkQQ0DKE9KhgTd/view) | Source names, units, years, and output fields for each version |
+| [Release notes](https://drive.google.com/file/d/1pmQ-eWtJ2RbljM0oLVZNzD9YccA_pU8o/view) | Coverage and checks for the current partial release |
 
-The current downloadable release is in **Updated dataset** within the shared [Driver Variables folder on Google Drive](https://drive.google.com/drive/folders/1Z-qlt9okoZ4eE-VVsbHiVVSu7V5nEkqK), with matching copies on Box. The six files, including the README, matched byte for byte on November 6; Box uploads were verified from the sync responses.
+The first recovery added 5,514 GlASS values and 1,127 shared terrain, geology,
+and permafrost values across 87 sites. The later check reused 2,604 annual
+ERA5-Land values from matching watersheds at 12 sites. Available McMurdo
+observations carry product-specific source and quality flags. Fill-only land
+cover and unresolved fields stay blank. The earlier 1,170-site snapshot is in
+the archive. Drive readback matched the checked release files.
+
+River distance starts at the chemistry point projected onto the matched
+HydroRIVERS reach. The remaining fraction of `LENGTH_KM` is added to `DIST_DN_KM`.
+`coast_match_snap_km` records the gap to the reach separately. Use the adjusted
+distance and its quality fields. The reach-end fields are kept for comparison.
+The checked release has ocean distances for 959 sites and outlet distances for
+962 sites.
 
 | Service | Current files | Archived files |
 |---|---|---|
 | Google Drive | [Updated dataset](https://drive.google.com/drive/folders/1dh2uxghBGCeYZZZiBIuA407yzNAcR-9O) | [Archive](https://drive.google.com/drive/folders/1ELbbxbed1YZr0oM61e89_Aia6uSZ6c6r) |
 | Box | [Updated dataset](https://app.box.com/folder/435176209940) | [archive](https://app.box.com/folder/409143582863) |
 
-Each current folder contains:
-
-- `20261102_updated_harmonized_spatial.csv`: spatial values, one row per site
-- `20261102_updated_harmonized_spatial_metadata.csv`: site and watershed details, sources, coverage, flags, and notes
-- `20261102_updated_harmonized_spatial_column_dictionary.csv`: field definitions, stored units, years, and the file holding each field
-- `README-Updated.md`: file links, product coverage, matching instructions, and quality notes
-
 The nested **Supporting files** folder holds `20261102_updated_harmonized_spatial_gpp_quality.csv` and `ferguson_611026_verified.gpkg`. Match the GPP quality file by `LTER`, `Stream_Name`, and `year`. Match annual spatial values to chemistry by site and observation year; static values match by site. Unavailable years stay blank.
 
-The Box path is `SiSyn/spatial-data-extractions/spatial-data/Updated dataset/`. Its archive holds the older October 15 and October 28 predictor CSVs, the October 28 metadata CSV, and `release-20260820/` and `release-20260917/`. The Drive archive holds earlier products and **Chemistry and spatial snapshot (2026-11-03)**, which retains the older combined CSV and metadata. Archived files were moved without deletion.
+The Box path is `SiSyn/spatial-data-extractions/spatial-data/Updated dataset/`. Its archive holds the older October 15 and October 28 predictor CSVs, the October 28 metadata CSV, and `release-20260820/` and `release-20260917/`. The Drive archive holds earlier products and **Chemistry and spatial snapshot (2026-11-03)**, which retains the older combined CSV and metadata. Archived files were moved without deletion. Both Archives also retain the superseded November 2 wide CSV, metadata, and column dictionary with their original checksums. The full-release builder resolves those unchanged archived rebuild inputs automatically.
 
 Box's `raw/`, `current-updated-release/`, `harmonized/current/`, and `shiny-app-inputs/` remain in place as workflow or app inputs. Use the current CSV folder above for the downloadable release.
-
-The current spatial CSV includes human impacts and river distances, with land-cover columns for 1985-2022. All six annual ERA5-Land fields cover 2000-2025 in this saved release. The 1984-1999 extension is not yet included. The current README and column dictionary describe the remaining product periods and units.
 
 #### Ferguson's boundary and remaining predictors
 
@@ -262,11 +336,11 @@ These scripts belong to the separate spatial workflow checkout, not the chemistr
 
 The November 2 harmonized spatial CSV follows the earlier wide format: one row per site, separate columns for each year of an annual predictor, and one column per static predictor. It combines the saved tables for the Updated dataset, including BESS GPP, MODIS NPP and first greenup (Cycle 0), ERA5-Land, land cover, human impacts, river distances, and static watershed predictors. All 1,170 sites are included. The 130 sites without spatial coverage stay in the file.
 
-For Ferguson, the initial wide export filled 298 blank fields using the checked October 29 results for the corrected watershed. These included land cover for observed source years, elevation, slope, lithology, and soils. The current shared CSV omits soil columns. Legacy permafrost stays blank because the source does not cover Ferguson.
+For Ferguson, the initial wide export filled 298 blank fields using the checked October 29 results for the corrected watershed. These included land cover for observed source years, elevation, slope, lithology, and soils. The ERA5-Land version omits soil columns; the GlASS version retains original soils. Legacy permafrost stays blank because the source does not cover Ferguson.
 
-The wide CSV uses shorter headers such as `gpp_1982`, `greenup_c0_2022`, and `ocean_dist_km`. It keeps `LTER` and `Stream_Name` as the site keys and keeps the year in each annual header. The column dictionary, `20261102_updated_harmonized_spatial_column_dictionary.csv`, gives the original name, definition, units, source, and year where applicable, and identifies which file holds each field.
+The ERA5-Land wide CSV uses shorter headers such as `gpp_1982`, `greenup_c0_2022`, and `ocean_dist_km`. It keeps `LTER` and `Stream_Name` as the site keys and keeps the year in each annual header. The column dictionary, `20261102_updated_harmonized_spatial_column_dictionary.csv`, gives the original name, definition, units, source, and year where applicable, and identifies which file holds each field.
 
-The current shared `20261102_updated_harmonized_spatial.csv` has **1,170 sites and 831 columns**, including annual GPP totals and CAMREX NPP gap-filling fields. Earlier local builds had 819 columns in the base Cycle 0 version or 844 columns in the CAMREX version with soils. GPP valid days, watershed coverage, flags, and notes are in `20261102_updated_harmonized_spatial_gpp_quality.csv` under **Supporting files**. It has 47,970 rows, one for each site and year from 1982–2022, keyed by `LTER`, `Stream_Name`, and `year`. Every reported BESS annual total passed the full calendar year and 80% watershed coverage checks.
+The retained November 2 rebuild input, `20261102_updated_harmonized_spatial.csv`, has **1,170 sites and 831 columns**, including annual GPP totals and CAMREX NPP gap-filling fields. Earlier local builds had 819 columns in the base Cycle 0 version or 844 columns in the CAMREX version with soils. GPP valid days, watershed coverage, flags, and notes are in `20261102_updated_harmonized_spatial_gpp_quality.csv` under **Supporting files**. It has 47,970 rows, one for each site and year from 1982–2022, keyed by `LTER`, `Stream_Name`, and `year`. Every reported BESS annual total passed the full calendar year and 80% watershed coverage checks.
 
 The data rows matched byte for byte after renaming the headers. After moving the quality fields, the readback matched every retained value and reconstructed all 164 moved columns, including blanks, from the quality CSV. The site metadata file has one row per site in the same order, and its checksum matched before and after the update.
 
@@ -281,6 +355,22 @@ Use the verified `annual-release-20261102` product folder, Ferguson's checked `p
 Pass the verified `updated-annual-camrex-npp.rds` as the last argument to rebuild the CAMREX release. The build matches the six sites by network and stream name, checks coordinates, and fills 150 blank annual NPP values after converting kilograms to grams. It also adds the 150 matching gap-filling percentages and their dictionary entries.
 
 The current shared wide export reports both MODIS NPP and BESS GPP in g C/m²/year. The build multiplies the saved MODIS NPP values in kg C/m²/year by 1,000 and records the output units in the column dictionary. BESS GPP is already in grams. Blank values and zeros are preserved. An earlier November 2 version used kilograms for NPP.
+
+The expanded build accepts the checked nine-product RDS and the existing Updated dataset folder as its baseline. It preserves earlier checked values, including Ferguson's land and terrain results and the supporting GPP quality fields. It rejects unexplained changes to earlier non-climate measurements. Use a new output directory:
+
+```sh
+Rscript build_wide_spatial_release.R PRODUCT_RDS BASELINE_DIR - - COLUMN_DICTIONARY_CSV OUTPUT_DIR - OUTPUT_PREFIX
+```
+
+The RDS branch includes five ERA5-Land fields for 1984–2025: precipitation, temperature, actual evapotranspiration, snow cover, and SWE. It also includes first greenup (Cycle 0) and the 26 observed land-cover map years: 1985, 1990, 1995, and 2000–2022. Soil columns remain excluded. The build converts the named kilogram NPP source fields to grams once and preserves the existing GPP units. An earlier November 8 check covered 1,222 sites, including 1,098 complete 42-year climate and snow histories. The full release now targets the repaired 1,229-site chemistry list and all twelve retained ERA5-Land climate fields; those earlier counts are not final coverage totals.
+
+The full replacement release is pending the remaining extraction, watershed,
+and coverage checks. MODIS uses the AppEEARS geographic workflow. The site
+metadata records unresolved watershed identities and the source and quality
+limits on retained McMurdo observations. Final assembly checks earlier validated
+values against the saved release and records each accepted repair.
+
+Updated builds exclude the original ERA5-Land potential-evaporation field (PET/PEV), including when rebuilding from older inputs that contain it. It is an open-water estimate as described in the [ECMWF ERA5-Land documentation](https://confluence.ecmwf.int/pages/viewpage.action?pageId=293729169). Archived source files remain available for reference. Neither replacement version includes reference evapotranspiration. The three retained non-snow ERA5-Land fields record their aggregation method in the site metadata; snow cover and SWE use annual maxima of daily watershed averages.
 
 #### Combined export
 
@@ -307,6 +397,19 @@ Rscript build_updated_combined.R BASE_CSV BASE_METADATA ANNUAL_GPP_RDS SAVED_SPA
 ```
 
 Use the October 29 combined CSV and its metadata, the saved BESS `annual-gpp.rds`, and the saved `final_spatial_era5_modis_human_point_1196_20260916.csv`. Choose a new local output directory. Add `--preflight` to check the inputs and output columns before writing.
+
+The full combined releases are being prepared for the repaired 1,229-site
+chemistry master. In `write_combined_chemistry()`, select
+`spatial_version = "original_glass"` for the expanded original products or
+`spatial_version = "updated"` for ERA5-Land with actual evapotranspiration,
+BESS GPP, MODIS NPP, and first greenup. Both versions include human impacts
+and downstream river distances where supported. The writer excludes
+potential evaporation and reference evapotranspiration. It still applies the
+older McMurdo vegetation and land-cover mask. Before building the next
+combined release, update and check the writer against the product-specific
+McMurdo flags in the checked partial spatial files.
+
+Both spatial versions add the remaining distance within the matched river segment to the HydroRIVERS reach-outlet distance. The GlASS fields are `downstream_to_ocean_km` and `downstream_to_outlet_km`; the ERA5-Land file uses `ocean_dist_km` and `outlet_dist_km`. They estimate distance along the mapped river from the chemistry site's snapped position. The ocean field ends at the ocean. The outlet field ends at the basin's downstream endpoint, either the ocean or an inland endpoint such as a closed lake. The original values are retained as `downstream_to_ocean_reach_outlet_km` and `downstream_to_outlet_reach_end_km`. Both estimates exclude the gap between the site coordinate and the river line. `coast_match_snap_km` stores the current gap; the older snap columns retain the previous values. New matches have a 10 km acceptance limit, but a short snap does not establish that the correct tributary was selected. Match and direction flags accompany the estimates, and unresolved or unsupported cases stay blank. Inland-draining basins have no ocean-distance value. The shared partial snapshot retains 959 ocean and 962 basin-outlet distances; no checked distance has yet been merged for the 59 appended rows.
 
 Discharge matches by `LTER`, `Stream_Name`, and date; annual predictors match by site and chemistry year; static predictors match by site. The combined CSV keeps the chemistry row order, values, and flags, and adds `Qcms`, `Q_Flag`, `year`, and the matched predictors. Monthly predictor columns retain the source climatologies. Annual columns outside the available source years stay blank. The separate metadata CSV keeps the existing chemistry and site notes and records each spatial source column, its output name, and its matching year. Both CSVs are read back and checked before the combined file is marked complete.
 

@@ -431,10 +431,10 @@ canada_source <- canada_provider %>%
       ) ~ "field conductivity",
       source_variable == "SILICA SOLUBLE REACTIVE" &
         vmv_code == "109113" ~
-          "soluble reactive Si, filtered ICP-OES",
+        "soluble reactive Si, filtered ICP-OES",
       source_variable == "SILICA REACTIVE" &
         vmv_code %in% c("106020", "61334") ~
-          "soluble reactive SiO2, ECCC",
+        "soluble reactive SiO2, ECCC",
       TRUE ~ NA_character_
     )
   )
@@ -613,7 +613,7 @@ canada_daily <- canada_selected_source %>%
   )
 
 if (sum(canada_daily$below_count) != sum(canada_selected_source$censored) ||
-    sum(canada_daily$observation_count) != nrow(canada_selected_source)) {
+  sum(canada_daily$observation_count) != nrow(canada_selected_source)) {
   stop("the Canada daily substitution counts lost source observations")
 }
 
@@ -1159,9 +1159,11 @@ gems_daily <- gems_safe_depth_review %>%
   )
 
 if (sum(gems_daily$below_count) != sum(gems_safe_depth_review$censored[
-    gems_safe_depth_review$depth_order == gems_safe_depth_review$selected_depth]) ||
-    sum(gems_daily$observation_count) != sum(
-      gems_safe_depth_review$depth_order == gems_safe_depth_review$selected_depth)) {
+  gems_safe_depth_review$depth_order == gems_safe_depth_review$selected_depth
+]) ||
+  sum(gems_daily$observation_count) != sum(
+    gems_safe_depth_review$depth_order == gems_safe_depth_review$selected_depth
+  )) {
   stop("the GEMS daily substitution counts lost source observations")
 }
 
@@ -1188,7 +1190,7 @@ gems_review <- gems_replacements %>%
         solute,
         solute_units,
         current_value
-    ),
+      ),
     by = c("Stream_Name", "date", "solute", "solute_units")
   )
 
@@ -1627,6 +1629,14 @@ if (!file.exists(danube_provider_path)) {
   stop("the reviewed Danube provider file is unavailable")
 }
 
+# retain generic silica only at the approved sites listed in the shared reference
+danube_reference <- read.csv(site_reference_path, colClasses = "character", na.strings = "")
+danube_generic_sites <- danube_reference$Stream_Name[which(
+  danube_reference$LTER == "Danube" &
+    danube_reference$Include_in_Master_Chem == "Yes" &
+    method_flag_present(danube_reference$Flag, "Si sample fraction not documented")
+)]
+
 danube_map <- tibble::tribble(
   ~determinand_code, ~variable, ~conversion, ~priority,
   "2.1.10", "NH4", 1000 / N_mw, 1L,
@@ -1637,8 +1647,9 @@ danube_map <- tibble::tribble(
   "2.2.10", "PO4", 1000 / P_mw, 1L,
   "2.2.20", "TP", 1000 / P_mw, 1L,
   "2.2.21", "tdp", 1000 / P_mw, 1L,
-  # keep only the silica variable explicitly called dissolved in the original source
+  # prefer dissolved silicates and keep the confirmed sio2 basis for both forms
   "2.3.11", "DSi", 1000 / SiO2_mw, 1L,
+  "2.3.10", "DSi", 1000 / SiO2_mw, 2L,
   "3.1.10", "Na", 1000 / Na_mw, 1L,
   "3.1.20", "K", 1000 / K_mw, 1L,
   "3.1.30", "Ca", 1000 / Ca_mw, 1L,
@@ -1675,6 +1686,7 @@ danube_provider <- data.table::fread(
   )
 
 danube_source <- danube_provider %>%
+  dplyr::filter(determinand_code != "2.3.10" | Stream_Name %in% danube_generic_sites) %>%
   dplyr::inner_join(danube_map, by = "determinand_code") %>%
   dplyr::filter(
     source_units == "mg/l",
@@ -1699,14 +1711,15 @@ danube_daily <- danube_source %>%
     observation_count = dplyr::n(),
     value = daily_limit_mean(
       ifelse(censored, detection_limit, value_calc) * conversion,
-      ifelse(censored, "<", "")),
+      ifelse(censored, "<", "")
+    ),
     value_qualifier = NA_character_,
     source_method_flag = NA_character_,
     .groups = "drop"
   )
 
 if (sum(danube_daily$below_count) != sum(danube_source$censored) ||
-    sum(danube_daily$observation_count) != nrow(danube_source)) {
+  sum(danube_daily$observation_count) != nrow(danube_source)) {
   stop("the Danube daily substitution counts lost source observations")
 }
 
@@ -1725,23 +1738,32 @@ danube_output <- danube_daily %>%
   ) %>%
   dplyr::arrange(Stream_Name, date, solute, solute_units)
 
+# keep the reviewed baseline checks separate from the approved silica additions
+danube_baseline_daily <- danube_daily %>%
+  dplyr::filter(!(Stream_Name %in% danube_generic_sites & variable == "DSi"))
+danube_baseline_output <- danube_output %>%
+  dplyr::filter(!(Stream_Name %in% danube_generic_sites & solute == "DSi"))
+
 if (
-  sum(danube_daily$all_censored) != 5496L ||
-    sum(danube_daily$mixed) != 757L ||
+  sum(danube_baseline_daily$all_censored) != 5496L ||
+    sum(danube_baseline_daily$mixed) != 757L ||
     any(danube_daily$all_censored & danube_daily$mixed) ||
-    nrow(danube_output) != 239963L ||
+    nrow(danube_baseline_output) != 239963L ||
     dplyr::n_distinct(
-      danube_output$Stream_Name,
-      danube_output$date,
-      danube_output$solute,
-      danube_output$solute_units
+      danube_baseline_output$Stream_Name,
+      danube_baseline_output$date,
+      danube_baseline_output$solute,
+      danube_baseline_output$solute_units
     ) != 239963L ||
     any(grepl("^<", danube_output$amount)) ||
     any(grepl("^>", danube_output$amount)) ||
-    sum(is_half_limit_flag(danube_output$source_lab_flag)) != 6253L ||
+    sum(is_half_limit_flag(danube_baseline_output$source_lab_flag)) != 6253L ||
     any(!is.na(danube_output$source_method_flag))
 ) {
   stop("the reviewed Danube daily qualifier groups changed")
+}
+if (!all(danube_generic_sites %in% danube_daily$Stream_Name[danube_daily$variable == "DSi"])) {
+  stop("an approved Danube site has no retained silica")
 }
 
 # ---- keys ----

@@ -5,8 +5,8 @@
 # ---- start here in rstudio ----
 # keep this file with the rest of the repository and open it in rstudio
 # click source, choose a save folder, and sign in to google when prompted
-# there are no paths to edit or files to download by hand
-# the script installs missing packages and downloads the shared inputs
+# the shared inputs must include the saved november recovery evidence
+# the script installs missing packages and checks the supporting archive first
 # it checks those inputs before preparing and combining the chemistry
 # each run gets a new dated folder so earlier files are left alone
 # the final csv is saved in chemistry-run/master/tidy inside that folder
@@ -15,6 +15,12 @@
 # the master and its notes file are saved here and uploaded to the shared drive
 
 # ---- download the shared inputs ----
+
+# the same saved source files are needed for shared downloads and local reruns
+recovery_evidence_names <- c(
+  gap = "chemistry_gap_sources_20261108.rds",
+  portal = "chemistry_portal_sources_20261108.rds"
+)
 
 # download source files, supporting data, and live keys from the shared drive
 download_chemistry_inputs <- function(input_root) {
@@ -33,7 +39,7 @@ download_chemistry_inputs <- function(input_root) {
   source_rows <- grepl("[.]csv$", shared$name)
   support_rows <- shared$name == support_name
   if (sum(source_rows) != 236L || sum(support_rows) != 1L ||
-      anyDuplicated(tolower(shared$name[source_rows]))) {
+    anyDuplicated(tolower(shared$name[source_rows]))) {
     stop("the shared chemistry file list differs from the reviewed release", call. = FALSE)
   }
   source_dir <- file.path(input_root, "Chemistry_Files")
@@ -45,8 +51,30 @@ download_chemistry_inputs <- function(input_root) {
     }
   }
 
+  # check the supporting archive before downloading the individual source files
+  archive <- tempfile(fileext = ".zip")
+  on.exit(unlink(archive), add = TRUE)
+  support <- shared[support_rows, ]
+  googledrive::drive_download(support, path = archive)
+  expected <- support$drive_resource[[1]]$md5Checksum
+  if (is.null(expected) || !identical(unname(tools::md5sum(archive)), expected)) {
+    stop("the supporting-data download failed its file check", call. = FALSE)
+  }
+  entries <- utils::unzip(archive, list = TRUE)$Name
+  if (any(!grepl("^(providers|evidence)/", entries)) ||
+    any(grepl("(^|[/\\\\])\\.\\.([/\\\\]|$)", entries))) {
+    stop("the supporting archive contains unexpected paths", call. = FALSE)
+  }
+  missing <- setdiff(file.path("evidence", recovery_evidence_names), entries)
+  if (length(missing)) {
+    stop("the supporting archive is missing: ", paste(basename(missing), collapse = ", "),
+      ". use the local runner with the saved evidence folder",
+      call. = FALSE
+    )
+  }
+  utils::unzip(archive, exdir = input_root)
+
   # the fixed file count describes the reviewed october 2026 input set
-  # download source csvs only, not older sheets or subfolders
   sources <- shared[source_rows, ]
   for (row in seq_len(nrow(sources))) {
     path <- file.path(source_dir, sources$name[row])
@@ -59,35 +87,28 @@ download_chemistry_inputs <- function(input_root) {
       message("chemistry files downloaded: ", row, " of ", nrow(sources))
     }
   }
-  archive <- tempfile(fileext = ".zip")
-  on.exit(unlink(archive), add = TRUE)
-  support <- shared[support_rows, ]
-  googledrive::drive_download(support, path = archive)
-  expected <- support$drive_resource[[1]]$md5Checksum
-  if (is.null(expected) || !identical(unname(tools::md5sum(archive)), expected)) {
-    stop("the supporting-data download failed its file check", call. = FALSE)
-  }
-  entries <- utils::unzip(archive, list = TRUE)$Name
-  if (any(!grepl("^(providers|evidence)/", entries)) ||
-      any(grepl("(^|[/\\\\])\\.\\.([/\\\\]|$)", entries))) {
-    stop("the supporting archive contains unexpected paths", call. = FALSE)
-  }
-  utils::unzip(archive, exdir = input_root)
 
   # export the live keys rather than downloading older saved copies
   keys <- data.frame(
-    id = c("1gKe7zdMtFHeBZJPfzu5l4jjtvP0AFsfrdCreB7OZvkU",
+    id = c(
+      "1gKe7zdMtFHeBZJPfzu5l4jjtvP0AFsfrdCreB7OZvkU",
       "15KDcbCAs4ZzZWoPN2g4MpgOMnYQFaxtAuZnQzwAAONI",
       "11t9YYTzN_T12VAQhHuY5TpVjGS50ymNmKznJK4rKTIU",
-      "1PshqCYF2hAR9WhpgN65KLBm0qiqcBmihwkGdSesxI3Q"),
-    path = c(file.path(key_dir, c("SiSyn_Data_Key.csv", "SiSyn_Chem_Units_Key.csv",
-      "Site_Reference_Table.csv")),
-      file.path(evidence_dir, "Chemistry_detection_limits_and_methods.xlsx")),
+      "1PshqCYF2hAR9WhpgN65KLBm0qiqcBmihwkGdSesxI3Q"
+    ),
+    path = c(
+      file.path(key_dir, c(
+        "SiSyn_Data_Key.csv", "SiSyn_Chem_Units_Key.csv",
+        "Site_Reference_Table.csv"
+      )),
+      file.path(evidence_dir, "Chemistry_detection_limits_and_methods.xlsx")
+    ),
     type = c("csv", "csv", "csv", "xlsx")
   )
   for (row in seq_len(nrow(keys))) {
     googledrive::drive_download(googledrive::as_id(keys$id[row]),
-      path = keys$path[row], type = keys$type[row])
+      path = keys$path[row], type = keys$type[row]
+    )
   }
   invisible(list(
     source_dir = source_dir,
@@ -162,18 +183,23 @@ run_chemistry <- function(
   master_script <- file.path(workflow_dir, "00-harmonize_chemistry_sidney.R")
   helper_files <- file.path(
     workflow_dir,
-    c("chemistry_functions.R", "chemistry_rules.R")
+    c("chemistry_functions.R", "chemistry_rules.R", "recover_bnz_chemistry.R")
   )
   method_file <- file.path(
     evidence_dir,
     "Chemistry_detection_limits_and_methods.xlsx"
   )
   seine_file <- file.path(provider_dir, "france_seine", "seine_silica_provider_20261022.rds")
+  gap_file <- file.path(evidence_dir, recovery_evidence_names[["gap"]])
+  portal_file <- file.path(evidence_dir, recovery_evidence_names[["portal"]])
   key_files <- file.path(
     key_dir,
     c("SiSyn_Data_Key.csv", "SiSyn_Chem_Units_Key.csv", "Site_Reference_Table.csv")
   )
-  required_files <- c(builder, master_script, helper_files, method_file, seine_file, key_files)
+  required_files <- c(
+    builder, master_script, helper_files, method_file, seine_file,
+    gap_file, portal_file, key_files
+  )
   if (any(!file.exists(required_files))) {
     stop(
       "required workflow files are missing: ",
@@ -274,7 +300,7 @@ run_chemistry <- function(
 
   # save the keys used for this run beside the master output
   copied_keys <- file.copy(
-    c(key_files, method_file, seine_file),
+    c(key_files, method_file, seine_file, gap_file, portal_file),
     master_key_dir,
     overwrite = TRUE,
     copy.mode = FALSE
@@ -324,12 +350,15 @@ run_chemistry <- function(
     existing <- googledrive::drive_ls(destination, n_max = Inf)
     if (any(basename(upload_files) %in% existing$name)) {
       stop("a master or metadata file with this name is already on drive; local files were kept",
-        call. = FALSE)
+        call. = FALSE
+      )
     }
     for (file in upload_files) {
       uploaded <- googledrive::drive_upload(media = file, path = destination, overwrite = FALSE)
-      message(basename(file), " uploaded to: https://drive.google.com/file/d/",
-        uploaded$id[[1]], "/view")
+      message(
+        basename(file), " uploaded to: https://drive.google.com/file/d/",
+        uploaded$id[[1]], "/view"
+      )
     }
   }
 }

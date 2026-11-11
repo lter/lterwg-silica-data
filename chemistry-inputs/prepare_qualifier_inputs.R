@@ -60,19 +60,6 @@ assert_vector <- function(observed, expected, label) {
   }
 }
 
-assert_unchanged_columns <- function(before, after, changed_columns, filename) {
-  if (!identical(dim(before), dim(after)) || !identical(names(before), names(after))) {
-    stop("row or column structure changed in '", filename, "'")
-  }
-
-  unchanged_columns <- setdiff(names(before), changed_columns)
-  for (column in unchanged_columns) {
-    if (!identical(before[[column]], after[[column]])) {
-      stop("an unapproved column changed in '", filename, "': ", column)
-    }
-  }
-}
-
 count_changed_cells <- function(before, after, columns) {
   changed <- 0L
   for (column in columns) {
@@ -159,7 +146,7 @@ assert_iso_dates <- function(x, expected_count, expected_start, expected_end, la
   )
 
   if (!identical(min(values), expected_start) ||
-      !identical(max(values), expected_end)) {
+    !identical(max(values), expected_end)) {
     stop(label, " date range changed")
   }
 }
@@ -184,12 +171,12 @@ prepare_hybam <- function() {
   after <- before
   suspect_chloride <-
     before[[1L]] == "83980" &
-    before$id_station == "17730000" &
-    before$nom == "Itaituba" &
-    before$date == "3/10/14" &
-    before$valeur == "6061" &
-    before$code == "NA" &
-    before$solute == "Cl"
+      before$id_station == "17730000" &
+      before$nom == "Itaituba" &
+      before$date == "3/10/14" &
+      before$valeur == "6061" &
+      before$code == "NA" &
+      before$solute == "Cl"
   source_code <- trimws(after$code)
   blank_value <- is_blank(after$valeur)
   numeric_limit <- grepl(
@@ -211,16 +198,26 @@ prepare_hybam <- function() {
   assert_count(length(numeric_rows), 3895L, "HYBAM numeric limits")
   assert_count(length(special_rows), 1L, "HYBAM nitrate ppb limit")
   assert_count(length(bare_rows), 1L, "HYBAM unresolved bare limit")
-  assert_count(sum(blank_value & source_code == "<", na.rm = TRUE), 1L,
-               "HYBAM bare-limit total")
-  assert_count(sum(grepl("^\\s*[<>]", before$valeur), na.rm = TRUE), 0L,
-               "HYBAM existing value qualifiers")
-  assert_count(sum(after$solute == "Si", na.rm = TRUE), 2364L,
-               "HYBAM silica labels")
-  assert_count(sum(after$solute == "DSi", na.rm = TRUE), 0L,
-               "HYBAM existing DSi labels")
-  assert_count(sum(suspect_chloride, na.rm = TRUE), 1L,
-               "HYBAM suspect chloride row")
+  assert_count(
+    sum(blank_value & source_code == "<", na.rm = TRUE), 1L,
+    "HYBAM bare-limit total"
+  )
+  assert_count(
+    sum(grepl("^\\s*[<>]", before$valeur), na.rm = TRUE), 0L,
+    "HYBAM existing value qualifiers"
+  )
+  assert_count(
+    sum(after$solute == "Si", na.rm = TRUE), 2364L,
+    "HYBAM silica labels"
+  )
+  assert_count(
+    sum(after$solute == "DSi", na.rm = TRUE), 0L,
+    "HYBAM existing DSi labels"
+  )
+  assert_count(
+    sum(suspect_chloride, na.rm = TRUE), 1L,
+    "HYBAM suspect chloride row"
+  )
 
   # keep the reported value for later outlier review
   if (!identical(after$valeur[suspect_chloride], "6061")) {
@@ -237,10 +234,14 @@ prepare_hybam <- function() {
     "dissolved Si, 0.22 um filtered"
   after$date <- normalize_mdy_fixed50(after$date, "HYBAM")
 
-  assert_count(sum(grepl("^\\s*<", after$valeur), na.rm = TRUE), 3896L,
-               "HYBAM prepared limits")
-  assert_count(sum(after$solute == "DSi", na.rm = TRUE), 2364L,
-               "HYBAM prepared DSi labels")
+  assert_count(
+    sum(grepl("^\\s*<", after$valeur), na.rm = TRUE), 3896L,
+    "HYBAM prepared limits"
+  )
+  assert_count(
+    sum(after$solute == "DSi", na.rm = TRUE), 2364L,
+    "HYBAM prepared DSi labels"
+  )
   assert_count(
     sum(after$source_method_flag == "dissolved Si, 0.22 um filtered", na.rm = TRUE),
     2364L,
@@ -266,12 +267,18 @@ prepare_uk_nonsi <- function() {
   filename <- "UK_nonSi_solutes.csv"
   before <- read_source(filename)
   after <- before
-  assert_count(sum(trimws(before$Qualifier) == "<", na.rm = TRUE), 8569L,
-               "UK non-silica less-than flags")
-  assert_count(sum(trimws(before$Qualifier) == ">", na.rm = TRUE), 15L,
-               "UK non-silica greater-than flags")
-  assert_count(sum(grepl("^\\s*[<>]", before$concentration), na.rm = TRUE), 0L,
-               "UK non-silica existing value qualifiers")
+  assert_count(
+    sum(trimws(before$Qualifier) == "<", na.rm = TRUE), 8569L,
+    "UK non-silica less-than flags"
+  )
+  assert_count(
+    sum(trimws(before$Qualifier) == ">", na.rm = TRUE), 15L,
+    "UK non-silica greater-than flags"
+  )
+  assert_count(
+    sum(grepl("^\\s*[<>]", before$concentration), na.rm = TRUE), 0L,
+    "UK non-silica existing value qualifiers"
+  )
 
   after$concentration <- prefix_inequality(
     after$concentration,
@@ -279,14 +286,20 @@ prepare_uk_nonsi <- function() {
   )
 
   sulfate <- after$solute == "SO4" & after$units == "mg/L"
-  assert_count(sum(sulfate, na.rm = TRUE), 65169L,
-               "UK non-silica sulfate unit rows")
+  assert_count(
+    sum(sulfate, na.rm = TRUE), 65169L,
+    "UK non-silica sulfate unit rows"
+  )
   after$units[sulfate] <- "mg SO4/L"
 
-  assert_count(sum(grepl("^\\s*<", after$concentration), na.rm = TRUE), 8569L,
-               "UK non-silica prepared less-than values")
-  assert_count(sum(grepl("^\\s*>", after$concentration), na.rm = TRUE), 15L,
-               "UK non-silica prepared greater-than values")
+  assert_count(
+    sum(grepl("^\\s*<", after$concentration), na.rm = TRUE), 8569L,
+    "UK non-silica prepared less-than values"
+  )
+  assert_count(
+    sum(grepl("^\\s*>", after$concentration), na.rm = TRUE), 15L,
+    "UK non-silica prepared greater-than values"
+  )
 
   # choose which sites to include after the full chemistry table is built
   write_prepared(
@@ -304,20 +317,28 @@ prepare_uk_si <- function() {
   before <- read_source(filename)
   after <- before
 
-  assert_count(sum(trimws(before$Qualifier) == "<", na.rm = TRUE), 880L,
-               "UK silica less-than flags")
-  assert_count(sum(trimws(before$Qualifier) == ">", na.rm = TRUE), 0L,
-               "UK silica greater-than flags")
-  assert_count(sum(grepl("^\\s*[<>]", before[[value_column]]), na.rm = TRUE), 0L,
-               "UK silica existing value qualifiers")
+  assert_count(
+    sum(trimws(before$Qualifier) == "<", na.rm = TRUE), 880L,
+    "UK silica less-than flags"
+  )
+  assert_count(
+    sum(trimws(before$Qualifier) == ">", na.rm = TRUE), 0L,
+    "UK silica greater-than flags"
+  )
+  assert_count(
+    sum(grepl("^\\s*[<>]", before[[value_column]]), na.rm = TRUE), 0L,
+    "UK silica existing value qualifiers"
+  )
 
   after[[value_column]] <- prefix_inequality(
     after[[value_column]],
     after$Qualifier
   )
 
-  assert_count(sum(grepl("^\\s*<", after[[value_column]]), na.rm = TRUE), 880L,
-               "UK silica prepared limits")
+  assert_count(
+    sum(grepl("^\\s*<", after[[value_column]]), na.rm = TRUE), 880L,
+    "UK silica prepared limits"
+  )
   write_prepared(filename, before, after, value_column, 880L)
 }
 
@@ -333,8 +354,10 @@ prepare_camels <- function() {
     "1983-08-30", "1983-11-01", "1984-09-04"
   )
 
-  assert_count(sum(qualifier == "<", na.rm = TRUE), 3963L,
-               "CAMELS less-than flags")
+  assert_count(
+    sum(qualifier == "<", na.rm = TRUE), 3963L,
+    "CAMELS less-than flags"
+  )
   assert_count(length(unknown), 6L, "CAMELS unresolved limits")
 
   if (
@@ -350,12 +373,16 @@ prepare_camels <- function() {
   after$result_va <- prefix_inequality(after$result_va, after$remark_cd)
 
   orthophosphate <- after$parm_cd == "00671" & after$variable == "SRP"
-  assert_count(sum(orthophosphate, na.rm = TRUE), 4895L,
-               "CAMELS orthophosphate rows")
+  assert_count(
+    sum(orthophosphate, na.rm = TRUE), 4895L,
+    "CAMELS orthophosphate rows"
+  )
   after$variable[orthophosphate] <- "PO4"
 
-  assert_count(sum(grepl("^\\s*<", after$result_va), na.rm = TRUE), 3957L,
-               "CAMELS prepared limits")
+  assert_count(
+    sum(grepl("^\\s*<", after$result_va), na.rm = TRUE), 3957L,
+    "CAMELS prepared limits"
+  )
   write_prepared(
     filename,
     before,
@@ -462,14 +489,22 @@ prepare_como <- function() {
     integer(1)
   )
 
-  assert_count(sum(below_detection, na.rm = TRUE), 201L,
-               "Como Creek below-detection flags")
-  assert_count(sum(below_detection & is_blank(after$analyteConcentration)), 0L,
-               "Como Creek blank limits")
-  assert_vector(observed_rows, expected_rows,
-                "Como Creek reviewed analyte rows")
-  assert_vector(observed_blank_units, expected_blank_units,
-                "Como Creek blank reviewed units")
+  assert_count(
+    sum(below_detection, na.rm = TRUE), 201L,
+    "Como Creek below-detection flags"
+  )
+  assert_count(
+    sum(below_detection & is_blank(after$analyteConcentration)), 0L,
+    "Como Creek blank limits"
+  )
+  assert_vector(
+    observed_rows, expected_rows,
+    "Como Creek reviewed analyte rows"
+  )
+  assert_vector(
+    observed_blank_units, expected_blank_units,
+    "Como Creek blank reviewed units"
+  )
   assert_vector(
     observed_generic_units,
     expected_rows - expected_blank_units,
@@ -493,8 +528,10 @@ prepare_como <- function() {
     },
     integer(1)
   )
-  assert_vector(observed_fill_rows, expected_fill_rows,
-                "Como Creek blank chloride and TDS units")
+  assert_vector(
+    observed_fill_rows, expected_fill_rows,
+    "Como Creek blank chloride and TDS units"
+  )
   assert_vector(
     observed_generic_fill_rows,
     expected_generic_fill_rows,
@@ -529,8 +566,10 @@ prepare_como <- function() {
     },
     integer(1)
   )
-  assert_vector(prepared_unit_rows, expected_rows,
-                "Como Creek prepared reviewed units")
+  assert_vector(
+    prepared_unit_rows, expected_rows,
+    "Como Creek prepared reviewed units"
+  )
   prepared_fill_rows <- vapply(
     names(expected_fill_rows),
     function(analyte) {
@@ -544,7 +583,8 @@ prepare_como <- function() {
   assert_vector(
     prepared_fill_rows,
     expected_rows[names(expected_fill_rows)],
-                "Como Creek filled chloride and TDS units")
+    "Como Creek filled chloride and TDS units"
+  )
   assert_count(
     sum(
       after$analyte %in% names(expected_fill_rows) &
@@ -570,14 +610,22 @@ prepare_usgs_geogenic <- function() {
   qualifier <- trimws(after$remark)
   unresolved_r <- which(qualifier == "R")
 
-  assert_count(sum(qualifier == "<", na.rm = TRUE), 532L,
-               "USGS geogenic less-than flags")
-  assert_count(sum(qualifier == ">", na.rm = TRUE), 4L,
-               "USGS geogenic greater-than flags")
-  assert_count(length(unresolved_r), 1L,
-               "USGS geogenic unresolved R flag")
-  assert_count(sum(grepl("^\\s*[<>]", before$value), na.rm = TRUE), 0L,
-               "USGS geogenic existing value qualifiers")
+  assert_count(
+    sum(qualifier == "<", na.rm = TRUE), 532L,
+    "USGS geogenic less-than flags"
+  )
+  assert_count(
+    sum(qualifier == ">", na.rm = TRUE), 4L,
+    "USGS geogenic greater-than flags"
+  )
+  assert_count(
+    length(unresolved_r), 1L,
+    "USGS geogenic unresolved R flag"
+  )
+  assert_count(
+    sum(grepl("^\\s*[<>]", before$value), na.rm = TRUE), 0L,
+    "USGS geogenic existing value qualifiers"
+  )
 
   reviewed_r <- before[unresolved_r, , drop = FALSE]
   expected_r <- c(
@@ -600,10 +648,14 @@ prepare_usgs_geogenic <- function() {
   after$value[unresolved_r] <- paste0("<", trimws(after$value[unresolved_r]))
   after$value <- prefix_inequality(after$value, after$remark)
 
-  assert_count(sum(grepl("^\\s*<", after$value), na.rm = TRUE), 533L,
-               "USGS geogenic prepared less-than values")
-  assert_count(sum(grepl("^\\s*>", after$value), na.rm = TRUE), 4L,
-               "USGS geogenic prepared greater-than values")
+  assert_count(
+    sum(grepl("^\\s*<", after$value), na.rm = TRUE), 533L,
+    "USGS geogenic prepared less-than values"
+  )
+  assert_count(
+    sum(grepl("^\\s*>", after$value), na.rm = TRUE), 4L,
+    "USGS geogenic prepared greater-than values"
+  )
   write_prepared(filename, before, after, "value", 537L)
 }
 
@@ -631,8 +683,10 @@ prepare_elbe <- function() {
     integer(1)
   )
 
-  assert_vector(observed_less_than, expected_less_than,
-                "Elbe qualifier fields")
+  assert_vector(
+    observed_less_than, expected_less_than,
+    "Elbe qualifier fields"
+  )
   assert_count(sum(observed_less_than), 117L, "Elbe qualifier total")
   # glorich defines ton as total organic nitrogen rather than total nitrogen
   # keep it unmapped unless the project adds a separate total organic n field
@@ -738,27 +792,36 @@ prepare_walker <- function() {
     measurement <- suppressWarnings(as.numeric(after[[column]]))
     flag <- trimws(after[[flag_fields[[column]]]])
     observed_unknown[column] <- sum(flag == "V1" & measurement <= 0,
-                                    na.rm = TRUE)
+      na.rm = TRUE
+    )
     observed_v1_positive[column] <- sum(flag == "V1" & measurement > 0,
-                                        na.rm = TRUE)
+      na.rm = TRUE
+    )
     observed_v7_positive[column] <- sum(flag == "V7" & measurement > 0,
-                                        na.rm = TRUE)
+      na.rm = TRUE
+    )
     observed_m1[column] <- sum(flag == "M1", na.rm = TRUE)
     observed_m1_numeric[column] <- sum(flag == "M1" & !is.na(measurement),
-                                       na.rm = TRUE)
+      na.rm = TRUE
+    )
   }
 
   assert_vector(observed_numeric, expected_numeric, "Walker numeric values")
   assert_vector(observed_unknown, expected_unknown, "Walker unresolved limits")
-  assert_vector(observed_v1_positive, expected_v1_positive,
-                "Walker positive V1 values")
-  assert_vector(observed_v7_positive, expected_v7_positive,
-                "Walker V7 limits")
+  assert_vector(
+    observed_v1_positive, expected_v1_positive,
+    "Walker positive V1 values"
+  )
+  assert_vector(
+    observed_v7_positive, expected_v7_positive,
+    "Walker V7 limits"
+  )
   assert_vector(observed_m1, expected_m1, "Walker M1 flags")
   assert_vector(
     observed_m1_numeric,
     setNames(integer(length(flag_fields)), names(flag_fields)),
-                "Walker numeric M1 values")
+    "Walker numeric M1 values"
+  )
 
   k_measurement <- suppressWarnings(as.numeric(after$K_CONC))
   k_flag <- trimws(after$K_CONC_FL)
@@ -767,31 +830,43 @@ prepare_walker <- function() {
   k_v7_two <- k_flag == "V7" & k_measurement == 2
   k_v7_one_allowed <-
     (k_date >= as.Date("1997-01-07") & k_date <= as.Date("2009-12-29")) |
-    (after$site_name == "East Fork" &
-       k_date >= as.Date("2010-01-12") &
-       k_date <= as.Date("2010-08-17")) |
-    k_date >= as.Date("2010-08-24")
+      (after$site_name == "East Fork" &
+        k_date >= as.Date("2010-01-12") &
+        k_date <= as.Date("2010-08-17")) |
+      k_date >= as.Date("2010-08-24")
   k_v7_two_allowed <-
     (after$site_name == "West Fork" &
-       k_date >= as.Date("2010-01-05") &
-       k_date <= as.Date("2010-08-17")) |
-    (after$site_name == "East Fork" & k_date == as.Date("2010-01-05"))
+      k_date >= as.Date("2010-01-05") &
+      k_date <= as.Date("2010-08-17")) |
+      (after$site_name == "East Fork" & k_date == as.Date("2010-01-05"))
 
-  assert_count(sum(k_v7_one, na.rm = TRUE), 960L,
-               "Walker potassium one mg/L limits")
-  assert_count(sum(k_v7_two, na.rm = TRUE), 33L,
-               "Walker potassium two mg/L limits")
-  assert_count(sum(k_flag == "V7" & !(k_v7_one | k_v7_two), na.rm = TRUE),
-               0L, "Walker unexpected potassium limits")
-  assert_count(sum(k_v7_one & !k_v7_one_allowed, na.rm = TRUE), 0L,
-               "Walker potassium one mg/L limit dates")
-  assert_count(sum(k_v7_two & !k_v7_two_allowed, na.rm = TRUE), 0L,
-               "Walker potassium two mg/L limit dates")
+  assert_count(
+    sum(k_v7_one, na.rm = TRUE), 960L,
+    "Walker potassium one mg/L limits"
+  )
+  assert_count(
+    sum(k_v7_two, na.rm = TRUE), 33L,
+    "Walker potassium two mg/L limits"
+  )
+  assert_count(
+    sum(k_flag == "V7" & !(k_v7_one | k_v7_two), na.rm = TRUE),
+    0L, "Walker unexpected potassium limits"
+  )
+  assert_count(
+    sum(k_v7_one & !k_v7_one_allowed, na.rm = TRUE), 0L,
+    "Walker potassium one mg/L limit dates"
+  )
+  assert_count(
+    sum(k_v7_two & !k_v7_two_allowed, na.rm = TRUE), 0L,
+    "Walker potassium two mg/L limit dates"
+  )
 
   k_unresolved <- which(k_flag == "V1" & !is.na(k_measurement) &
-                          k_measurement <= 0)
+    k_measurement <= 0)
   k_unresolved_keys <- paste(after$site_name[k_unresolved],
-                             after$DATE[k_unresolved], sep = "|")
+    after$DATE[k_unresolved],
+    sep = "|"
+  )
   if (!identical(
     sort(k_unresolved_keys),
     c("East Fork|1996-06-18", "East Fork|1996-08-20")
@@ -804,7 +879,7 @@ prepare_walker <- function() {
   west_source_rows <- which(before$site_name == "West Fork")
 
   if (anyDuplicated(before$DATE[east_source_rows]) ||
-      anyDuplicated(before$DATE[west_source_rows])) {
+    anyDuplicated(before$DATE[west_source_rows])) {
     stop("Walker branch dates are no longer unique")
   }
 
@@ -851,44 +926,56 @@ prepare_walker <- function() {
 
     derived_measurement[both_used] <-
       (east_measurement[both_used] * east_discharge[both_used] +
-         west_measurement[both_used] * west_discharge[both_used]) /
-      (east_discharge[both_used] + west_discharge[both_used])
+        west_measurement[both_used] * west_discharge[both_used]) /
+        (east_discharge[both_used] + west_discharge[both_used])
     derived_measurement[east_only] <- east_measurement[east_only]
     derived_measurement[west_only] <- west_measurement[west_only]
 
     walker_numeric <- !is.na(walker_measurement)
-    assert_count(sum(walker_numeric), expected_walker_numeric[[column]],
-                 paste0("Walker derived ", column, " values"))
-    assert_count(sum(walker_numeric & is.na(derived_measurement)), 0L,
-                 paste0("Walker unmatched ", column, " values"))
+    assert_count(
+      sum(walker_numeric), expected_walker_numeric[[column]],
+      paste0("Walker derived ", column, " values")
+    )
+    assert_count(
+      sum(walker_numeric & is.na(derived_measurement)), 0L,
+      paste0("Walker unmatched ", column, " values")
+    )
 
     mismatch <- walker_numeric &
       abs(walker_measurement - derived_measurement) > 1e-10
-    assert_count(sum(mismatch, na.rm = TRUE), 0L,
-                 paste0("Walker recalculated ", column, " values"))
+    assert_count(
+      sum(mismatch, na.rm = TRUE), 0L,
+      paste0("Walker recalculated ", column, " values")
+    )
 
     any_v7 <-
       (east_used & east_flag == "V7") |
-      (west_used & west_flag == "V7")
+        (west_used & west_flag == "V7")
     unresolved_v1 <-
       (east_used & east_flag == "V1" & east_measurement <= 0) |
-      (west_used & west_flag == "V1" & west_measurement <= 0)
+        (west_used & west_flag == "V1" & west_measurement <= 0)
     positive_v1 <-
       (east_used & east_flag == "V1" & east_measurement > 0) |
-      (west_used & west_flag == "V1" & west_measurement > 0)
+        (west_used & west_flag == "V1" & west_measurement > 0)
     walker_limit <- walker_numeric & any_v7 & !unresolved_v1
     walker_unresolved <- walker_numeric & unresolved_v1
     walker_v1 <- walker_numeric & positive_v1 & !walker_limit & !walker_unresolved
 
-    assert_count(sum(walker_limit, na.rm = TRUE),
-                 expected_walker_limits[[column]],
-                 paste0("Walker derived ", column, " limits"))
-    assert_count(sum(walker_unresolved, na.rm = TRUE),
-                 expected_walker_unresolved[[column]],
-                 paste0("Walker unresolved derived ", column, " values"))
-    assert_count(sum(walker_v1, na.rm = TRUE),
-                 expected_walker_v1[[column]],
-                 paste0("Walker derived V1 ", column, " values"))
+    assert_count(
+      sum(walker_limit, na.rm = TRUE),
+      expected_walker_limits[[column]],
+      paste0("Walker derived ", column, " limits")
+    )
+    assert_count(
+      sum(walker_unresolved, na.rm = TRUE),
+      expected_walker_unresolved[[column]],
+      paste0("Walker unresolved derived ", column, " values")
+    )
+    assert_count(
+      sum(walker_v1, na.rm = TRUE),
+      expected_walker_v1[[column]],
+      paste0("Walker derived V1 ", column, " values")
+    )
 
     # exclude v1 rows without positive thresholds from the working input
     after[[column]][walker_rows[walker_unresolved]] <- NA_character_
@@ -945,8 +1032,10 @@ prepare_umr <- function(filename, expected_invalid, expected_limits,
     after$TIME == "12:41" &
     chl == -0.68747
 
-  assert_count(sum(invalid_chl, na.rm = TRUE), expected_invalid,
-               paste0(filename, " invalid chlorophyll values"))
+  assert_count(
+    sum(invalid_chl, na.rm = TRUE), expected_invalid,
+    paste0(filename, " invalid chlorophyll values")
+  )
   # keep this unqualified calibration result for later outlier review
   limit_count <- 0L
 
@@ -963,8 +1052,10 @@ prepare_umr <- function(filename, expected_invalid, expected_limits,
     )
   }
 
-  assert_count(limit_count, expected_limits,
-               paste0(filename, " documented limits"))
+  assert_count(
+    limit_count, expected_limits,
+    paste0(filename, " documented limits")
+  )
 
   unresolved <- which(
     filename == "UMR_si_new_sites.csv" &
@@ -973,8 +1064,10 @@ prepare_umr <- function(filename, expected_invalid, expected_limits,
       suppressWarnings(as.numeric(after$SO4)) == 0
   )
   expected_unresolved <- if (filename == "UMR_si_new_sites.csv") 1L else 0L
-  assert_count(length(unresolved), expected_unresolved,
-               paste0(filename, " unresolved sulfate values"))
+  assert_count(
+    length(unresolved), expected_unresolved,
+    paste0(filename, " unresolved sulfate values")
+  )
   # exclude zero sulfate from the working input because no threshold is given
   after$SO4[unresolved] <- NA_character_
 
@@ -983,10 +1076,12 @@ prepare_umr <- function(filename, expected_invalid, expected_limits,
     function(column) sum(grepl("^\\s*<", after[[column]]), na.rm = TRUE),
     integer(1)
   ))
-  assert_count(prepared_count, expected_limits,
-               paste0(filename, " prepared limits"))
+  assert_count(
+    prepared_count, expected_limits,
+    paste0(filename, " prepared limits")
+  )
   if (expected_invalid == 1L &&
-      !identical(after$CHLcal[invalid_chl], "-0.68747")) {
+    !identical(after$CHLcal[invalid_chl], "-0.68747")) {
     stop("UMR reviewed chlorophyll result changed")
   }
   write_prepared(
@@ -1015,10 +1110,14 @@ prepare_krycklan <- function() {
 
   assert_count(sum(nh4_lod, na.rm = TRUE), 79L, "Krycklan NH4 LOD values")
   assert_count(sum(nox_lod, na.rm = TRUE), 7L, "Krycklan NOx LOD values")
-  assert_count(sum(known_nh4, na.rm = TRUE), 59L,
-               "Krycklan documented NH4 thresholds")
-  assert_count(sum(known_nox, na.rm = TRUE), 4L,
-               "Krycklan documented NOx thresholds")
+  assert_count(
+    sum(known_nh4, na.rm = TRUE), 59L,
+    "Krycklan documented NH4 thresholds"
+  )
+  assert_count(
+    sum(known_nox, na.rm = TRUE), 4L,
+    "Krycklan documented NOx thresholds"
+  )
   assert_count(
     sum(unresolved_nh4, na.rm = TRUE) + sum(unresolved_nox, na.rm = TRUE),
     23L,
@@ -1106,23 +1205,39 @@ prepare_western_australia <- function() {
     after$Determinand
   )
 
-  assert_count(sum(after$Reading.Sign == "<", na.rm = TRUE), 2074L,
-               "Western Australia less-than flags")
-  assert_count(sum(after$Reading.Sign == ">", na.rm = TRUE), 49L,
-               "Western Australia greater-than flags")
+  assert_count(
+    sum(after$Reading.Sign == "<", na.rm = TRUE), 2074L,
+    "Western Australia less-than flags"
+  )
+  assert_count(
+    sum(after$Reading.Sign == ">", na.rm = TRUE), 49L,
+    "Western Australia greater-than flags"
+  )
   assert_count(length(bad_do), 1L, "Western Australia invalid oxygen value")
-  assert_count(length(salinity_conflict), 2L,
-               "Western Australia salinity conflict")
-  assert_count(length(invalid_ph), 8L,
-               "Western Australia reviewed pH values")
-  assert_count(length(high_do), 1L,
-               "Western Australia high oxygen value")
-  assert_count(length(high_conductivity), 1L,
-               "Western Australia high conductivity value")
-  assert_count(length(zero_conductivity), 1L,
-               "Western Australia zero conductivity value")
-  assert_count(sum(soluble_reactive_si, na.rm = TRUE), 1056L,
-               "Western Australia soluble-reactive silicon rows")
+  assert_count(
+    length(salinity_conflict), 2L,
+    "Western Australia salinity conflict"
+  )
+  assert_count(
+    length(invalid_ph), 8L,
+    "Western Australia reviewed pH values"
+  )
+  assert_count(
+    length(high_do), 1L,
+    "Western Australia high oxygen value"
+  )
+  assert_count(
+    length(high_conductivity), 1L,
+    "Western Australia high conductivity value"
+  )
+  assert_count(
+    length(zero_conductivity), 1L,
+    "Western Australia zero conductivity value"
+  )
+  assert_count(
+    sum(soluble_reactive_si, na.rm = TRUE), 1056L,
+    "Western Australia soluble-reactive silicon rows"
+  )
 
   expected_ph <- c(
     "Collie River - South Branch\r2002-08-06\rpH (no units)\r0.79",
@@ -1191,14 +1306,22 @@ prepare_western_australia <- function() {
     stop("Western Australia reviewed source values changed")
   }
 
-  assert_count(sum(grepl("^\\s*<", after$Value.Num), na.rm = TRUE), 2074L,
-               "Western Australia prepared less-than values")
-  assert_count(sum(grepl("^\\s*>", after$Value.Num), na.rm = TRUE), 49L,
-               "Western Australia prepared greater-than values")
-  assert_count(sum(!is_blank(after$Value.Num[salinity_conflict])), 2L,
-               "Western Australia retained salinity values")
-  assert_count(sum(!is_blank(after$Value.Num[reviewed_invalid])), 11L,
-               "Western Australia retained reviewed source values")
+  assert_count(
+    sum(grepl("^\\s*<", after$Value.Num), na.rm = TRUE), 2074L,
+    "Western Australia prepared less-than values"
+  )
+  assert_count(
+    sum(grepl("^\\s*>", after$Value.Num), na.rm = TRUE), 49L,
+    "Western Australia prepared greater-than values"
+  )
+  assert_count(
+    sum(!is_blank(after$Value.Num[salinity_conflict])), 2L,
+    "Western Australia retained salinity values"
+  )
+  assert_count(
+    sum(!is_blank(after$Value.Num[reviewed_invalid])), 11L,
+    "Western Australia retained reviewed source values"
+  )
 
   # choose which sites to include after the full chemistry table is built
   write_prepared(
@@ -1210,9 +1333,10 @@ prepare_western_australia <- function() {
   )
 }
 
-# ---- generic parser check ----
+# ---- qualifier parser check ----
 
-normalize_unit_label <- function(x) {
+# keep these check-specific aliases separate from the shared unit rules
+normalize_qualifier_unit <- function(x) {
   x <- trimws(as.character(x))
   x <- gsub("µ|μ", "u", x)
   lower <- tolower(x)
@@ -1280,7 +1404,7 @@ parse_for_qualifier_count <- function(filename, data_key, units_key) {
     stop("the lean data key expects missing prepared columns in '", filename, "'")
   }
 
-  units <- normalize_unit_label(key_rows$Units)
+  units <- normalize_qualifier_unit(key_rows$Units)
   units[!is.na(units) & nchar(units) == 0] <- NA_character_
   unit_suffix <- gsub("/| |\\-", "_", units)
   actual_names <- ifelse(
@@ -1316,7 +1440,7 @@ parse_for_qualifier_count <- function(filename, data_key, units_key) {
   }
 
   mapped$solute <- tolower(gsub("/| |\\-", "_", mapped$solute))
-  mapped$solute_units <- normalize_unit_label(mapped$solute_units)
+  mapped$solute_units <- normalize_qualifier_unit(mapped$solute_units)
   mapped$solute_units[mapped$solute_units == ""] <- NA_character_
   mapped$solute_units <- gsub("/| |\\-", "_", mapped$solute_units)
 
@@ -1335,7 +1459,7 @@ parse_for_qualifier_count <- function(filename, data_key, units_key) {
 
   unit_rows <- units_key[units_key$Raw_Filename == filename, ]
   unit_rows$solute <- tolower(gsub("/| |\\-", "_", unit_rows$Variable))
-  unit_rows$key_unit <- normalize_unit_label(unit_rows$Units)
+  unit_rows$key_unit <- normalize_qualifier_unit(unit_rows$Units)
   unit_rows$key_unit <- gsub("/| |\\-", "_", unit_rows$key_unit)
   if (filename == "Como_Creek_chem.csv") {
     unit_rows <- unit_rows[unit_rows$solute != "tss___dry_mass", ]

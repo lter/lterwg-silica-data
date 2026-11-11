@@ -558,8 +558,10 @@ allowed_source_lab_flags <- c(
   "provider < flag; meaning not confirmed",
   "estimated value"
 )
-allowed_source_lab_flags <- c(allowed_source_lab_flags,
-  paste0(setdiff(allowed_source_lab_flags, "estimated value"), "; estimated value"))
+allowed_source_lab_flags <- c(
+  allowed_source_lab_flags,
+  paste0(setdiff(allowed_source_lab_flags, "estimated value"), "; estimated value")
+)
 valid_lab_flags <- allowed_source_lab_flags
 # method flags and notes come from the shared workflow-rules lookup
 
@@ -598,7 +600,7 @@ arctic_lake_events <- tibble::tribble(
   "ARC", "Toolik Outlet", as.Date("2012-06-04")
 )
 arctic_lake_measurement_count <- 177L
-flowing_types <- c("River", "Creek", "Stream", "Brook")
+flowing_types <- c("River", "Creek", "Stream", "Brook", "Estuary")
 
 # ---- source review counts ----
 east_river_source_counts <- c(

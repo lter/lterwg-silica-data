@@ -59,6 +59,19 @@ site_keys <- site_key(sites)
 header <- names(fread(input, nrows = 0L))
 # follow the updated release selection for overlapping legacy products
 retired <- grep("^(temp_|precip_|evapotrans_|snow_|greenup_cycle1_)", header, value = TRUE)
+excluded_evaporation_pattern <- paste0(
+  "^era5_land_(potential_evap|pet(_|$)|pev(_|$))|",
+  "^(pet|pev)(_|$)|^potential_evap(oration)?(_|$)"
+)
+source_columns <- if ("Source_Column" %in% names(meta)) meta$Source_Column else rep("", nrow(meta))
+excluded_spatial_mapping <- meta$Record_Type == "spatial column match" &
+  (grepl(excluded_evaporation_pattern, source_columns, ignore.case = TRUE) |
+    grepl(excluded_evaporation_pattern, meta$Combined_Column, ignore.case = TRUE))
+excluded_evaporation <- union(grep(excluded_evaporation_pattern, header,
+  value = TRUE, ignore.case = TRUE),
+  intersect(header, meta$Combined_Column[excluded_spatial_mapping]))
+extra_retired <- setdiff(excluded_evaporation, retired)
+retired <- union(retired, excluded_evaporation)
 keep <- setdiff(header, retired)
 
 # attach annual values on chemistry year and static values on verified site
@@ -81,7 +94,7 @@ enrich <- function(x) {
 # map the new fields and retain existing site and chemistry notes
 sample <- enrich(read_text(input, nrows = 100))
 added <- setdiff(names(sample), keep)
-stopifnot(!anyDuplicated(names(sample)), ncol(sample) == 120L,
+stopifnot(!anyDuplicated(names(sample)), ncol(sample) == 120L - length(extra_retired),
   all(c("npp_kgC_m2_year", "greenup_cycle0_MMDD") %in% keep))
 note <- ifelse(added %in% bess_fields,
   "BESSv2 monthly means weighted by calendar days. Annual 1982-2022, site and watershed matched. GPP in g C/m²/year. Totals require all months and at least 80% area coverage. Original zeros and source flags retained.",
@@ -95,7 +108,8 @@ note <- ifelse(added %in% bess_fields,
           fifelse(grepl("^human_dam_", added), "Global Dam Watch v1.0",
             fifelse(grepl("^human_fertilizer_", added), "NPKGRIDS circa 2020", "HydroWASTE v1.0")),
           "with units and record counts as named. Unmatched watersheds are blank.")))))
-meta <- meta[!(Record_Type == "spatial column match" & Combined_Column %in% retired)]
+meta <- meta[!excluded_spatial_mapping &
+  !(Record_Type == "spatial column match" & Combined_Column %in% retired)]
 meta <- rbindlist(list(meta, data.table(Record_Type = "spatial column match",
   Source_Column = added, Combined_Column = added, Note = note)), use.names = TRUE, fill = TRUE)
 stopifnot(all(meta[Record_Type == "spatial column match", Combined_Column] %in% names(sample)))

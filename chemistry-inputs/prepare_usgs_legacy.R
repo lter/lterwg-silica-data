@@ -85,10 +85,14 @@ build_usgs_total_nitrogen_replacement <- function(legacy_data) {
   if (anyNA(deduplicated_scope$location_id)) {
     stop("a deduplicated TDS-to-TN row lacks a station id")
   }
-  assert_count(nrow(deduplicated_scope), 0L,
-               "deduplicated TDS-to-TN provider scope")
-  assert_count(data.table::uniqueN(deduplicated_scope$source_site), 0L,
-               "deduplicated TDS-to-TN sites")
+  assert_count(
+    nrow(deduplicated_scope), 0L,
+    "deduplicated TDS-to-TN provider scope"
+  )
+  assert_count(
+    data.table::uniqueN(deduplicated_scope$source_site), 0L,
+    "deduplicated TDS-to-TN sites"
+  )
   assert_count(
     data.table::uniqueN(deduplicated_scope[, .(location_id, date)]),
     0L,
@@ -122,10 +126,14 @@ build_usgs_total_nitrogen_replacement <- function(legacy_data) {
     .(source_row, location_id, date = data.table::as.IDate(date))
   ])
 
-  assert_count(nrow(current_scope), 13497L,
-               "residual legacy USGS total-nitrogen scope")
-  assert_count(data.table::uniqueN(exclusion_scope$source_row), 8625L,
-               "excluded legacy USGS total-nitrogen scope")
+  assert_count(
+    nrow(current_scope), 13497L,
+    "residual legacy USGS total-nitrogen scope"
+  )
+  assert_count(
+    data.table::uniqueN(exclusion_scope$source_row), 8625L,
+    "excluded legacy USGS total-nitrogen scope"
+  )
 
   current_keys <- unique(current_scope[, .(location_id, date)])
   exclusion_keys <- unique(exclusion_scope[, .(location_id, date)])
@@ -146,10 +154,14 @@ build_usgs_total_nitrogen_replacement <- function(legacy_data) {
     exclusion_keys,
     deduplicated_keys
   )))
-  assert_count(nrow(scope_keys), 22122L,
-               "original legacy USGS total-nitrogen dates")
-  assert_count(data.table::uniqueN(scope_keys$location_id), 96L,
-               "original legacy USGS total-nitrogen sites")
+  assert_count(
+    nrow(scope_keys), 22122L,
+    "original legacy USGS total-nitrogen dates"
+  )
+  assert_count(
+    data.table::uniqueN(scope_keys$location_id), 96L,
+    "original legacy USGS total-nitrogen sites"
+  )
 
   provider_columns <- c(
     "Location_Identifier",
@@ -269,21 +281,27 @@ build_usgs_total_nitrogen_replacement <- function(legacy_data) {
     scoped$USGSpcode,
     levels = names(expected_scoped_codes)
   ))
-  if (!identical(as.integer(observed_scoped_codes),
-                 unname(expected_scoped_codes))) {
+  if (!identical(
+    as.integer(observed_scoped_codes),
+    unname(expected_scoped_codes)
+  )) {
     stop(
       "the scoped USGS total-nitrogen parameter-code counts changed: ",
       paste(names(observed_scoped_codes), observed_scoped_codes, collapse = ", ")
     )
   }
-  assert_count(sum(scoped$unresolved), 0L,
-               "unresolved provider total-nitrogen representations")
+  assert_count(
+    sum(scoped$unresolved), 0L,
+    "unresolved provider total-nitrogen representations"
+  )
   assert_count(sum(
     scoped$Result_ResultDetectionCondition ==
       "Present Above Quantification Limit"
   ), 2L, "above-quantification provider representations")
-  assert_count(sum(scoped$above_limit), 2L,
-               "usable above-quantification provider representations")
+  assert_count(
+    sum(scoped$above_limit), 2L,
+    "usable above-quantification provider representations"
+  )
   assert_count(sum(
     scoped$detected &
       !is_blank(scoped$Result_ResultDetectionCondition)
@@ -293,12 +311,14 @@ build_usgs_total_nitrogen_replacement <- function(legacy_data) {
   ), 0L, "unexpected USGS total-nitrogen measure qualifiers")
   supported_detection_condition <-
     is_blank(scoped$Result_ResultDetectionCondition) |
-    scoped$Result_ResultDetectionCondition %in% c(
-      "Not Detected",
-      "Present Above Quantification Limit"
-    )
-  assert_count(sum(!supported_detection_condition), 0L,
-               "unsupported USGS total-nitrogen detection conditions")
+      scoped$Result_ResultDetectionCondition %in% c(
+        "Not Detected",
+        "Present Above Quantification Limit"
+      )
+  assert_count(
+    sum(!supported_detection_condition), 0L,
+    "unsupported USGS total-nitrogen detection conditions"
+  )
 
   if (any(is_blank(scoped$Activity_ActivityIdentifier))) {
     stop("a scoped USGS total-nitrogen row lacks an activity id")
@@ -322,8 +342,10 @@ build_usgs_total_nitrogen_replacement <- function(legacy_data) {
     selected$USGSpcode,
     levels = names(expected_selected_codes)
   ))
-  if (!identical(as.integer(observed_selected_codes),
-                 unname(expected_selected_codes))) {
+  if (!identical(
+    as.integer(observed_selected_codes),
+    unname(expected_selected_codes)
+  )) {
     stop(
       "the preferred USGS total-nitrogen code counts changed: ",
       paste(
@@ -333,12 +355,16 @@ build_usgs_total_nitrogen_replacement <- function(legacy_data) {
       )
     )
   }
-  assert_count(sum(selected$unresolved), 0L,
-               "unresolved selected USGS total-nitrogen rows")
+  assert_count(
+    sum(selected$unresolved), 0L,
+    "unresolved selected USGS total-nitrogen rows"
+  )
 
   selected_above_limit <- selected[above_limit == TRUE]
-  assert_count(nrow(selected_above_limit), 1L,
-               "selected above-quantification total-nitrogen rows")
+  assert_count(
+    nrow(selected_above_limit), 1L,
+    "selected above-quantification total-nitrogen rows"
+  )
   if (
     selected_above_limit$location_id != "USGS-07241550" ||
       selected_above_limit$date != data.table::as.IDate("1978-11-15") ||
@@ -364,16 +390,26 @@ build_usgs_total_nitrogen_replacement <- function(legacy_data) {
   )
 
   selected <- selected[unresolved == FALSE]
-  assert_count(nrow(selected[variable == "TN"]), 16479L,
-               "selected USGS total-nitrogen provider rows")
-  assert_count(nrow(selected[variable == "TDN"]), 14460L,
-               "selected USGS dissolved-total-nitrogen provider rows")
-  assert_count(sum(selected$variable == "TN" & selected$censored), 796L,
-               "selected censored USGS total-nitrogen rows")
-  assert_count(sum(selected$variable == "TDN" & selected$censored), 518L,
-               "selected censored USGS dissolved-total-nitrogen rows")
-  assert_count(sum(selected$variable == "TN" & selected$above_limit), 1L,
-               "selected above-limit USGS total-nitrogen rows")
+  assert_count(
+    nrow(selected[variable == "TN"]), 16479L,
+    "selected USGS total-nitrogen provider rows"
+  )
+  assert_count(
+    nrow(selected[variable == "TDN"]), 14460L,
+    "selected USGS dissolved-total-nitrogen provider rows"
+  )
+  assert_count(
+    sum(selected$variable == "TN" & selected$censored), 796L,
+    "selected censored USGS total-nitrogen rows"
+  )
+  assert_count(
+    sum(selected$variable == "TDN" & selected$censored), 518L,
+    "selected censored USGS dissolved-total-nitrogen rows"
+  )
+  assert_count(
+    sum(selected$variable == "TN" & selected$above_limit), 1L,
+    "selected above-limit USGS total-nitrogen rows"
+  )
   assert_count(
     data.table::uniqueN(selected[variable == "TN"]$location_id),
     85L,
@@ -384,39 +420,46 @@ build_usgs_total_nitrogen_replacement <- function(legacy_data) {
     84L,
     "selected USGS dissolved-total-nitrogen sites"
   )
-  assert_count(sum(selected$censored & selected$threshold_uM <= 0), 0L,
-               "nonpositive USGS total-nitrogen thresholds")
-  assert_count(sum(selected$above_limit & selected$threshold_uM <= 0), 0L,
-               "nonpositive USGS total-nitrogen lower limits")
+  assert_count(
+    sum(selected$censored & selected$threshold_uM <= 0), 0L,
+    "nonpositive USGS total-nitrogen thresholds"
+  )
+  assert_count(
+    sum(selected$above_limit & selected$threshold_uM <= 0), 0L,
+    "nonpositive USGS total-nitrogen lower limits"
+  )
 
   # check the reviewed mix of original detections and limits on each day
   # keep individual results below so the master can apply half-limit averaging
-  daily_review <- selected[, {
-    if (any(detected)) {
-      list(
-        value_qualifier = NA_character_,
-        detected_rows = sum(detected),
-        censored_rows = sum(censored),
-        above_limit_rows = sum(above_limit)
-      )
-    } else if (all(censored)) {
-      list(
-        value_qualifier = "<",
-        detected_rows = 0L,
-        censored_rows = sum(censored),
-        above_limit_rows = 0L
-      )
-    } else if (all(above_limit)) {
-      list(
-        value_qualifier = ">",
-        detected_rows = 0L,
-        censored_rows = 0L,
-        above_limit_rows = sum(above_limit)
-      )
-    } else {
-      stop("mixed USGS total-nitrogen inequality directions remain")
-    }
-  }, by = .(variable, location_id, date)]
+  daily_review <- selected[,
+    {
+      if (any(detected)) {
+        list(
+          value_qualifier = NA_character_,
+          detected_rows = sum(detected),
+          censored_rows = sum(censored),
+          above_limit_rows = sum(above_limit)
+        )
+      } else if (all(censored)) {
+        list(
+          value_qualifier = "<",
+          detected_rows = 0L,
+          censored_rows = sum(censored),
+          above_limit_rows = 0L
+        )
+      } else if (all(above_limit)) {
+        list(
+          value_qualifier = ">",
+          detected_rows = 0L,
+          censored_rows = 0L,
+          above_limit_rows = sum(above_limit)
+        )
+      } else {
+        stop("mixed USGS total-nitrogen inequality directions remain")
+      }
+    },
+    by = .(variable, location_id, date)
+  ]
   expected_daily <- data.table::data.table(
     variable = c("TN", "TDN"),
     rows = c(15744L, 14190L),
@@ -459,10 +502,14 @@ build_usgs_total_nitrogen_replacement <- function(legacy_data) {
     current_scope$legacy_row_id,
     replaced_legacy_ids
   )
-  assert_count(length(replaced_legacy_ids), 9124L,
-               "legacy total-nitrogen rows with provider replacements")
-  assert_count(length(retained_legacy_ids), 4373L,
-               "legacy total-nitrogen rows without provider replacements")
+  assert_count(
+    length(replaced_legacy_ids), 9124L,
+    "legacy total-nitrogen rows with provider replacements"
+  )
+  assert_count(
+    length(retained_legacy_ids), 4373L,
+    "legacy total-nitrogen rows without provider replacements"
+  )
 
   selected <- merge(
     selected,
@@ -673,16 +720,20 @@ build_usgs_tds_backfill <- function() {
         !is_blank(reviewed_susquehanna$amount)
     ])
   ))
-  assert_count(nrow(current_tds_keys), 575L,
-               "reviewed Susquehanna TDS dates")
+  assert_count(
+    nrow(current_tds_keys), 575L,
+    "reviewed Susquehanna TDS dates"
+  )
 
   exact_overlap <- exact_target[
     current_tds_keys,
     on = .(location_id, date),
     nomatch = 0L
   ]
-  assert_count(nrow(exact_overlap), 442L,
-               "provider-result overlap with reviewed Susquehanna TDS")
+  assert_count(
+    nrow(exact_overlap), 442L,
+    "provider-result overlap with reviewed Susquehanna TDS"
+  )
   assert_count(
     data.table::uniqueN(exact_overlap, by = c("location_id", "date")),
     420L,
@@ -827,8 +878,10 @@ build_usgs_tds_backfill <- function() {
   ), by = .(location_id, date)]
   if (
     nrow(selected_exact) != 8208L ||
-      !identical(as.integer(observed_exact_codes),
-                 unname(expected_exact_codes)) ||
+      !identical(
+        as.integer(observed_exact_codes),
+        unname(expected_exact_codes)
+      ) ||
       nrow(exact_daily) != 8201L ||
       sum(exact_daily$rows > 1L) != 7L ||
       max(exact_daily$rows) != 2L ||
@@ -961,24 +1014,27 @@ build_usgs_tds_backfill <- function() {
     if (length(values) == 0L) return(NA_character_)
     paste(sort(unique(values)), collapse = ";")
   }
-  four_site_daily <- four_site_selected[, {
-    daily <- .SD[1L]
-    daily$provider_value <- mean(provider_value)
-    daily$provider_value_text <- format(
-      daily$provider_value,
-      digits = 15L,
-      scientific = FALSE,
-      trim = TRUE
-    )
-    daily$Activity_ActivityIdentifier <- collapse_provider_values(
-      Activity_ActivityIdentifier
-    )
-    daily$Result_MeasureIdentifier <- collapse_provider_values(
-      Result_MeasureIdentifier
-    )
-    daily$provider_files <- collapse_provider_values(provider_files)
-    daily
-  }, by = .(location_id, date)]
+  four_site_daily <- four_site_selected[,
+    {
+      daily <- .SD[1L]
+      daily$provider_value <- mean(provider_value)
+      daily$provider_value_text <- format(
+        daily$provider_value,
+        digits = 15L,
+        scientific = FALSE,
+        trim = TRUE
+      )
+      daily$Activity_ActivityIdentifier <- collapse_provider_values(
+        Activity_ActivityIdentifier
+      )
+      daily$Result_MeasureIdentifier <- collapse_provider_values(
+        Result_MeasureIdentifier
+      )
+      daily$provider_files <- collapse_provider_values(provider_files)
+      daily
+    },
+    by = .(location_id, date)
+  ]
   four_site_daily <- four_site_daily[, ..provider_output_columns]
 
   selected <- data.table::rbindlist(
@@ -1037,8 +1093,10 @@ build_usgs_tds_backfill <- function() {
       Result_Characteristic == "Total dissolved solids" &
       !is.na(provider_value)
   ]
-  assert_count(nrow(usable_unresolved), 0L,
-               "usable provider values for the two unresolved TDS dates")
+  assert_count(
+    nrow(usable_unresolved), 0L,
+    "usable provider values for the two unresolved TDS dates"
+  )
   assert_count(nrow(selected[
     unresolved_keys,
     on = .(location_id, date),
@@ -1169,16 +1227,19 @@ build_carey_shift_repair <- function(template_data) {
   source <- source[
     !is.na(source$date) &
       source$date >= as.Date("2011-06-15") &
-      source$date <= as.Date("2011-09-28"),
-    ,
+      source$date <= as.Date("2011-09-28"), ,
     drop = FALSE
   ]
 
   assert_count(nrow(source), 60L, "carey shifted source rows")
-  assert_count(length(unique(source$date)), 15L,
-               "carey shifted source dates")
-  assert_count(length(unique(source$site)), 4L,
-               "carey shifted source sites")
+  assert_count(
+    length(unique(source$date)), 15L,
+    "carey shifted source dates"
+  )
+  assert_count(
+    length(unique(source$site)), 4L,
+    "carey shifted source sites"
+  )
 
   numeric_columns <- c(
     "temp", "conductivity", "specific_conductance", "turbidity",
@@ -1227,10 +1288,14 @@ build_carey_shift_repair <- function(template_data) {
   reviewed_temperature <- source$site == "Parker" &
     source$date == as.Date("2011-07-02") &
     abs(source$temp - 190.5) < 1e-10
-  assert_count(sum(reviewed_conductivity), 2L,
-               "carey reviewed conductivity rows")
-  assert_count(sum(reviewed_temperature), 1L,
-               "carey reviewed temperature rows")
+  assert_count(
+    sum(reviewed_conductivity), 2L,
+    "carey reviewed conductivity rows"
+  )
+  assert_count(
+    sum(reviewed_temperature), 1L,
+    "carey reviewed temperature rows"
+  )
   # keep these conductivity and temperature values for later outlier review
   assert_values(
     conductivity[reviewed_conductivity],
@@ -1523,10 +1588,14 @@ refresh_arc_legacy <- function(data) {
   ) {
     stop("the ARC provider sample identity or water type is ambiguous")
   }
-  assert_count(sum(matched_water_type == "ST"), 415L,
-               "stream-water ARC rows")
-  assert_count(sum(matched_water_type == "LA"), 197L,
-               "lake-water ARC rows")
+  assert_count(
+    sum(matched_water_type == "ST"), 415L,
+    "stream-water ARC rows"
+  )
+  assert_count(
+    sum(matched_water_type == "LA"), 197L,
+    "lake-water ARC rows"
+  )
   assert_count(
     sum(data$variable[mixed_rows] == "DSi" & matched_water_type == "ST"),
     23L,
@@ -1569,8 +1638,10 @@ refresh_arc_legacy <- function(data) {
     7506L,
     "prepared ARC alkalinity-unit rows"
   )
-  assert_count(sum(retained_arc & data$variable %in% c("DIC", "TN", "TP")),
-               0L, "prepared ARC old semantic labels")
+  assert_count(
+    sum(retained_arc & data$variable %in% c("DIC", "TN", "TP")),
+    0L, "prepared ARC old semantic labels"
+  )
   data
 }
 
@@ -1585,16 +1656,20 @@ prepare_legacy_usgs <- function() {
   assert_count(nrow(after), 1025369L, "corrected legacy chemistry rows")
   after <- refresh_arc_legacy(after)
   value <- as_number(after$value)
-  assert_count(nrow(after), 1025172L,
-               "legacy chemistry rows after the ARC provider refresh")
+  assert_count(
+    nrow(after), 1025172L,
+    "legacy chemistry rows after the ARC provider refresh"
+  )
 
   four_dates <- c("1980-03-24", "1980-04-03", "1996-02-24", "2010-12-07")
   four_tds <- after$LTER == "USGS" &
     after$Site.Stream.Name == "SUSQUEHANNA RIVER" &
     after$Sampling.Date %in% four_dates & after$variable == "TN" &
     after$units == "uM"
-  assert_count(sum(four_tds, na.rm = TRUE), 0L,
-               "four corrected legacy Susquehanna TDS rows")
+  assert_count(
+    sum(four_tds, na.rm = TRUE), 0L,
+    "four corrected legacy Susquehanna TDS rows"
+  )
 
   clinton_expected <- c(
     "1978-04-22" = 171,
@@ -1605,8 +1680,10 @@ prepare_legacy_usgs <- function() {
     after$Site.Stream.Name == "Misssissippi River at Clinton" &
     after$Sampling.Date %in% names(clinton_expected) &
     after$variable == "TN" & after$units == "uM"
-  assert_count(sum(clinton_tds, na.rm = TRUE), 3L,
-               "remaining legacy Clinton TDS rows")
+  assert_count(
+    sum(clinton_tds, na.rm = TRUE), 3L,
+    "remaining legacy Clinton TDS rows"
+  )
   clinton_back_converted <- value[clinton_tds] * 14.0067 / 1000
   clinton_dates <- after$Sampling.Date[clinton_tds]
   assert_values(
@@ -1624,11 +1701,15 @@ prepare_legacy_usgs <- function() {
     after$units == "uM" &
     value == -2
   withdrawn_mackenzie_temp[is.na(withdrawn_mackenzie_temp)] <- FALSE
-  assert_count(sum(withdrawn_mackenzie_temp), 1L,
-               "withdrawn Mackenzie temperature row")
+  assert_count(
+    sum(withdrawn_mackenzie_temp), 1L,
+    "withdrawn Mackenzie temperature row"
+  )
   # keep the reported temperature for later outlier review
-  assert_values(as_number(after$value[withdrawn_mackenzie_temp]), -2,
-                "prepared Mackenzie reviewed temperature value")
+  assert_values(
+    as_number(after$value[withdrawn_mackenzie_temp]), -2,
+    "prepared Mackenzie reviewed temperature value"
+  )
 
   source_name_map <- data.frame(
     LTER = c(
@@ -1666,8 +1747,10 @@ prepare_legacy_usgs <- function() {
   niva_osteglo_alias <- after$LTER == "NIVA" &
     after$site == "ASTEGLO" &
     after$Site.Stream.Name == "ØSTEGLO"
-  assert_count(sum(niva_osteglo_alias, na.rm = TRUE), 362L,
-               "legacy NIVA OSTEGLO alias rows")
+  assert_count(
+    sum(niva_osteglo_alias, na.rm = TRUE), 362L,
+    "legacy NIVA OSTEGLO alias rows"
+  )
   after$site[niva_osteglo_alias] <- "OSTEGLO"
   after$Site.Stream.Name[niva_osteglo_alias] <- "OSTEGLO"
 
@@ -1692,8 +1775,10 @@ prepare_legacy_usgs <- function() {
     after$units == "uM"
   east_cation_counts <- table(after$variable[east_cations])
   expected_east_cation_counts <- c(Ca = 644L, K = 644L, Mg = 644L, Na = 644L)
-  assert_count(sum(east_cations), 2576L,
-               "legacy East River cation rows")
+  assert_count(
+    sum(east_cations), 2576L,
+    "legacy East River cation rows"
+  )
   if (
     !identical(names(east_cation_counts), names(expected_east_cation_counts)) ||
       !identical(
@@ -1754,14 +1839,22 @@ prepare_legacy_usgs <- function() {
   provider_covered_remaining_nh4 <- remaining_susquehanna_nh4 &
     after$Sampling.Date %in% susquehanna_provider_ammonia_dates
   assert_count(sum(susquehanna_nh4), 1087L, "legacy Susquehanna NH4 rows")
-  assert_count(sum(reviewed_susquehanna_nhx), 9L,
-               "previously reviewed legacy Susquehanna NHX rows")
-  assert_count(sum(remaining_susquehanna_nh4), 1078L,
-               "remaining legacy Susquehanna NH4 rows")
-  assert_count(length(susquehanna_provider_ammonia_dates), 1198L,
-               "restored Susquehanna provider ammonia dates")
-  assert_count(sum(provider_covered_remaining_nh4), 1078L,
-               "provider-covered legacy Susquehanna NH4 rows")
+  assert_count(
+    sum(reviewed_susquehanna_nhx), 9L,
+    "previously reviewed legacy Susquehanna NHX rows"
+  )
+  assert_count(
+    sum(remaining_susquehanna_nh4), 1078L,
+    "remaining legacy Susquehanna NH4 rows"
+  )
+  assert_count(
+    length(susquehanna_provider_ammonia_dates), 1198L,
+    "restored Susquehanna provider ammonia dates"
+  )
+  assert_count(
+    sum(provider_covered_remaining_nh4), 1078L,
+    "provider-covered legacy Susquehanna NH4 rows"
+  )
   if (!identical(
     sort(after$Sampling.Date[reviewed_susquehanna_nhx]),
     sort(susquehanna_nhx_dates)
@@ -1800,8 +1893,10 @@ prepare_legacy_usgs <- function() {
     stop("legacy variable-label counts changed")
   }
   invalid_temperature <- after$variable == "Temp.C" & value > 50
-  assert_count(sum(invalid_temperature, na.rm = TRUE), 3L,
-               "legacy invalid-temperature rows")
+  assert_count(
+    sum(invalid_temperature, na.rm = TRUE), 3L,
+    "legacy invalid-temperature rows"
+  )
   # keep the reported temperatures for later outlier review
   assert_values(
     as_number(after$value[invalid_temperature]),
@@ -1826,10 +1921,14 @@ prepare_legacy_usgs <- function() {
   carey_unexpected <- carey_shift_window &
     after$variable != "instant Q" &
     !after$variable %in% carey_shifted_labels
-  assert_count(sum(carey_shifted), 523L,
-               "carey shifted legacy rows replaced")
-  assert_count(sum(carey_unexpected), 0L,
-               "carey unexpected rows in the shifted date window")
+  assert_count(
+    sum(carey_shifted), 523L,
+    "carey shifted legacy rows replaced"
+  )
+  assert_count(
+    sum(carey_unexpected), 0L,
+    "carey unexpected rows in the shifted date window"
+  )
   expected_shifted_counts <- c(
     Conductivity = 60L,
     DIN = 60L,
@@ -1886,14 +1985,22 @@ prepare_legacy_usgs <- function() {
     after$Sampling.Date %in% slyamore_provider_dates
   slyamore_legacy_only <- slyamore_nh4 & !slyamore_provider_overlap
 
-  assert_count(sum(slyamore_nh4), 150L,
-               "legacy North Slyamore NH4 rows")
-  assert_count(length(slyamore_provider_dates), 0L,
-               "deduplicated North Slyamore ammonia dates")
-  assert_count(sum(slyamore_provider_overlap), 0L,
-               "overlapping North Slyamore ammonia rows")
-  assert_count(sum(slyamore_legacy_only), 150L,
-               "retained legacy North Slyamore ammonia rows")
+  assert_count(
+    sum(slyamore_nh4), 150L,
+    "legacy North Slyamore NH4 rows"
+  )
+  assert_count(
+    length(slyamore_provider_dates), 0L,
+    "deduplicated North Slyamore ammonia dates"
+  )
+  assert_count(
+    sum(slyamore_provider_overlap), 0L,
+    "overlapping North Slyamore ammonia rows"
+  )
+  assert_count(
+    sum(slyamore_legacy_only), 150L,
+    "retained legacy North Slyamore ammonia rows"
+  )
   after$variable[slyamore_nh4] <- "NHX"
 
   # remove eight exact lower-priority conductivity copies
@@ -1920,8 +2027,10 @@ prepare_legacy_usgs <- function() {
     after$units == "uS/cm" &
     paste(after$site, after$Sampling.Date, value, sep = "\r") %in%
       conductivity_copy_signature
-  assert_count(sum(legacy_conductivity_copy, na.rm = TRUE), 8L,
-               "legacy copied conductivity rows")
+  assert_count(
+    sum(legacy_conductivity_copy, na.rm = TRUE), 8L,
+    "legacy copied conductivity rows"
+  )
 
   invalid_potomac <- after$site == "POTOMAC RIVER" &
     after$Sampling.Date == "1995-05-15" & after$variable == "DOC" &
@@ -1930,10 +2039,14 @@ prepare_legacy_usgs <- function() {
     after$Sampling.Date == "2016-02-16" &
     after$variable == "specific conductivity" & after$units == "uS/cm" &
     value == 6197
-  assert_count(sum(invalid_potomac, na.rm = TRUE), 1L,
-               "legacy Potomac invalid DOC row")
-  assert_count(sum(invalid_cb, na.rm = TRUE), 1L,
-               "legacy CB01.5 invalid conductivity row")
+  assert_count(
+    sum(invalid_potomac, na.rm = TRUE), 1L,
+    "legacy Potomac invalid DOC row"
+  )
+  assert_count(
+    sum(invalid_cb, na.rm = TRUE), 1L,
+    "legacy CB01.5 invalid conductivity row"
+  )
   # keep these reported doc and conductivity values for later outlier review
   assert_values(
     as_number(after$value[invalid_potomac | invalid_cb]),
@@ -1947,8 +2060,10 @@ prepare_legacy_usgs <- function() {
   after <- after[!remove_rows, , drop = FALSE]
   rownames(after) <- NULL
 
-  assert_count(nrow(after), 1024420L,
-               "legacy rows before site-reference exclusions")
+  assert_count(
+    nrow(after), 1024420L,
+    "legacy rows before site-reference exclusions"
+  )
 
   site_reference <- read_source(
     "Site_Reference_Table.csv",
@@ -1957,7 +2072,8 @@ prepare_legacy_usgs <- function() {
   alternate_names <- unlist(
     strsplit(
       ifelse(is.na(site_reference$Alt_Stream_Name),
-             "", site_reference$Alt_Stream_Name),
+        "", site_reference$Alt_Stream_Name
+      ),
       ";",
       fixed = TRUE
     ),
@@ -1991,20 +2107,30 @@ prepare_legacy_usgs <- function() {
     reference_names
   retained_finnish_alias <-
     after$LTER == "Finnish Environmental Institute" &
-    after$Site.Stream.Name %in% names(finnish_alias_counts)
+      after$Site.Stream.Name %in% names(finnish_alias_counts)
   excluded_site_rows <- unmatched_reference & !retained_finnish_alias
 
   # reviewed site additions recover 24,996 previously unmatched rows
-  assert_count(sum(unmatched_reference), 63355L,
-               "legacy rows outside the current site lookup")
-  assert_count(sum(retained_finnish_alias), 6811L,
-               "legacy Finnish alias rows")
-  assert_count(sum(unmatched_reference & retained_finnish_alias), 0L,
-               "legacy Finnish aliases outside the current site lookup")
-  assert_count(sum(excluded_site_rows), 63355L,
-               "legacy accepted site exclusions")
-  assert_count(length(unique(after$Site.Stream.Name[excluded_site_rows])),
-               615L, "legacy accepted excluded site labels")
+  assert_count(
+    sum(unmatched_reference), 63355L,
+    "legacy rows outside the current site lookup"
+  )
+  assert_count(
+    sum(retained_finnish_alias), 6811L,
+    "legacy Finnish alias rows"
+  )
+  assert_count(
+    sum(unmatched_reference & retained_finnish_alias), 0L,
+    "legacy Finnish aliases outside the current site lookup"
+  )
+  assert_count(
+    sum(excluded_site_rows), 63355L,
+    "legacy accepted site exclusions"
+  )
+  assert_count(
+    length(unique(after$Site.Stream.Name[excluded_site_rows])),
+    615L, "legacy accepted excluded site labels"
+  )
   assert_count(sum(
     after$site[excluded_site_rows] !=
       after$Site.Stream.Name[excluded_site_rows],
@@ -2052,8 +2178,7 @@ prepare_legacy_usgs <- function() {
     length
   )
   exclusion_scope <- exclusion_scope[
-    order(exclusion_scope$LTER, exclusion_scope$Stream_Name),
-    ,
+    order(exclusion_scope$LTER, exclusion_scope$Stream_Name), ,
     drop = FALSE
   ]
   signature_path <- tempfile()
@@ -2081,10 +2206,14 @@ prepare_legacy_usgs <- function() {
 
   # these totals exclude 197 lake-water rows confirmed in the original source
   assert_count(nrow(after), 961065L, "prepared legacy chemistry rows")
-  assert_count(sum(after$LTER == "UMR(Jankowski)" & after$variable == "NH4"),
-               0L, "prepared legacy UMR NH4 rows")
-  assert_count(sum(after$LTER == "UMR(Jankowski)" & after$variable == "NHX"),
-               5059L, "prepared legacy UMR NHX rows")
+  assert_count(
+    sum(after$LTER == "UMR(Jankowski)" & after$variable == "NH4"),
+    0L, "prepared legacy UMR NH4 rows"
+  )
+  assert_count(
+    sum(after$LTER == "UMR(Jankowski)" & after$variable == "NHX"),
+    5059L, "prepared legacy UMR NHX rows"
+  )
   assert_count(sum(after$LTER == "USGS" & after$site == "SUSQUEHANNA RIVER" &
     after$variable == "NH4"), 0L, "prepared legacy Susquehanna NH4 rows")
   assert_count(sum(after$LTER == "USGS" & after$site == "SUSQUEHANNA RIVER" &
@@ -2096,21 +2225,29 @@ prepare_legacy_usgs <- function() {
   corrected_east_cations <- after$LTER == "EastRiverSFA" &
     after$site == "coal_11" & after$variable %in% c("Ca", "K", "Mg", "Na") &
     after$units == "uM"
-  assert_count(sum(corrected_east_cations), 2576L,
-               "prepared legacy East River cation rows")
+  assert_count(
+    sum(corrected_east_cations), 2576L,
+    "prepared legacy East River cation rows"
+  )
   if (any(as_number(after$value[corrected_east_cations]) >= 500)) {
     stop("the reviewed legacy East River cation correction changed")
   }
-  assert_count(sum(after$variable %in% names(legacy_label_map)), 0L,
-               "prepared legacy old variable labels")
-  assert_count(sum(after$variable == "temp" & after$units != "C"), 0L,
-               "prepared legacy temperature units")
+  assert_count(
+    sum(after$variable %in% names(legacy_label_map)), 0L,
+    "prepared legacy old variable labels"
+  )
+  assert_count(
+    sum(after$variable == "temp" & after$units != "C"), 0L,
+    "prepared legacy temperature units"
+  )
 
   legacy_usgs_tn <- after$LTER == "USGS" &
     after$variable == "TN" &
     after$units == "uM"
-  assert_count(sum(legacy_usgs_tn), 13494L,
-               "prepared residual legacy USGS total-nitrogen rows")
+  assert_count(
+    sum(legacy_usgs_tn), 13494L,
+    "prepared residual legacy USGS total-nitrogen rows"
+  )
 
   usgs_total_nitrogen <- build_usgs_total_nitrogen_replacement(before)
   replaced_legacy_ids <- attr(
@@ -2126,10 +2263,14 @@ prepare_legacy_usgs <- function() {
   retain_unmatched_tn <- legacy_usgs_tn &
     after[[1L]] %in% retained_legacy_ids
   # two removed clinton tds rows had tn replacements; the third did not
-  assert_count(sum(replace_legacy_tn), 9122L,
-               "legacy total-nitrogen rows replaced by provider results")
-  assert_count(sum(retain_unmatched_tn), 4372L,
-               "legacy total-nitrogen rows retained without provider results")
+  assert_count(
+    sum(replace_legacy_tn), 9122L,
+    "legacy total-nitrogen rows replaced by provider results"
+  )
+  assert_count(
+    sum(retain_unmatched_tn), 4372L,
+    "legacy total-nitrogen rows retained without provider results"
+  )
   after <- after[!replace_legacy_tn, , drop = FALSE]
   provider_columns <- setdiff(names(usgs_total_nitrogen), names(after))
   for (column_name in provider_columns) {
@@ -2151,8 +2292,10 @@ prepare_legacy_usgs <- function() {
   after <- rbind(after, usgs_total_nitrogen)
   rownames(after) <- NULL
 
-  assert_count(nrow(after), 982882L,
-               "prepared chemistry rows after the USGS nitrogen rebuild")
+  assert_count(
+    nrow(after), 982882L,
+    "prepared chemistry rows after the USGS nitrogen rebuild"
+  )
   assert_count(sum(
     after$LTER == "USGS" & after$variable == "TN" & after$units == "uM"
   ), 20851L, "rebuilt USGS total-nitrogen source rows")
@@ -2180,10 +2323,14 @@ prepare_legacy_usgs <- function() {
 
   prepared_tds <- after$LTER == "USGS" &
     after$variable == "TDS" & after$units == "mg/L"
-  assert_count(nrow(after), 993255L,
-               "prepared chemistry rows after the USGS TDS backfill")
-  assert_count(sum(prepared_tds), 10373L,
-               "prepared USGS TDS backfill source rows")
+  assert_count(
+    nrow(after), 993255L,
+    "prepared chemistry rows after the USGS TDS backfill"
+  )
+  assert_count(
+    sum(prepared_tds), 10373L,
+    "prepared USGS TDS backfill source rows"
+  )
   assert_count(length(unique(paste(
     after$Site.Stream.Name[prepared_tds],
     after$Sampling.Date[prepared_tds],
@@ -2206,10 +2353,14 @@ prepare_legacy_usgs <- function() {
       after$site %in% c("CB", "PC", "PJ") |
         (after$site %in% c("C3", "CJ") & bnz_date >= as.Date("2007-01-01"))
     )
-  assert_count(sum(bnz_filtered_si), 345L,
-               "BNZ filtered-silicon rows")
-  assert_count(sum(bnz_undocumented_si), 243L,
-               "BNZ undocumented silicon-fraction rows")
+  assert_count(
+    sum(bnz_filtered_si), 345L,
+    "BNZ filtered-silicon rows"
+  )
+  assert_count(
+    sum(bnz_undocumented_si), 243L,
+    "BNZ undocumented silicon-fraction rows"
+  )
   if (!setequal(
     unique(after$site[bnz_filtered_si]),
     c("C1", "C2", "C3", "C4", "CJ", "P6")
@@ -2226,8 +2377,10 @@ prepare_legacy_usgs <- function() {
     after[[1L]] %in% retained_legacy_ids
   after$source_method_flag[retained_unmatched_tn] <-
     "legacy TN retained without matching USGS result"
-  assert_count(sum(retained_unmatched_tn), 4372L,
-               "flagged unmatched legacy total-nitrogen rows")
+  assert_count(
+    sum(retained_unmatched_tn), 4372L,
+    "flagged unmatched legacy total-nitrogen rows"
+  )
 
   write_prepared(filename, after)
 }
@@ -2243,15 +2396,19 @@ prepare_current_usgs <- function() {
   for (filename in names(expected_rows)) {
     before <- read_source(filename, directory = input_dir)
     after <- before
-    assert_count(nrow(before), expected_rows[[filename]],
-                 paste0(filename, " rows"))
+    assert_count(
+      nrow(before), expected_rows[[filename]],
+      paste0(filename, " rows")
+    )
 
     if (grepl("Frio_River", filename, fixed = TRUE)) {
       reviewed_do_percent <- after$Stream_Name == "Frio River" &
         after$date == "2016-10-25" & after$solute == "do percent" &
         after$solute_units == "%"
-      assert_count(sum(reviewed_do_percent, na.rm = TRUE), 1L,
-                   "current Frio reviewed oxygen-percent row")
+      assert_count(
+        sum(reviewed_do_percent, na.rm = TRUE), 1L,
+        "current Frio reviewed oxygen-percent row"
+      )
       reviewed_value <- as_number(after$amount[reviewed_do_percent])
       if (is.finite(reviewed_value) && reviewed_value == 221.5) {
         # keep the reported value for later outlier review
@@ -2261,10 +2418,14 @@ prepare_current_usgs <- function() {
           raw_source$date == "2016-10-25" &
           raw_source$solute == "do percent" &
           raw_source$solute_units == "%"
-        assert_count(sum(raw_row, na.rm = TRUE), 1L,
-                     "raw Frio reviewed oxygen-percent row")
-        assert_values(as_number(raw_source$amount[raw_row]), 221.5,
-                      "raw Frio reviewed oxygen-percent value")
+        assert_count(
+          sum(raw_row, na.rm = TRUE), 1L,
+          "raw Frio reviewed oxygen-percent row"
+        )
+        assert_values(
+          as_number(raw_source$amount[raw_row]), 221.5,
+          "raw Frio reviewed oxygen-percent value"
+        )
         after$amount[reviewed_do_percent] <- "221.5"
       } else {
         stop("the current Frio reviewed oxygen-percent value changed")
@@ -2275,18 +2436,18 @@ prepare_current_usgs <- function() {
       exclusions <- readRDS(usgs_exclusion_file)
       exclusion_review <- exclusions[exclusions$source_file == filename, ]
       exclusion_review <- exclusion_review[
-        !duplicated(exclusion_review$source_row),
-        ,
+        !duplicated(exclusion_review$source_row), ,
         drop = FALSE
       ]
       exclusion_review <- exclusion_review[
-        order(exclusion_review$source_row),
-        ,
+        order(exclusion_review$source_row), ,
         drop = FALSE
       ]
       exclusion_rows <- exclusion_review$source_row
-      assert_count(length(exclusion_rows), 424L,
-                   "Susquehanna provider-confirmed TDS rows")
+      assert_count(
+        length(exclusion_rows), 424L,
+        "Susquehanna provider-confirmed TDS rows"
+      )
       if (any(exclusion_rows < 1L | exclusion_rows > nrow(after))) {
         stop("a Susquehanna exclusion row is outside the source file")
       }
@@ -2309,11 +2470,15 @@ prepare_current_usgs <- function() {
       after <- after[-exclusion_rows, , drop = FALSE]
       rownames(after) <- NULL
       assert_count(nrow(after), 30724L, "prepared Susquehanna rows")
-      assert_count(sum(after$solute == "TN", na.rm = TRUE), 0L,
-                   "prepared Susquehanna mislabeled TN rows")
+      assert_count(
+        sum(after$solute == "TN", na.rm = TRUE), 0L,
+        "prepared Susquehanna mislabeled TN rows"
+      )
       source_nh4 <- after$solute == "NH4" & after$solute_units == "uM"
-      assert_count(sum(source_nh4, na.rm = TRUE), 1078L,
-                   "current Susquehanna NH4 rows")
+      assert_count(
+        sum(source_nh4, na.rm = TRUE), 1078L,
+        "current Susquehanna NH4 rows"
+      )
       after$solute[source_nh4] <- "NHX"
     }
 

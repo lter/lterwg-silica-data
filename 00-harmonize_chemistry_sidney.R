@@ -21,6 +21,7 @@ workflow_dir <- if (length(script_argument) == 1L) {
 }
 source(file.path(workflow_dir, "chemistry_rules.R"))
 source(file.path(workflow_dir, "chemistry_functions.R"))
+source(file.path(workflow_dir, "recover_bnz_chemistry.R"))
 prepared_workflow_run <- read_boolean_setting(
   "SISYN_CHEM_INTERNAL_PREPARED_RUN",
   FALSE
@@ -43,6 +44,7 @@ inputs <- load_chemistry_inputs(root_dir, run_input_dir)
 data_key <- inputs$data_key
 units_key <- inputs$units_key
 site_reference <- inputs$site_reference
+reviewed_added_sites <- reviewed_site_additions(site_reference)
 method_rules <- inputs$method_rules
 chemistry_files <- inputs$chemistry_files
 source_headers <- inputs$source_headers
@@ -74,7 +76,8 @@ standardize_source <- function(file_name) {
   if (!has_repeats) return(samples)
   # keep the old grouping available so unaffected daily results do not change
   existing <- harmonize_source(file_name, data_key, units_key, run_input_dir, source_headers,
-    keep_repeats = FALSE) |>
+    keep_repeats = FALSE
+  ) |>
     standardize_source_data(data_key) |>
     dplyr::mutate(averaging_input = "existing")
   dplyr::bind_rows(samples, existing)
@@ -240,8 +243,11 @@ stop_if(anyNA(chemistry_long$date), "unparsed or missing chemistry dates remain"
 chemistry_long <- select_daily_inputs(chemistry_long)
 
 # retain unverified seine si with a flag and remove confirmed unfiltered si
-chemistry_long <- review_seine_si(chemistry_long, site_reference,
-  file.path(root_dir, "keys", "seine_silica_provider_20261022.rds"))
+chemistry_long <- review_seine_si(
+  chemistry_long, site_reference,
+  file.path(root_dir, "keys", "seine_silica_provider_20261022.rds")
+)
+chemistry_long <- flag_retained_silicon(chemistry_long)
 
 # ---- daily master chemistry ----
 stop_if(
@@ -370,11 +376,11 @@ stop_if(
 )
 stop_if(
   any(!is.na(master_chemistry$value_qualifier) &
-        !master_chemistry$value_qualifier %in% allowed_value_qualifiers) ||
+    !master_chemistry$value_qualifier %in% allowed_value_qualifiers) ||
     any(!is.na(master_chemistry$Lab_Flag) &
-          !lab_flags_supported(master_chemistry$Lab_Flag, valid_lab_flags)) ||
+      !lab_flags_supported(master_chemistry$Lab_Flag, valid_lab_flags)) ||
     any(!is.na(master_chemistry$Date_Flag) &
-          !master_chemistry$Date_Flag %in% allowed_date_flags) ||
+      !master_chemistry$Date_Flag %in% allowed_date_flags) ||
     !source_method_flags_supported(
       master_chemistry$Method_Flag,
       valid_method_flags
@@ -409,14 +415,14 @@ for (row in seq_len(nrow(method_rules))) {
 stop_if(
   any(master_chemistry$value_qualifier == "<", na.rm = TRUE) ||
     any(master_chemistry$value_qualifier == ">" &
-          master_chemistry$Lab_Flag != "above reported limit", na.rm = TRUE) ||
+      master_chemistry$Lab_Flag != "above reported limit", na.rm = TRUE) ||
     any(!is.na(master_chemistry$value_qualifier) & master_chemistry$value <= 0),
   "value qualifiers and lab flags do not match"
 )
 stop_if(
   anyDuplicated(master_chemistry) > 0L ||
     any(master_chemistry$variable != "pH" &
-          (is.na(master_chemistry$units) | trimws(master_chemistry$units) == "")),
+      (is.na(master_chemistry$units) | trimws(master_chemistry$units) == "")),
   "duplicate rows or blank units remain"
 )
 stop_if(
@@ -450,7 +456,13 @@ rm(arctic_lake_rows)
 si_sites <- master_chemistry |>
   dplyr::filter(variable == "DSi") |>
   dplyr::distinct(LTER, Stream_Name)
-# keep river and stream sites with si after the method checks
+# keep the reviewed other solutes for sites whose silica is recovered below
+restored_site_chemistry <- master_chemistry |>
+  dplyr::filter(Raw_Filename %in% c(
+    "Chile_DGA_AllSites_chemistry.csv",
+    "Japan_MLIT_AllSites_chemistry.csv"
+  ))
+# keep approved flowing-water and estuary sites with si after the method checks
 included_sites <- site_reference |>
   dplyr::filter(Waterbody %in% flowing_types, Include_in_Master_Chem == "Yes") |>
   dplyr::distinct(LTER, Stream_Name) |>
@@ -473,9 +485,10 @@ stop_if(
 stop_if(nrow(master_chemistry) == 0L, "no chemistry rows remain after site checks")
 # carry site notes onto every row and combine the sample-level flags
 master_chemistry <- add_site_and_sample_flags(master_chemistry, site_reference)
+baseline_rows <- !is_reviewed_site_addition(master_chemistry)
 checked_methods <- which(!is.na(method_rules$expected_count))
 observed_method_counts <- vapply(checked_methods, function(row) {
-  sum(method_flag_present(master_chemistry$Method_Flag, method_rules$Method_Flag[[row]]))
+  sum(method_flag_present(master_chemistry$Method_Flag, method_rules$Method_Flag[[row]]) & baseline_rows)
 }, integer(1))
 check_reviewed_counts(
   observed_method_counts,
@@ -484,29 +497,49 @@ check_reviewed_counts(
 )
 stop_if(
   any(master_chemistry$variable == "DSi" &
-        master_chemistry$Raw_Filename == canada_extractable_filename) ||
-    any(master_chemistry$variable == "DSi" &
-          master_chemistry$Raw_Filename == "EastRiverSFA_chem.csv") ||
+    master_chemistry$Raw_Filename == canada_extractable_filename) ||
     any(master_chemistry$LTER == "HBR" &
-          master_chemistry$variable == "DSi" &
-          master_chemistry$date < hbr_documented_start),
-  "silicon with an undocumented sample fraction entered the final master"
+      master_chemistry$variable == "DSi" &
+      master_chemistry$date < hbr_documented_start),
+  "excluded extractable silicon or undocumented early HBR silicon entered the final master"
 )
+
+# check the approved added sites separately from the unchanged baseline
+site_key <- function(data) paste(tolower(trimws(data$LTER)),
+  tolower(trimws(data$Stream_Name)),
+  sep = "\r"
+)
+flagged_si <- master_chemistry$variable == "DSi" &
+  master_chemistry$Raw_Filename %in% c(
+    "EastRiverSFA_chem.csv", "NT_NSW_Chem_Cleaned.csv",
+    "Danube_AllSites_chemistry.csv"
+  ) &
+  is_reviewed_site_addition(master_chemistry)
+stop_if(any(flagged_si & !method_flag_present(
+  master_chemistry$Method_Flag,
+  "Si sample fraction not documented"
+)), "a retained uncertain silicon result has no fraction flag")
+assumed_si <- flagged_si & master_chemistry$LTER == "Australia"
+stop_if(any(assumed_si & !method_flag_present(
+  master_chemistry$Method_Flag,
+  "Si basis assumed as Si"
+)), "a retained Australian silicon result has no basis flag")
+baseline_chemistry <- master_chemistry[baseline_rows, ]
 release_counts <- c(
-  corrected_date_rows = sum(master_chemistry$Date_Flag == "corrected", na.rm = TRUE),
-  inferred_date_rows = sum(master_chemistry$Date_Flag == "inferred", na.rm = TRUE),
-  restored_date_rows = sum(master_chemistry$Date_Flag == "restored", na.rm = TRUE),
-  less_than_rows = sum(master_chemistry$value_qualifier == "<", na.rm = TRUE),
-  greater_than_rows = sum(master_chemistry$value_qualifier == ">", na.rm = TRUE),
-  final_rows = nrow(master_chemistry),
-  final_sites = dplyr::n_distinct(master_chemistry$LTER, master_chemistry$Stream_Name),
+  corrected_date_rows = sum(baseline_chemistry$Date_Flag == "corrected", na.rm = TRUE),
+  inferred_date_rows = sum(baseline_chemistry$Date_Flag == "inferred", na.rm = TRUE),
+  restored_date_rows = sum(baseline_chemistry$Date_Flag == "restored", na.rm = TRUE),
+  less_than_rows = sum(baseline_chemistry$value_qualifier == "<", na.rm = TRUE),
+  greater_than_rows = sum(baseline_chemistry$value_qualifier == ">", na.rm = TRUE),
+  final_rows = nrow(baseline_chemistry),
+  final_sites = dplyr::n_distinct(baseline_chemistry$LTER, baseline_chemistry$Stream_Name),
   final_silicon_sites = dplyr::n_distinct(
-    master_chemistry$LTER[master_chemistry$variable == "DSi"],
-    master_chemistry$Stream_Name[master_chemistry$variable == "DSi"]
+    baseline_chemistry$LTER[baseline_chemistry$variable == "DSi"],
+    baseline_chemistry$Stream_Name[baseline_chemistry$variable == "DSi"]
   ),
-  final_silicon_rows = sum(master_chemistry$variable == "DSi")
+  final_silicon_rows = sum(baseline_chemistry$variable == "DSi")
 )
-# keep the reviewed counts while the new averaging rule awaits a full comparison
+# confirm that the accepted baseline sites keep their reviewed totals
 if (!identical(release_counts[names(expected_release_counts)], expected_release_counts)) {
   count_text <- paste(
     names(release_counts),
@@ -516,6 +549,41 @@ if (!identical(release_counts[names(expected_release_counts)], expected_release_
   )
   stop("reviewed final chemistry counts changed: ", count_text, call. = FALSE)
 }
+
+# add reviewed source records after checking that the original release is unchanged
+master_chemistry <- add_saved_chemistry_gaps(
+  master_chemistry, site_reference,
+  file.path(root_dir, "keys", "chemistry_gap_sources_20261108.rds")
+)
+master_chemistry <- add_portal_chemistry_gaps(
+  master_chemistry, site_reference,
+  file.path(root_dir, "keys", "chemistry_portal_sources_20261108.rds"),
+  restored_site_chemistry
+)
+# retain the additional bnz records with their reviewed sample-fraction flags
+bnz <- bnz_source_additions(
+  master_chemistry[
+    master_chemistry$LTER == "BNZ",
+    setdiff(names(master_chemistry), c("Date_Note", "Method_Note"))
+  ],
+  site_reference, file.path(root_dir, "keys", "chemistry_gap_sources_20261108.rds")
+)
+bnz_additions <- dplyr::left_join(bnz$data, bnz$method_notes,
+  by = c("Dataset", "Raw_Filename", "LTER", "Stream_Name", "variable", "Method_Flag")
+)
+bnz_additions$Date_Note <- NA_character_
+master_chemistry <- dplyr::bind_rows(master_chemistry, bnz_additions)
+stop_if(
+  anyDuplicated(master_chemistry[daily_key]) > 0L,
+  "duplicate daily chemistry records remain after the bnz additions"
+)
+rm(bnz, bnz_additions)
+added <- master_chemistry[master_chemistry$variable == "DSi", c("LTER", "Stream_Name")]
+stop_if(
+  !all(site_key(reviewed_added_sites) %in% site_key(added)),
+  "an approved added site has no retained silicon"
+)
+rm(restored_site_chemistry)
 
 # ---- output ----
 output_file <- file.path(output_dir, paste0(gsub("-", "", Sys.Date()), "_masterdata_chem.csv"))

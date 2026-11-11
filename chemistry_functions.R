@@ -63,13 +63,16 @@ read_workflow_rules <- function(path) {
   # require the current shared rules instead of filling in older copies
   required_flags <- c(
     "soluble reactive Si, filtered ICP-OES", "reported as SiO2-Dis",
-    "reactive Si, filtered (GEMS)", "shallowest sample depth used"
+    "reactive Si, filtered (GEMS)", "shallowest sample depth used",
+    "Si sample fraction not documented", "Si basis assumed as Si"
   )
   missing_flags <- setdiff(required_flags, source_flags)
   stop_if(
     length(missing_flags) > 0L,
-    paste("refresh the shared lab workbook; required method rules are missing:",
-      paste(missing_flags, collapse = ", "))
+    paste(
+      "refresh the shared lab workbook; required method rules are missing:",
+      paste(missing_flags, collapse = ", ")
+    )
   )
   stop_if(
     any(grepl("; ", c(source_flags, rules$Method_Flag), fixed = TRUE)),
@@ -78,7 +81,7 @@ read_workflow_rules <- function(path) {
   stop_if(
     anyDuplicated(source_flags) > 0L ||
       any(!is.na(rules$start_date) & !is.na(rules$end_date) &
-            rules$end_date < rules$start_date),
+        rules$end_date < rules$start_date),
     "the workflow-rules lookup contains duplicate source flags or invalid dates"
   )
   stop_if(
@@ -252,6 +255,15 @@ check_expected_columns <- function(actual_names, expected_names, file_name) {
   }
   invisible(TRUE)
 }
+# identify reported values without treating the text "na" as a missing value
+has_reported_value <- function(values) {
+  present <- !is.na(values)
+  if (is.character(values)) {
+    present <- present & trimws(values) != ""
+  }
+  present
+}
+
 # count values in selected columns while treating blank text as missing
 count_present_values <- function(data, columns) {
   present_columns <- intersect(columns, names(data))
@@ -261,11 +273,7 @@ count_present_values <- function(data, columns) {
   vapply(
     data[present_columns],
     function(values) {
-      present <- !is.na(values)
-      if (is.character(values)) {
-        present <- present & trimws(values) != ""
-      }
-      sum(present)
+      sum(has_reported_value(values))
     },
     integer(1)
   )
@@ -284,11 +292,7 @@ drop_empty_columns <- function(data, keep = character()) {
   has_values <- vapply(
     data,
     function(values) {
-      present <- !is.na(values)
-      if (is.character(values)) {
-        present <- present & trimws(values) != ""
-      }
-      any(present)
+      any(has_reported_value(values))
     },
     logical(1)
   )
@@ -383,8 +387,8 @@ collapse_repeated_cells <- function(data, mean_function) {
 # ---- reshaping ----
 # turn columns into rows in smaller groups to limit memory use
 chunked_pivot_longer <- function(
-    data, id_columns, names_to, values_to,
-    chunk_size = 10000L, values_drop_na = TRUE
+  data, id_columns, names_to, values_to,
+  chunk_size = 10000L, values_drop_na = TRUE
 ) {
   if (!is.numeric(chunk_size) || length(chunk_size) != 1L || chunk_size < 1L) {
     stop("chunk_size must be a positive number", call. = FALSE)
@@ -447,8 +451,7 @@ apply_merge_rules <- function(data, merge_rules) {
 }
 # convert source columns and merge them into one standard column
 convert_measurement <- function(values, operation, amount) {
-  switch(
-    operation,
+  switch(operation,
     keep = values,
     multiply = values * amount,
     divide = values / amount,
@@ -549,24 +552,30 @@ daily_limit_mean <- function(value, qualifier) {
 # name the substituted samples out of all observations used in the daily average
 half_limit_flag <- function(count, total) {
   if (length(count) != length(total) || anyNA(count) || anyNA(total) ||
-      any(!is.finite(count) | !is.finite(total)) ||
-      any(count < 0 | total < count | count != floor(count) | total != floor(total))) {
+    any(!is.finite(count) | !is.finite(total)) ||
+    any(count < 0 | total < count | count != floor(count) | total != floor(total))) {
     stop("daily substitution counts must be whole numbers within the observation total", call. = FALSE)
   }
   ifelse(count > 0L,
-    paste0("half reported limit used for ", count, " of ", total,
-      ifelse(total == 1L, " observation", " observations"), " in daily average"),
-    NA_character_)
+    paste0(
+      "half reported limit used for ", count, " of ", total,
+      ifelse(total == 1L, " observation", " observations"), " in daily average"
+    ),
+    NA_character_
+  )
 }
 
 is_half_limit_flag <- function(flag) {
   matched <- !is.na(flag) & grepl(paste0(
     "^half reported limit used for [1-9][0-9]* of [1-9][0-9]* observations? in daily average",
-    "(; estimated value)?$"), flag)
+    "(; estimated value)?$"
+  ), flag)
   count <- suppressWarnings(as.numeric(sub(
-    "^half reported limit used for ([0-9]+) of .*$", "\\1", flag[matched])))
+    "^half reported limit used for ([0-9]+) of .*$", "\\1", flag[matched]
+  )))
   total <- suppressWarnings(as.numeric(sub(
-    "^half reported limit used for [0-9]+ of ([0-9]+) .*$", "\\1", flag[matched])))
+    "^half reported limit used for [0-9]+ of ([0-9]+) .*$", "\\1", flag[matched]
+  )))
   matched[matched] <- is.finite(count) & is.finite(total) & count <= total
   matched
 }
@@ -628,9 +637,11 @@ daily_lab_flag <- function(qualifier, source) {
     stop("source and daily lab flags conflict", call. = FALSE)
   }
   count <- sum(below) + sum(as.numeric(sub(
-    "^half reported limit used for ([0-9]+) of .*$", "\\1", source[prepared])))
+    "^half reported limit used for ([0-9]+) of .*$", "\\1", source[prepared]
+  )))
   total <- sum(!above & !prepared) + sum(as.numeric(sub(
-    "^half reported limit used for [0-9]+ of ([0-9]+) .*$", "\\1", source[prepared])))
+    "^half reported limit used for [0-9]+ of ([0-9]+) .*$", "\\1", source[prepared]
+  )))
   flag <- if (count > 0L) {
     half_limit_flag(count, total)
   } else if (any(above)) {
@@ -853,8 +864,10 @@ apply_preferred_source_rules <- function(data, rules, expected_removed) {
 }
 
 # ---- prepare each source ----
-harmonize_source <- function(file_name, data_key, units_key, run_input_dir, source_headers,
-    keep_repeats = TRUE) {
+harmonize_source <- function(
+  file_name, data_key, units_key, run_input_dir, source_headers,
+  keep_repeats = TRUE
+) {
   mean_measurement <- function(values) {
     mean_qualified_measurement(values, unique(c(data_key$NA_indicator, fixed_missing_tokens)))
   }
@@ -1068,7 +1081,7 @@ standardize_source_data <- function(chemistry_wide, data_key) {
     dplyr::mutate(
       value = as.complex(stringr::str_remove(measurement, "^\\s*[<>]\\s*")) +
         (stringr::str_detect(measurement, "^\\s*<") -
-           stringr::str_detect(measurement, "^\\s*>")) * 1i
+          stringr::str_detect(measurement, "^\\s*>")) * 1i
     ) |>
     dplyr::select(-measurement) |>
     dplyr::arrange(solute) |>
@@ -1252,38 +1265,94 @@ review_seine_si <- function(data, site_reference, provider_file) {
   selected <- which(data$Raw_Filename == "Cleaned_Seine_Data.csv" & data$variable == "DSi")
   if (!length(selected)) return(data)
   provider <- readRDS(provider_file)
-  stop_if(!is.null(provider[["next"]]) || nrow(provider$data) != provider$count,
-    "the saved seine silica download is incomplete")
+  stop_if(
+    !is.null(provider[["next"]]) || nrow(provider$data) != provider$count,
+    "the saved seine silica download is incomplete"
+  )
   sites <- site_reference |>
     dplyr::filter(LTER == "Seine") |>
     dplyr::transmute(Stream_Name,
-      station = sprintf("%08d", as.integer(Original_Stream_Name)))
-  stop_if(anyDuplicated(sites$station) > 0L,
-    "seine station codes must identify one site each")
+      station = sprintf("%08d", as.integer(Original_Stream_Name))
+    )
+  stop_if(
+    anyDuplicated(sites$station) > 0L,
+    "seine station codes must identify one site each"
+  )
   lookup <- provider$data |>
     dplyr::filter(code_parametre == "1348", symbole_unite == "mg(SiO2)/L") |>
-    dplyr::mutate(station = as.character(code_station),
-      sample_date = as.Date(date_prelevement), si = round(resultat * 28 / 60, 2)) |>
+    dplyr::mutate(
+      station = as.character(code_station),
+      sample_date = as.Date(date_prelevement), si = round(resultat * 28 / 60, 2)
+    ) |>
     dplyr::group_by(station, sample_date, si) |>
-    dplyr::summarise(filtered = any(code_fraction == "3"),
-      unfiltered = any(code_fraction == "23"), .groups = "drop")
+    dplyr::summarise(
+      filtered = any(code_fraction == "3"),
+      unfiltered = any(code_fraction == "23"), .groups = "drop"
+    )
   # unmatched values and matches to both fractions are not called unfiltered
   target <- data[selected, , drop = FALSE] |>
-    dplyr::transmute(Stream_Name, sample_date = date,
-      si = round(value * atomic_mass[["Si"]] / 1000, 2)) |>
+    dplyr::transmute(Stream_Name,
+      sample_date = date,
+      si = round(value * atomic_mass[["Si"]] / 1000, 2)
+    ) |>
     dplyr::left_join(sites, by = "Stream_Name", relationship = "many-to-one") |>
-    dplyr::left_join(lookup, by = c("station", "sample_date", "si"),
-      relationship = "many-to-one")
+    dplyr::left_join(lookup,
+      by = c("station", "sample_date", "si"),
+      relationship = "many-to-one"
+    )
   remove <- !is.na(target$unfiltered) & target$unfiltered & !target$filtered
   confirmed_filtered <- !is.na(target$filtered) & target$filtered & !target$unfiltered
   uncertain <- selected[!remove & !confirmed_filtered]
   old <- data$source_method_flag[uncertain]
   label <- "Si filtration not confirmed"
   data$source_method_flag[uncertain] <- ifelse(is.na(old) | old == "", label,
-    paste(old, label, sep = "; "))
+    paste(old, label, sep = "; ")
+  )
   keep <- rep(TRUE, nrow(data))
   keep[selected[remove]] <- FALSE
   data[keep, , drop = FALSE]
+}
+
+# ---- retained silicon with documented uncertainty ----
+
+# read the approved added sites from the shared reference rather than a list in code
+reviewed_site_additions <- function(site_reference) {
+  flagged <- method_flag_present(site_reference$Flag, "Si sample fraction not documented") |
+    method_flag_present(site_reference$Flag, "tidal/estuarine station")
+  unique(site_reference[
+    which(site_reference$Include_in_Master_Chem == "Yes" & flagged),
+    c("LTER", "Stream_Name")
+  ])
+}
+
+is_reviewed_site_addition <- function(data) {
+  key <- function(rows) paste(tolower(trimws(rows$LTER)),
+    tolower(trimws(rows$Stream_Name)),
+    sep = "\r"
+  )
+  key(data) %in% key(reviewed_added_sites)
+}
+
+flag_retained_silicon <- function(data) {
+  silicon <- data$variable == "DSi"
+  east <- silicon & data$Raw_Filename == "EastRiverSFA_chem.csv"
+  australia <- silicon & data$Raw_Filename == "NT_NSW_Chem_Cleaned.csv" &
+    is_reviewed_site_addition(data)
+  danube <- silicon & data$Raw_Filename == "Danube_AllSites_chemistry.csv" &
+    is_reviewed_site_addition(data)
+  targets <- list(
+    "Si sample fraction not documented" = east | australia | danube,
+    "Si basis assumed as Si" = australia
+  )
+  # add each label once and preserve any earlier source flags
+  for (label in names(targets)) {
+    rows <- which(targets[[label]] & !method_flag_present(data$source_method_flag, label))
+    old <- data$source_method_flag[rows]
+    data$source_method_flag[rows] <- ifelse(is.na(old) | old == "", label,
+      paste(old, label, sep = "; ")
+    )
+  }
+  data
 }
 
 # ---- workflow inputs ----
@@ -1392,6 +1461,279 @@ apply_source_review_rules <- function(raw_data, file_name) {
   raw_data
 }
 
+# ---- saved nitrogen and chloride records ----
+
+# add only missing daily records from the reviewed original source tables
+add_saved_chemistry_gaps <- function(master, site_reference, source_file) {
+  expected_hash <- "3d68f34d70196423c7874a9bbde37788"
+  check_file_versions(source_file, expected_hash, "saved chemistry gap sources")
+  saved <- readRDS(source_file)
+  stopifnot(
+    nrow(saved$data$mcm) == 3770L, nrow(saved$data$bnz) == 12593L,
+    identical(unname(saved$md5), c(
+      "794cdd781217b487460446ec598e6d5d",
+      "452a7778c28b5300a90a7d5a4d45ea40"
+    ))
+  )
+  approved <- site_reference[site_reference$Include_in_Master_Chem == "Yes" &
+    !is.na(site_reference$Include_in_Master_Chem), c("LTER", "Stream_Name")]
+  site_key <- function(data) paste(data$LTER, tolower(trimws(data$Stream_Name)), sep = "\r")
+  stopifnot(!anyDuplicated(site_key(approved)))
+  notes <- function(values) {
+    values <- unique(values[!is.na(values) & nzchar(trimws(values))])
+    if (length(values)) paste(values, collapse = "; ") else NA_character_
+  }
+  source_notes <- function(values, solute) {
+    # bracketed source comments apply only to the solutes they name
+    vapply(values, function(value) {
+      parts <- strsplit(value, "(?=\\[)", perl = TRUE)[[1]]
+      keep <- !startsWith(trimws(parts), "[")
+      tagged <- which(!keep)
+      for (i in tagged) {
+        tag <- sub("^\\[([^]]+)\\].*$", "\\1", parts[i])
+        keep[i] <- if (solute == "NOx") grepl("NO3.*NO2", tag) else
+          solute %in% strsplit(gsub("[^A-Za-z0-9]+", " ", tag), " +")[[1]]
+      }
+      notes(trimws(parts[keep]))
+    }, character(1))
+  }
+
+  # retain the published nitrogen forms instead of treating them as interchangeable
+  mcm <- unique(data.table::as.data.table(saved$data$mcm))
+  raw_date <- sub(" .*", "", mcm$date_time)
+  formats <- ifelse(nchar(sub(".*/", "", raw_date)) == 2L, "%m/%d/%y", "%m/%d/%Y")
+  dates <- as.Date(rep(NA_character_, length(raw_date)))
+  for (format in unique(formats)) {
+    selected <- formats == format
+    dates[selected] <- as.Date(raw_date[selected], format = format)
+  }
+  stopifnot(!anyNA(dates), all(dates >= as.Date("1993-01-01") & dates <= as.Date("2023-12-31")))
+  mcm_names <- data.frame(LTER = "MCM", Stream_Name = mcm$location_name)
+  mcm_sites <- approved$Stream_Name[match(site_key(mcm_names), site_key(approved))]
+  fields <- c(NO3 = "no3_n_um", NO2 = "no2_n_um", NOx = "no3_no2_n_um", NH4 = "nh4_n_um")
+  samples <- list()
+  for (solute in names(fields)) {
+    reported <- trimws(mcm[[fields[[solute]]]])
+    values <- suppressWarnings(as.numeric(reported))
+    stopifnot(all(!nzchar(reported) | is.finite(values)))
+    samples[[solute]] <- data.table::data.table(
+      Dataset = "MCM", Raw_Filename = saved$files[["mcm"]], LTER = "MCM",
+      Stream_Name = mcm_sites, date = dates, variable = solute, units = "uM",
+      value = values, source_note = source_notes(mcm$remarks, solute)
+    )
+  }
+
+  # remove repeated copies of complete source rows before averaging chloride
+  bnz <- unique(data.table::as.data.table(saved$data$bnz))
+  reported <- trimws(bnz[["Chloride(uM)"]])
+  chloride <- suppressWarnings(as.numeric(reported))
+  stopifnot(all(reported %in% c("", "NA") | is.finite(chloride)))
+  bnz_dates <- as.Date(bnz[["Sample Date"]], format = "%m/%d/%Y")
+  stopifnot(!anyNA(bnz_dates))
+  bnz_names <- data.frame(LTER = "BNZ", Stream_Name = bnz$Watershed)
+  bnz_sites <- approved$Stream_Name[match(site_key(bnz_names), site_key(approved))]
+  samples$Cl <- data.table::data.table(
+    Dataset = "BNZ", Raw_Filename = saved$files[["bnz"]], LTER = "BNZ",
+    Stream_Name = bnz_sites, date = bnz_dates, variable = "Cl", units = "uM",
+    value = chloride, source_note = NA_character_
+  )
+  samples <- data.table::rbindlist(samples)
+  samples <- samples[!is.na(Stream_Name) & is.finite(value)]
+  daily_key <- c("LTER", "Stream_Name", "date", "variable", "units")
+  daily <- samples[, list(
+    value = mean(value), observations = .N,
+    negative_source_value = any(value < 0), source_note = notes(source_note)
+  ),
+  by = c("Dataset", "Raw_Filename", daily_key)
+  ]
+  daily$Lab_Flag <- vapply(seq_len(nrow(daily)), function(row) {
+    notes(c(
+      if (daily$observations[row] > 1L) paste("daily mean of", daily$observations[row], "source observations"),
+      if (daily$negative_source_value[row]) "negative source value retained",
+      if (!is.na(daily$source_note[row])) paste("source note:", daily$source_note[row])
+    ))
+  }, character(1))
+
+  # existing measurements and flags always take priority on overlapping dates
+  original <- data.table::as.data.table(master)
+  existing <- unique(original[, daily_key, with = FALSE])
+  additions <- daily[!existing, on = daily_key]
+  stopifnot(
+    !anyDuplicated(additions, by = daily_key), all(is.finite(additions$value)),
+    all(site_key(additions) %in% site_key(original)), all(additions$units == "uM")
+  )
+  empty <- as.data.frame(master)[rep(NA_integer_, nrow(additions)), , drop = FALSE]
+  for (field in intersect(names(additions), names(empty))) empty[[field]] <- additions[[field]]
+  empty$Site_Flag <- NULL
+  empty$Sample_Flag <- NULL
+  rownames(empty) <- NULL
+  empty <- add_site_and_sample_flags(empty, site_reference)
+  result <- dplyr::bind_rows(master, empty)
+  stopifnot(
+    identical(as.list(result[seq_len(nrow(master)), ]), as.list(as.data.frame(master))),
+    !anyDuplicated(result[daily_key]),
+    identical(tools::md5sum(source_file), stats::setNames(expected_hash, source_file))
+  )
+  attr(result, "saved_chemistry_gap_check") <- list(
+    source_md5 = expected_hash, rows_added = nrow(additions),
+    counts = as.data.frame(additions[, list(rows = .N, sites = data.table::uniqueN(Stream_Name)),
+      by = c("LTER", "variable")
+    ]), source_references = saved$references
+  )
+  result
+}
+
+# ---- recovered provider records ----
+
+# restore reviewed sites and nitrate without changing an existing daily result
+add_portal_chemistry_gaps <- function(master, site_reference, source_file, restored_chemistry) {
+  expected_hash <- "d5d45c99f05c5b26a4b69fd5558b272e"
+  check_file_versions(source_file, expected_hash, "recovered chemistry sources")
+  saved <- readRDS(source_file)
+  key <- function(data) paste(data$LTER, data$Stream_Name, sep = "\r")
+  daily_key <- c("LTER", "Stream_Name", "date", "variable", "units")
+  approved <- site_reference[which(site_reference$Include_in_Master_Chem == "Yes"), ]
+  stopifnot(
+    nrow(saved$chile) == 31L, nrow(saved$japan) == 63L,
+    nrow(saved$guadeloupe) == 83L, nrow(saved$restored_sites) == 4L,
+    nrow(restored_chemistry) == 1511L,
+    all(key(saved$restored_sites) %in% key(approved)),
+    all(key(restored_chemistry) %in% key(saved$restored_sites)),
+    !any(restored_chemistry$variable == "DSi"),
+    setequal(key(restored_chemistry), key(saved$restored_sites)),
+    !anyDuplicated(restored_chemistry[daily_key])
+  )
+
+  # both providers report the mass basis but do not document sample filtration
+  chile <- saved$chile
+  chile_site <- match(chile$`COD. ESTACIÓN`, saved$chile_sites$station)
+  stopifnot(
+    !anyNA(chile_site), all(chile$UNIDAD == "mg/l Si"),
+    all(chile$CALIDAD %in% c("", "=")), all(chile$PARAMETRO == "Silice")
+  )
+  silicon <- dplyr::bind_rows(
+    data.frame(
+      Dataset = "Chile", Raw_Filename = "calidad_agua_historico.txt",
+      LTER = "Chile", Stream_Name = saved$chile_sites$Stream_Name[chile_site],
+      date = as.Date(chile$`FECHA MEDICION`, "%d-%m-%Y"),
+      value = as.numeric(chile$VALOR) * 1000 / atomic_mass[["Si"]],
+      Method_Note = paste(
+        "DGA reports silica as mg/L Si; filtration is undocumented.",
+        saved$references[["chile"]]
+      )
+    ),
+    data.frame(
+      Dataset = "Japan", Raw_Filename = "yanase_chemistry_tables.json",
+      LTER = "Japan", Stream_Name = saved$restored_sites$Stream_Name[
+        saved$restored_sites$LTER == "Japan"
+      ],
+      date = as.Date(as.character(saved$japan$date)),
+      value = saved$japan$value_mg_SiO2_L * 1000 / molecule_mass[["SiO2"]],
+      Method_Note = paste(
+        "MLIT silica uses a SiO2 mass basis; the historical sample fraction is undocumented.",
+        saved$references[["japan"]]
+      )
+    )
+  ) |>
+    dplyr::mutate(
+      variable = "DSi", units = "uM", Lab_Flag = NA_character_,
+      value_qualifier = NA_character_, Date_Flag = NA_character_, Date_Note = NA_character_,
+      Method_Flag = "Si sample fraction not documented"
+    )
+  stopifnot(
+    nrow(silicon) == 94L, !anyNA(silicon$date), all(is.finite(silicon$value)),
+    all(silicon$value > 0), !anyDuplicated(silicon[daily_key])
+  )
+
+  # match only the three reviewed river stations and retain the provider quality codes
+  nitrate <- data.table::as.data.table(saved$guadeloupe)
+  station <- match(nitrate$code_station, saved$guadeloupe_sites$code_station)
+  stopifnot(
+    !anyNA(station), all(nitrate$code_unite == "173"),
+    all(nitrate$code_parametre == "1340"), all(nitrate$code_remarque %in% c("1", "10")),
+    all(nitrate$code_qualification %in% c("1", "3")),
+    all(nitrate$code_fraction %in% c("3", "23")),
+    !anyDuplicated(nitrate[, c(
+      "code_station", "code_prelevement", "code_analyse",
+      "code_fraction", "code_parametre"
+    ), with = FALSE])
+  )
+  nitrate$Stream_Name <- saved$guadeloupe_sites$Stream_Name[station]
+  nitrate$date <- as.Date(nitrate$date_prelevement)
+  nitrate$value <- as.numeric(nitrate$resultat) * 1000 / molecule_mass[["NO3"]]
+  nitrate$qualifier <- ifelse(nitrate$code_remarque == "10", "<", NA_character_)
+  stopifnot(!anyNA(nitrate$date), all(is.finite(nitrate$value)), all(nitrate$value >= 0))
+  # prefer the aqueous fraction when raw and aqueous samples share a day
+  nitrate[, has_aqueous := any(code_fraction == "3"), by = c("Stream_Name", "date")]
+  nitrate <- nitrate[!has_aqueous | code_fraction == "3"]
+  nitrate <- nitrate[, list(
+    value = daily_limit_mean(value, qualifier),
+    Lab_Flag = half_limit_flag(sum(!is.na(qualifier) & qualifier == "<"), .N),
+    uncertain = any(code_qualification == "3")
+  ),
+  by = c("Stream_Name", "date", "code_fraction")
+  ]
+  stopifnot(nrow(nitrate) == 82L, data.table::uniqueN(nitrate$Stream_Name) == 3L)
+  nitrate$Method_Flag <- ifelse(nitrate$code_fraction == "3",
+    "Hub'Eau nitrate, aqueous fraction", "Hub'Eau nitrate, raw water"
+  )
+  nitrate$Method_Flag[nitrate$uncertain] <- paste(nitrate$Method_Flag[nitrate$uncertain],
+    "Hub'Eau qualification uncertain",
+    sep = "; "
+  )
+  station <- match(nitrate$Stream_Name, saved$guadeloupe_sites$Stream_Name)
+  nitrate$Method_Note <- paste(
+    "Hub'Eau nitrate reported as mg(NO3)/L; matched river-station coordinate offset",
+    saved$guadeloupe_sites$offset_m[station], "m;",
+    ifelse(nitrate$code_fraction == "3", "aqueous, filtered or centrifuged fraction.", "raw-water fraction."),
+    ifelse(nitrate$uncertain, "Provider qualification code 3: uncertain.", "Provider qualification code 1: correct."),
+    saved$references[["guadeloupe"]]
+  )
+  nitrate <- as.data.frame(nitrate) |>
+    dplyr::mutate(
+      Dataset = "Guadeloupe", LTER = "Guadeloupe", variable = "NO3",
+      Raw_Filename = basename(source_file), units = "uM", Date_Flag = NA_character_,
+      Date_Note = NA_character_, value_qualifier = NA_character_
+    )
+
+  additions <- dplyr::bind_rows(restored_chemistry, silicon, nitrate) |>
+    dplyr::select(dplyr::any_of(c(names(master), "Method_Note", "Date_Note")))
+  additions <- dplyr::anti_join(additions, master[daily_key], by = daily_key)
+  stopifnot(
+    !anyDuplicated(additions[daily_key]), all(is.finite(additions$value)),
+    all(key(additions) %in% key(approved)),
+    all(is.na(additions$Method_Flag) == is.na(additions$Method_Note))
+  )
+  method_notes <- dplyr::distinct(
+    additions,
+    Dataset, Raw_Filename, LTER, Stream_Name, variable, Method_Flag, Method_Note
+  ) |>
+    dplyr::filter(!is.na(Method_Note))
+  note_key <- c("Dataset", "Raw_Filename", "LTER", "Stream_Name", "variable", "Method_Flag")
+  stopifnot(!anyDuplicated(method_notes[note_key]))
+  additions$Site_Flag <- NULL
+  additions$Sample_Flag <- NULL
+  additions <- add_site_and_sample_flags(additions, site_reference)
+  additions <- additions[names(master)]
+  result <- dplyr::bind_rows(master, additions)
+  stopifnot(
+    identical(as.list(result[seq_len(nrow(master)), ]), as.list(as.data.frame(master))),
+    !anyDuplicated(result[daily_key]),
+    all(key(saved$restored_sites) %in% key(result[result$variable == "DSi", ])),
+    identical(unname(tools::md5sum(source_file)), expected_hash)
+  )
+  attr(result, "portal_chemistry_gap_check") <- list(
+    source_md5 = expected_hash,
+    rows_added = nrow(additions), method_notes = method_notes,
+    counts = as.data.frame(data.table::as.data.table(additions)[,
+      list(rows = .N, sites = data.table::uniqueN(Stream_Name)),
+      by = c("LTER", "variable")
+    ]),
+    source_references = saved$references
+  )
+  result
+}
+
 # ---- preparation helpers ----
 
 # ---- paths ----
@@ -1481,17 +1823,68 @@ write_prepared_csv <- function(filename, data, directory) {
   if (!identical(names(data), names(written)) || nrow(data) != nrow(written)) {
     stop("written row or column structure changed in '", filename, "'")
   }
-  changed <- character()
-  for (column in names(data)) {
-    if (!identical(data[[column]], written[[column]])) {
-      changed <- c(changed, column)
-    }
-  }
-  stop("written values changed in '", filename, "' for columns: ",
-    paste(changed, collapse = ", "))
+  changed <- changed_source_columns(data, written)
+  stop(
+    "written values changed in '", filename, "' for columns: ",
+    paste(changed, collapse = ", ")
+  )
 }
 
 # ---- checking and formatting values ----
+
+# identify changed columns in the supplied order
+changed_source_columns <- function(before, after, columns = names(before)) {
+  changed <- character()
+  for (column in columns) {
+    if (!identical(before[[column]], after[[column]])) {
+      changed <- c(changed, column)
+    }
+  }
+  changed
+}
+
+# allow only the columns explicitly named by a source repair
+assert_unchanged_columns <- function(before, after, changed_columns, filename) {
+  if (!identical(dim(before), dim(after)) || !identical(names(before), names(after))) {
+    stop("row or column structure changed in '", filename, "'")
+  }
+
+  unchanged_columns <- setdiff(names(before), changed_columns)
+  changed <- changed_source_columns(before, after, unchanged_columns)
+  if (length(changed)) {
+    stop("an unapproved column changed in '", filename, "': ", changed[[1]])
+  }
+}
+
+# read numeric source text without printing coercion warnings
+as_number <- function(x) {
+  suppressWarnings(as.numeric(x))
+}
+
+# compare source values using the tolerance chosen by each source rule
+assert_values <- function(observed, expected, label, tolerance = 1e-10) {
+  observed <- as.numeric(observed)
+  expected <- as.numeric(expected)
+
+  if (
+    length(observed) != length(expected) ||
+      any(is.na(observed) != is.na(expected)) ||
+      any(abs(observed - expected) > tolerance, na.rm = TRUE)
+  ) {
+    stop(label, " changed")
+  }
+}
+
+# preserve missing-value positions when comparing source text
+same_character <- function(x, y) {
+  identical(as.character(x), as.character(y)) &&
+    identical(is.na(x), is.na(y))
+}
+
+# normalize spacing and case for source-site comparisons
+normalize_site_name <- function(x) {
+  tolower(gsub("[[:space:]]+", " ", trimws(as.character(x))))
+}
 
 is_blank <- function(value) {
   is.na(value) | trimws(as.character(value)) %in% c("", "NA")
@@ -1543,9 +1936,11 @@ preparation_files <- function(provider_dir, evidence_dir, preparation_dir) {
     "usa_arc/1988-2010_Kling_Akchem_eml.xml"
   ))
   canada <- sort(list.files(file.path(provider_dir, "canada_eccc"),
-    pattern = "2000-present[.]csv$", full.names = TRUE))
+    pattern = "2000-present[.]csv$", full.names = TRUE
+  ))
   usgs <- sort(list.files(file.path(provider_dir, "usa_usgs_samples", "responses"),
-    pattern = "^samples_sites.*_pcodes(06|16).*\\.csv$", full.names = TRUE))
+    pattern = "^samples_sites.*_pcodes(06|16).*\\.csv$", full.names = TRUE
+  ))
   problems <- character()
   missing <- c(scripts, evidence, providers)
   missing <- missing[!file.exists(missing)]
@@ -1562,12 +1957,15 @@ preparation_files <- function(provider_dir, evidence_dir, preparation_dir) {
 
 check_chemistry_setup <- function(provider_dir, evidence_dir, preparation_dir) {
   files <- preparation_files(provider_dir, evidence_dir, preparation_dir)
-  packages <- c("librarian", "purrr", "readxl", "stringr", "tidyverse",
-    "data.table", "dplyr", "jsonlite")
+  packages <- c(
+    "librarian", "purrr", "readxl", "stringr", "tidyverse",
+    "data.table", "dplyr", "jsonlite"
+  )
   missing <- packages[!vapply(packages, requireNamespace, logical(1), quietly = TRUE)]
   if (length(missing)) {
     stop("install these R packages before running: ", paste(missing, collapse = ", "),
-      call. = FALSE)
+      call. = FALSE
+    )
   }
   if (!nzchar(Sys.which("unzip"))) {
     stop("the unzip command is needed to read the provider archives", call. = FALSE)
@@ -1587,25 +1985,34 @@ check_chemistry_setup <- function(provider_dir, evidence_dir, preparation_dir) {
 
   # check the original source versions required by the preparation scripts
   paths <- c(
-    file.path(provider_dir, "cameroon_mtropics",
-      "Cameroon_MTROPICS_HYDROCHEMICAL_DATA_NYONG_20260915.zip"),
-    file.path(provider_dir, "australia_mdba",
-      "MDBA_RMWQMP_physico-chemical-data_20260914.csv"),
+    file.path(
+      provider_dir, "cameroon_mtropics",
+      "Cameroon_MTROPICS_HYDROCHEMICAL_DATA_NYONG_20260915.zip"
+    ),
+    file.path(
+      provider_dir, "australia_mdba",
+      "MDBA_RMWQMP_physico-chemical-data_20260914.csv"
+    ),
     file.path(evidence_dir, "yanase_chemistry_tables.json"),
     file.path(evidence_dir, "netherlands_rws_target_chemistry.rds"),
-    file.path(provider_dir, "usa_arc", c("1988-2010_Kling_Akchem.csv",
+    file.path(provider_dir, "usa_arc", c(
+      "1988-2010_Kling_Akchem.csv",
       "legacy_audit_ARC_2002-2024_Kling_AON_Imnavait_Chemistry.csv",
       "legacy_audit_ARC_2012-2020_Kling_Akchem.02.csv",
-      "1988-2010_Kling_Akchem_eml.xml"))
+      "1988-2010_Kling_Akchem_eml.xml"
+    ))
   )
-  hashes <- c("8b9238192be6fca67e70bbb3cc697168", "5832d9fb5276ed53e75a84c6e0f4bf89",
+  hashes <- c(
+    "8b9238192be6fca67e70bbb3cc697168", "5832d9fb5276ed53e75a84c6e0f4bf89",
     "69c4167a601ebd77cc890a79e3a13251", "dd92c6ab6756479e569bb11312185ac4",
     "a3db20ce1bb2a460a7ee9544a7d87980", "9fcb805438e69755aa436d52d6a48d30",
-    "0d3f435c4154ac18d333732bd97f30dd", "774af538a9b09bcb4ec50900584dd6d3")
+    "0d3f435c4154ac18d333732bd97f30dd", "774af538a9b09bcb4ec50900584dd6d3"
+  )
   changed <- unname(tools::md5sum(paths)) != hashes
   if (any(changed)) {
     stop("reviewed provider files differ: ", paste(basename(paths[changed]), collapse = ", "),
-      call. = FALSE)
+      call. = FALSE
+    )
   }
   invisible(files)
 }
@@ -1669,8 +2076,10 @@ write_chemistry_metadata <- function(metadata, file) {
   notes <- as.data.frame(notes, stringsAsFactors = FALSE)
   notes[] <- lapply(notes, as.character)
   write.csv(notes, file, row.names = FALSE, na = "")
-  saved <- read.csv(file, colClasses = "character", na.strings = "",
-    check.names = FALSE)
+  saved <- read.csv(file,
+    colClasses = "character", na.strings = "",
+    check.names = FALSE
+  )
   if (!identical(saved, notes)) {
     stop("the saved metadata changed", call. = FALSE)
   }
@@ -1693,21 +2102,24 @@ run_r_script <- function(
 
     old_values <- Sys.getenv(setting_names, unset = NA_character_)
     do.call(Sys.setenv, as.list(settings))
-    on.exit({
-      missing_before <- is.na(old_values)
-      if (any(missing_before)) {
-        Sys.unsetenv(setting_names[missing_before])
-      }
-      if (any(!missing_before)) {
-        do.call(
-          Sys.setenv,
-          as.list(stats::setNames(
-            old_values[!missing_before],
-            setting_names[!missing_before]
-          ))
-        )
-      }
-    }, add = TRUE)
+    on.exit(
+      {
+        missing_before <- is.na(old_values)
+        if (any(missing_before)) {
+          Sys.unsetenv(setting_names[missing_before])
+        }
+        if (any(!missing_before)) {
+          do.call(
+            Sys.setenv,
+            as.list(stats::setNames(
+              old_values[!missing_before],
+              setting_names[!missing_before]
+            ))
+          )
+        }
+      },
+      add = TRUE
+    )
   }
 
   log_dir <- Sys.getenv("SISYN_CHEM_LOG_DIR", unset = tempdir())
